@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%" fx="30%" fy="30%">
+      <stop offset="0%" stop-color="#262320" />
+      <stop offset="100%" stop-color="#141210" />
+    </radialGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FCD34D" />
+      <stop offset="50%" stop-color="#D97706" />
+      <stop offset="100%" stop-color="#92400E" />
+    </linearGradient>
+    <linearGradient id="creamGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#FAF8F5" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background Base -->
+  <rect width="512" height="512" rx="108" fill="url(#bgGrad)" />
+
+  <!-- Outer Art Deco Gold Ring & Stepped Corners -->
+  <rect x="28" y="28" width="456" height="456" rx="84" fill="none" stroke="url(#goldGrad)" stroke-width="8" stroke-opacity="0.9" />
+  <rect x="44" y="44" width="424" height="424" rx="68" fill="none" stroke="url(#goldGrad)" stroke-width="3" stroke-opacity="0.4" />
+
+  <!-- Corner Art Deco Chevrons -->
+  <polygon points="56,56 86,56 56,86" fill="url(#goldGrad)" opacity="0.8" />
+  <polygon points="456,56 426,56 456,86" fill="url(#goldGrad)" opacity="0.8" />
+  <polygon points="56,456 86,456 56,426" fill="url(#goldGrad)" opacity="0.8" />
+  <polygon points="456,456 426,456 456,426" fill="url(#goldGrad)" opacity="0.8" />
+
+  <!-- Deco Geometric Diamond Accent at Top and Bottom -->
+  <polygon points="256,60 268,76 256,92 244,76" fill="url(#goldGrad)" />
+  <polygon points="256,420 268,436 256,452 244,436" fill="url(#goldGrad)" />
+
+  <!-- Central Broadside "R" Letterform (Cinzel / Art Deco Classical Serif) -->
+  <g transform="translate(0, 10)">
+    <!-- Shadow for Depth -->
+    <path d="M 166 128 L 290 128 C 348 128 386 160 386 210 C 386 250 354 282 308 290 L 396 386 L 334 386 L 254 298 L 216 298 L 216 386 L 166 386 Z" fill="#000000" opacity="0.5" transform="translate(4, 6)" />
+    
+    <!-- Gold Trim Underlayer -->
+    <path d="M 166 128 L 290 128 C 348 128 386 160 386 210 C 386 250 354 282 308 290 L 396 386 L 334 386 L 254 298 L 216 298 L 216 386 L 166 386 Z M 216 172 L 216 254 L 284 254 C 318 254 338 238 338 213 C 338 188 318 172 284 172 Z" fill="url(#goldGrad)" />
+
+    <!-- Pure Cream Inset Face -->
+    <path d="M 172 134 L 288 134 C 342 134 378 164 378 210 C 378 246 348 276 304 284 L 388 380 L 338 380 L 256 292 L 212 292 L 212 380 L 172 380 Z M 212 178 L 212 248 L 282 248 C 312 248 330 234 330 213 C 330 192 312 178 282 178 Z" fill="url(#creamGrad)" />
+  </g>
+
+  <!-- Left/Right Deco Accent Pips -->
+  <polygon points="76,256 92,244 108,256 92,268" fill="url(#goldGrad)" opacity="0.7" />
+  <polygon points="404,256 420,244 436,256 420,268" fill="url(#goldGrad)" opacity="0.7" />
+</svg>
