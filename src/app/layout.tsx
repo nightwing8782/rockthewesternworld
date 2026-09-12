@@ -20,7 +20,7 @@ const sourceSerif = Source_Serif_4({
 
 export const metadata: Metadata = {
   title: "Rock The Western World | It's Either Sadness or Euphoria",
-  description: 'An occasional cultural journal, reading log, and essays by Dan Sullivan.',
+  description: 'An occasional cultural journal, reading log, and essays by Dan Billings.',
   icons: {
     icon: [
       { url: '/favicon.svg', type: 'image/svg+xml' },

@@ -97,7 +97,7 @@ export default async function BlogPostPage({ params }: PageProps) {
   const postUrl = `${siteUrl}/${slug}`;
   const authorObj = {
     '@type': 'Person',
-    name: 'Dan Sullivan',
+    name: 'Dan Billings',
     url: siteUrl,
   };
 

@@ -130,7 +130,7 @@ export function generateDispatchEmailHtml(opts: DispatchEmailOptions): string {
 
               <!-- Metadata / Byline -->
               <p style="margin: 0 0 24px 0; font-size: 12px; color: #78716C; font-family: Arial, sans-serif;">
-                By <strong style="color: #1C1917;">Dan</strong> &nbsp;•&nbsp; ${readingTime} min read
+                By <strong style="color: #1C1917;">Dan Billings</strong> &nbsp;•&nbsp; ${readingTime} min read
               </p>
 
               <!-- Excerpt / Pullquote -->
