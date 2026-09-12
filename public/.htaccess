@@ -1,0 +1,13 @@
+RewriteEngine On
+RewriteBase /
+
+# Check for corresponding HTML file
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.html -f
+RewriteRule ^(.*)$ $1.html [L]
+
+# SPA fallback for private studio
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^journal/?$ journal/index.html [L]

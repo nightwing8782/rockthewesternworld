@@ -1,26 +1,145 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #FAF8F5;
+  --foreground: #242120;
+  --paper-cream: #FAF8F5;
+  --paper-tint: #F2ECE1;
+  --paper-border: #DDD5C7;
+  --ink-primary: #242120;
+  --ink-deep: #1C1917;
+  --ink-body: #292524;
+  --ink-secondary: #44403C;
+  --chagall-blue: #1E40AF;
+  --chagall-blue-hover: #1D4ED8;
+  --bronze-amber: #B45309;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-display: var(--font-cinzel), 'Cinzel', Georgia, serif;
+  --font-serif: var(--font-source-serif), 'Source Serif 4', Georgia, serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: #FAF8F5;
+  color: #242120;
+  font-family: var(--font-source-serif), 'Source Serif 4', Georgia, serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+.font-display {
+  font-family: var(--font-cinzel), 'Cinzel', Georgia, serif;
+}
+
+.font-reading {
+  font-family: var(--font-source-serif), 'Source Serif 4', Georgia, serif;
+}
+
+/* Sturdy Double Hairline Border */
+.deco-double-border {
+  border-top: 2px solid #242120;
+  border-bottom: 1px solid #242120;
+}
+
+/* Sturdy Broadsheet Dropcap */
+.deco-dropcap::first-letter {
+  font-family: var(--font-cinzel), 'Cinzel', Georgia, serif;
+  float: left;
+  font-size: 4rem;
+  line-height: 0.82;
+  font-weight: 800;
+  padding-right: 0.85rem;
+  padding-top: 0.2rem;
+  color: #1C1917;
+}
+
+/* Reading measure & typography for longform reader and studio */
+.prose-broadsheet {
+  max-width: 680px;
+  margin-left: auto;
+  margin-right: auto;
+  font-family: var(--font-source-serif), 'Source Serif 4', Georgia, serif;
+  color: #242120;
+  font-size: 18px;
+  line-height: 1.75;
+}
+
+@media (min-width: 768px) {
+  .prose-broadsheet {
+    font-size: 20px;
+    line-height: 1.8;
+  }
+}
+
+.prose-broadsheet p {
+  margin-bottom: 1.5em;
+  color: #242120;
+}
+
+.prose-broadsheet h2 {
+  font-family: var(--font-cinzel), 'Cinzel', Georgia, serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+  color: #1C1917;
+}
+
+.prose-broadsheet h3 {
+  font-family: var(--font-cinzel), 'Cinzel', Georgia, serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+  color: #1C1917;
+}
+
+.prose-broadsheet blockquote {
+  border-left: 3px solid #1E40AF;
+  padding-left: 1.5rem;
+  margin: 2rem 0;
+  font-style: italic;
+  color: #292524;
+  font-size: 1.15em;
+  line-height: 1.65;
+}
+
+.prose-broadsheet hr {
+  border: none;
+  border-top: 1px solid #DDD5C7;
+  margin: 2.5rem auto;
+  width: 40%;
+  position: relative;
+}
+
+.prose-broadsheet hr::after {
+  content: '◆';
+  color: #B45309;
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #FAF8F5;
+  padding: 0 8px;
+  font-size: 13px;
+}
+
+/* TipTap Editor Styling */
+.tiptap {
+  outline: none;
+  min-height: 420px;
+}
+
+.tiptap p.is-editor-empty:first-child::before {
+  color: #78716C;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  font-style: italic;
 }
