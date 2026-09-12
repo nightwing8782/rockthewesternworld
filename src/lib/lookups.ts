@@ -145,70 +145,170 @@ export async function lookupImages(theme: string = '', query: string = ''): Prom
   return results.length > 0 ? results : CURATED_ARCHIVE.slice(0, 6);
 }
 
-// 1. Google Books API for Books
+// 1. Books Search with Dual Open Library + Google Books
 export async function lookupBooks(query: string) {
   if (!query.trim()) return [];
+  const results: any[] = [];
+  const seenTitles = new Set<string>();
+
+  // A. Try Open Library First (No 429 rate limit issues)
   try {
-    const url = 'https://www.googleapis.com/books/v1/volumes?q=' + encodeURIComponent(query) + '&maxResults=10';
-    const res = await fetch(url, { signal: AbortSignal.timeout(4500) });
+    const url = 'https://openlibrary.org/search.json?q=' + encodeURIComponent(query.trim()) + '&limit=10';
+    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
     if (res.ok) {
       const data = await res.json();
-      const items = data.items || [];
-      return items.map((item: any) => {
-        const info = item.volumeInfo || {};
-        const isbn13 = info.industryIdentifiers?.find((id: any) => id.type === 'ISBN_13')?.identifier;
-        const isbn10 = info.industryIdentifiers?.find((id: any) => id.type === 'ISBN_10')?.identifier;
-        const cover = info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || null;
-        const cleanCover = cover ? cover.replace('http://', 'https://') : null;
-        return {
-          id: item.id,
-          title: info.title || 'Untitled Volume',
-          subtitle: info.subtitle || null,
-          author: info.authors ? info.authors.join(', ') : 'Unknown Author',
-          publisher: info.publisher || '',
-          year: info.publishedDate ? info.publishedDate.substring(0, 4) : '',
-          isbn: isbn13 || isbn10 || '',
-          pageCount: info.pageCount || '',
-          coverUrl: cleanCover,
-          description: info.description || '',
-          categories: info.categories || [],
-        };
+      const docs = data.docs || [];
+      docs.forEach((doc: any) => {
+        const title = doc.title || 'Untitled Book';
+        const key = title.toLowerCase();
+        if (!seenTitles.has(key)) {
+          seenTitles.add(key);
+          const isbn = doc.isbn ? doc.isbn[0] : null;
+          const coverId = doc.cover_i;
+          let coverUrl = null;
+          if (coverId) coverUrl = `https://covers.openlibrary.org/b/id/${coverId}-M.jpg`;
+          else if (isbn) coverUrl = `https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg`;
+
+          results.push({
+            id: doc.key || `ol-${Math.random()}`,
+            title,
+            author: doc.author_name ? doc.author_name.join(', ') : 'Unknown Author',
+            publisher: doc.publisher ? doc.publisher[0] : '',
+            year: doc.first_publish_year || (doc.publish_year ? doc.publish_year[0] : ''),
+            isbn: isbn || '',
+            pageCount: doc.number_of_pages_median || '',
+            coverUrl,
+            description: '',
+          });
+        }
       });
     }
   } catch (e) {
-    console.warn('Google Books API lookup warning:', e);
+    console.warn('Open Library books error:', e);
   }
-  return [];
+
+  // B. Fallback / Supplement with Google Books
+  if (results.length < 5) {
+    try {
+      const url = 'https://www.googleapis.com/books/v1/volumes?q=' + encodeURIComponent(query.trim()) + '&maxResults=10';
+      const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+      if (res.ok) {
+        const data = await res.json();
+        const items = data.items || [];
+        items.forEach((item: any) => {
+          const info = item.volumeInfo || {};
+          const title = info.title || 'Untitled Volume';
+          const key = title.toLowerCase();
+          if (!seenTitles.has(key)) {
+            seenTitles.add(key);
+            const isbn13 = info.industryIdentifiers?.find((id: any) => id.type === 'ISBN_13')?.identifier;
+            const isbn10 = info.industryIdentifiers?.find((id: any) => id.type === 'ISBN_10')?.identifier;
+            const cover = info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || null;
+            const cleanCover = cover ? cover.replace('http://', 'https://') : null;
+
+            results.push({
+              id: item.id,
+              title,
+              subtitle: info.subtitle || null,
+              author: info.authors ? info.authors.join(', ') : 'Unknown Author',
+              publisher: info.publisher || '',
+              year: info.publishedDate ? info.publishedDate.substring(0, 4) : '',
+              isbn: isbn13 || isbn10 || '',
+              pageCount: info.pageCount || '',
+              coverUrl: cleanCover,
+              description: info.description || '',
+            });
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('Google Books fallback warning:', e);
+    }
+  }
+
+  return results;
 }
 
-// 2. Google Books specialized for Comics / Graphic Novels
+// 2. High-Accuracy Comic & Graphic Novel Lookup (Open Library + Google Books)
 export async function lookupComics(query: string) {
   if (!query.trim()) return [];
+  const results: any[] = [];
+  const seenTitles = new Set<string>();
+
+  // A. Primary: Open Library Search (Comprehensive comics, graphic novels, manga, creator indexing)
   try {
-    const url = 'https://www.googleapis.com/books/v1/volumes?q=' + encodeURIComponent(query + ' comic graphic novel') + '&maxResults=10';
+    const url = 'https://openlibrary.org/search.json?q=' + encodeURIComponent(query.trim()) + '&limit=12';
     const res = await fetch(url, { signal: AbortSignal.timeout(4500) });
     if (res.ok) {
       const data = await res.json();
-      const items = data.items || [];
-      return items.map((item: any) => {
-        const info = item.volumeInfo || {};
-        const cover = info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || null;
-        const cleanCover = cover ? cover.replace('http://', 'https://') : null;
-        return {
-          id: item.id,
-          series: info.title || 'Untitled Series',
-          writer: info.authors ? info.authors.join(', ') : 'Unknown Writer',
-          publisher: info.publisher || '',
-          year: info.publishedDate ? info.publishedDate.substring(0, 4) : '',
-          coverUrl: cleanCover,
-          description: info.description || '',
-        };
+      const docs = data.docs || [];
+      docs.forEach((doc: any) => {
+        const title = doc.title || 'Untitled Comic';
+        const key = title.toLowerCase();
+        if (!seenTitles.has(key)) {
+          seenTitles.add(key);
+          const isbn = doc.isbn ? doc.isbn[0] : null;
+          const coverId = doc.cover_i;
+          let coverUrl = null;
+          if (coverId) coverUrl = `https://covers.openlibrary.org/b/id/${coverId}-M.jpg`;
+          else if (isbn) coverUrl = `https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg`;
+
+          const authors = doc.author_name || [];
+          const writer = authors.length > 0 ? authors[0] : 'Unknown Writer';
+          const artist = authors.length > 1 ? authors[1] : '';
+
+          results.push({
+            id: doc.key || `ol-${Math.random()}`,
+            series: title,
+            writer,
+            artist,
+            publisher: doc.publisher ? doc.publisher[0] : '',
+            year: doc.first_publish_year || (doc.publish_year ? doc.publish_year[0] : ''),
+            coverUrl,
+            description: '',
+          });
+        }
       });
     }
   } catch (e) {
-    console.warn('Comic lookup warning:', e);
+    console.warn('Comic Open Library lookup warning:', e);
   }
-  return [];
+
+  // B. Secondary: Google Books clean query
+  try {
+    const url = 'https://www.googleapis.com/books/v1/volumes?q=' + encodeURIComponent(query.trim()) + '&maxResults=8';
+    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    if (res.ok) {
+      const data = await res.json();
+      const items = data.items || [];
+      items.forEach((item: any) => {
+        const info = item.volumeInfo || {};
+        const title = info.title || 'Untitled Comic';
+        const key = title.toLowerCase();
+        if (!seenTitles.has(key)) {
+          seenTitles.add(key);
+          const cover = info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || null;
+          const cleanCover = cover ? cover.replace('http://', 'https://') : null;
+          const authors = info.authors || [];
+
+          results.push({
+            id: item.id,
+            series: title,
+            writer: authors.length > 0 ? authors[0] : 'Unknown Writer',
+            artist: authors.length > 1 ? authors[1] : '',
+            publisher: info.publisher || '',
+            year: info.publishedDate ? info.publishedDate.substring(0, 4) : '',
+            coverUrl: cleanCover,
+            description: info.description || '',
+          });
+        }
+      });
+    }
+  } catch (e) {
+    console.warn('Comic Google Books lookup warning:', e);
+  }
+
+  return results;
 }
 
 // 3. iTunes Search API for Records / Music Albums

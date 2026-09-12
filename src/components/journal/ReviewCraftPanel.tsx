@@ -78,7 +78,7 @@ export default function ReviewCraftPanel({
       } finally {
         setIsSearching(false);
       }
-    }, 250);
+    }, 200);
   };
 
   const handleSelectItem = (item: any) => {
@@ -89,6 +89,7 @@ export default function ReviewCraftPanel({
       const updated: Partial<EntryMetadata> = {
         series: item.series || item.title || '',
         writer: item.writer || item.author || '',
+        artist: item.artist || '',
         publisher: item.publisher || '',
         year: item.year || '',
         coverUrl: item.coverUrl || metadata.coverUrl,
@@ -167,13 +168,13 @@ export default function ReviewCraftPanel({
   const handleApplyThreeActTemplate = () => {
     let template = '';
     if (entryType === 'comic_review') {
-      template = `<h2>The Script & Narrative</h2><p>Examine the narrative arc, dialogue, pacing, and thematic ambition of the writing...</p><h2>The Visuals & Paneling</h2><p>Evaluate the linework, panel sequencing, color palette, and visual rhythm of the art...</p><h2>The Complete Work</h2><p>Deliver your overarching assessment, standout moments, and critical verdict...</p>`;
+      template = `<h2>The Script &amp; Narrative</h2><p>Examine the narrative arc, dialogue, pacing, and thematic ambition of the writing...</p><h2>The Visuals &amp; Paneling</h2><p>Evaluate the linework, panel sequencing, color palette, and visual rhythm of the art...</p><h2>The Complete Work</h2><p>Deliver your overarching assessment, standout moments, and critical verdict...</p>`;
     } else if (entryType === 'book_review') {
-      template = `<h2>The Voice & Prose</h2><p>Analyze the sentence craft, stylistic texture, authorial voice, and register of the work...</p><h2>Narrative & Thematic Arc</h2><p>Explore the architecture of the plot, characters, and philosophical inquiries...</p><h2>The Complete Work</h2><p>Synthesize the book's lasting impression and deliver your critical verdict...</p>`;
+      template = `<h2>The Voice &amp; Prose</h2><p>Analyze the sentence craft, stylistic texture, authorial voice, and register of the work...</p><h2>Narrative &amp; Thematic Arc</h2><p>Explore the architecture of the plot, characters, and philosophical inquiries...</p><h2>The Complete Work</h2><p>Synthesize the book's lasting impression and deliver your critical verdict...</p>`;
     } else if (entryType === 'music_review') {
-      template = `<h2>The Sonic Landscape</h2><p>Analyze the acoustic textures, production depth, instrumentation, and sonic atmosphere...</p><h2>Writing & Composition</h2><p>Examine the melody, lyricism, arrangements, and thematic progression of the tracks...</p><h2>The Complete Work</h2><p>Synthesize the album's place in the artist's catalog and deliver your critical verdict...</p>`;
+      template = `<h2>The Sonic Landscape</h2><p>Analyze the acoustic textures, production depth, instrumentation, and sonic atmosphere...</p><h2>Writing &amp; Composition</h2><p>Examine the melody, lyricism, arrangements, and thematic progression of the tracks...</p><h2>The Complete Work</h2><p>Synthesize the album's place in the artist's catalog and deliver your critical verdict...</p>`;
     } else if (entryType === 'podcast_review') {
-      template = `<h2>Editorial Quality & Rigor</h2><p>Evaluate the reporting depth, host chemistry, storytelling rigor, and perspective...</p><h2>Pacing & Audio Craft</h2><p>Analyze the sound design, scoring, editing cadence, and listening momentum...</p><h2>The Complete Work</h2><p>Summarize who this series is essential for and deliver your critical verdict...</p>`;
+      template = `<h2>Editorial Quality &amp; Rigor</h2><p>Evaluate the reporting depth, host chemistry, storytelling rigor, and perspective...</p><h2>Pacing &amp; Audio Craft</h2><p>Analyze the sound design, scoring, editing cadence, and listening momentum...</p><h2>The Complete Work</h2><p>Summarize who this series is essential for and deliver your critical verdict...</p>`;
     }
 
     onApplyTemplate(template);
@@ -257,7 +258,7 @@ export default function ReviewCraftPanel({
               <img
                 src={metadata.coverUrl}
                 alt=""
-                className="w-10 h-14 object-cover border border-[#DDD5C7] shrink-0"
+                className="w-10 h-14 object-cover border border-[#DDD5C7] shrink-0 rounded"
               />
             ) : (
               <div className="w-10 h-10 bg-emerald-50 text-emerald-700 flex items-center justify-center rounded shrink-0">
@@ -291,7 +292,7 @@ export default function ReviewCraftPanel({
       ) : (
         <div className="relative">
           <label className="block text-[10px] font-display font-bold uppercase tracking-widest text-[#B45309] mb-1">
-            DIRECT CLIENT LOOKUP ({entryType === 'comic_review' ? 'Google Books Comics' : entryType === 'book_review' ? 'Google Books API' : entryType === 'music_review' ? 'iTunes Albums API' : 'iTunes Podcast API'})
+            DIRECT CLIENT LOOKUP ({entryType === 'comic_review' ? 'Open Library Comics & Google Books' : entryType === 'book_review' ? 'Open Library & Google Books' : entryType === 'music_review' ? 'iTunes Albums API' : 'iTunes Podcast API'})
           </label>
           <div className="relative">
             <Search className="w-3.5 h-3.5 text-[#9C9589] absolute left-3 top-3" />
@@ -301,7 +302,7 @@ export default function ReviewCraftPanel({
               onChange={(e) => handleSearchChange(e.target.value)}
               placeholder={
                 entryType === 'comic_review'
-                  ? 'Search comic series, graphic novel (e.g. Watchmen, Saga)...'
+                  ? 'Search comic series, graphic novel, or creator (e.g. Watchmen, Saga, Neil Gaiman)...'
                   : entryType === 'book_review'
                   ? 'Search book title or author (e.g. Moby Dick, Cormac McCarthy)...'
                   : entryType === 'music_review'
@@ -328,7 +329,7 @@ export default function ReviewCraftPanel({
                     <img
                       src={item.coverUrl || item.artworkUrl}
                       alt=""
-                      className="w-8 h-11 object-cover border border-[#DDD5C7] shrink-0"
+                      className="w-8 h-11 object-cover border border-[#DDD5C7] shrink-0 rounded"
                     />
                   ) : (
                     <div className="w-8 h-8 bg-stone-200 flex items-center justify-center shrink-0">
@@ -340,7 +341,8 @@ export default function ReviewCraftPanel({
                       {item.title || item.series || item.podcastName}
                     </div>
                     <div className="text-[11px] font-serif text-[#66615C] truncate">
-                      {item.author || item.writer || item.artist || item.creator}
+                      {item.writer ? `Writer: ${item.writer}` : (item.author || item.artist || item.creator)}
+                      {item.artist ? ` • Art: ${item.artist}` : ''}
                       {item.year ? ` (${item.year})` : ''}
                     </div>
                   </div>
@@ -743,7 +745,7 @@ export default function ReviewCraftPanel({
       {/* Craft Sub-Ratings Section */}
       <div className="pt-3 border-t border-[#DDD5C7] bg-[#FAF8F5] p-3 rounded">
         <div className="text-[10px] font-display font-bold uppercase tracking-widest text-[#B45309] mb-2.5">
-          CRAFT SUB-RATINGS & CRITICAL VERDICT
+          CRAFT SUB-RATINGS &amp; CRITICAL VERDICT
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
