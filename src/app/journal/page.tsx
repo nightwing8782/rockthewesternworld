@@ -40,6 +40,8 @@ import {
   Radio,
   FileEdit,
   ExternalLink,
+  RotateCcw,
+  Archive,
 } from 'lucide-react';
 
 const ENTRY_TYPES: { type: EntryType; label: string; icon: any }[] = [
@@ -197,13 +199,22 @@ export default function JournalStudioPage() {
     const cat = (entry.metadata?.category as SubCategory) || 'Dan Reads the News';
     setSelectedDesk(desk);
     setSelectedCategory(cat);
-    setMetadata(entry.metadata || { desk, category: cat });
+    setMetadata(entry.metadata || { desk, category: cat, isPrivate: entry.status === 'private' });
     setSaveStatus('saved');
   };
 
   // Load Drafts, Published, Private, and Historical Archive
   useEffect(() => {
     if (!user) return;
+
+    // Load deleted archive slugs
+    let deletedSlugs = new Set<string>();
+    try {
+      const stored = localStorage.getItem('rww_deleted_archive_slugs');
+      if (stored) {
+        deletedSlugs = new Set(JSON.parse(stored));
+      }
+    } catch (e) {}
 
     // 1. Local Drafts & Local Entries
     const savedLocal = localStorage.getItem('rww_local_entries');
@@ -245,12 +256,13 @@ export default function JournalStudioPage() {
         });
     } catch (e) {}
 
-    // 3. Fetch 341 WordPress Historical Archive
+    // 3. Fetch 341 WordPress Historical Archive (filtering out deleted)
     fetch('/archive/imported-entries.json')
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
         if (Array.isArray(data)) {
-          setHistoricalEntries(data);
+          const valid = data.filter((item) => !deletedSlugs.has(item.slug || item.id));
+          setHistoricalEntries(valid);
         }
       })
       .catch(() => {});
@@ -276,12 +288,66 @@ export default function JournalStudioPage() {
     setSaveStatus('unsaved');
   };
 
-  // Toggle Private Status
-  const handleTogglePrivate = (isPrivate: boolean) => {
-    const newStatus: EntryStatus = isPrivate ? 'private' : (activeEntry?.status === 'published' ? 'published' : 'draft');
+  // Switch Status between Draft, Private, and Live
+  const handleSetStatus = (newStatus: 'draft' | 'private' | 'published') => {
+    if (newStatus === 'published' && entryStatus !== 'published') {
+      setIsPromoteOpen(true);
+      return;
+    }
+
     setEntryStatus(newStatus);
-    setMetadata((prev) => ({ ...prev, isPrivate }));
+    const isPriv = newStatus === 'private';
+    setMetadata((prev) => ({ ...prev, isPrivate: isPriv }));
     setSaveStatus('unsaved');
+
+    if (activeEntry) {
+      setActiveEntry((prev) => prev ? { ...prev, status: newStatus, metadata: { ...prev.metadata, isPrivate: isPriv } } : null);
+    }
+  };
+
+  // Unpublish a live piece back to Draft
+  const handleUnpublishToDraft = async () => {
+    if (!activeEntry) return;
+    const confirm = window.confirm(
+      `Unpublish "${activeEntry.title || 'Untitled'}"?\n\nThis will remove it from the public broadsheet and move it to your private Drafts.`
+    );
+    if (!confirm) return;
+
+    setSaveStatus('saving');
+
+    const updated: Entry = {
+      ...activeEntry,
+      status: 'draft',
+      metadata: { ...metadata, isPrivate: false },
+      updated_at: new Date().toISOString(),
+    };
+
+    setActiveEntry(updated);
+    setEntryStatus('draft');
+
+    // Update in Supabase
+    try {
+      const supabase = createClient();
+      await supabase
+        .from('entries')
+        .update({ status: 'draft', updated_at: updated.updated_at })
+        .match({ id: activeEntry.id });
+    } catch (e) {}
+
+    // Update lists
+    setPublishedEntries((prev) => prev.filter((p) => p.id !== activeEntry.id && p.slug !== activeEntry.slug));
+    setDraftEntries((prev) => [updated, ...prev.filter((d) => d.id !== activeEntry.id)]);
+
+    // Update local storage
+    try {
+      const savedLocal = localStorage.getItem('rww_local_entries');
+      let parsed: Entry[] = savedLocal ? JSON.parse(savedLocal) : [];
+      parsed = [updated, ...parsed.filter((p) => p.id !== activeEntry.id)];
+      localStorage.setItem('rww_local_entries', JSON.stringify(parsed));
+    } catch (e) {}
+
+    setActiveTab('drafts');
+    setSaveStatus('saved');
   };
 
   // Insert Reflection Prompt as Blockquote into Editor
@@ -358,6 +424,16 @@ export default function JournalStudioPage() {
           }
           return [updated, ...prev];
         });
+      } else if (updated.status === 'draft') {
+        setDraftEntries((prev) => {
+          const idx = prev.findIndex((e) => e.id === updated.id);
+          if (idx >= 0) {
+            const next = [...prev];
+            next[idx] = updated;
+            return next;
+          }
+          return [updated, ...prev];
+        });
       }
     } catch (e) {}
 
@@ -380,25 +456,69 @@ export default function JournalStudioPage() {
     setTimeout(() => setSaveStatus('saved'), 350);
   };
 
-  const deleteCurrentDraft = () => {
-    if (!activeEntry) return;
-    const remaining = draftEntries.filter((e) => e.id !== activeEntry.id);
-    const remPrivate = privateEntries.filter((e) => e.id !== activeEntry.id);
-    setDraftEntries(remaining);
-    setPrivateEntries(remPrivate);
+  // Comprehensive Delete Entry (Works on Drafts, Live, Private, and Archive)
+  const handleDeleteEntry = async (entryToDelete: Entry) => {
+    const isLive = entryToDelete.status === 'published';
+    const isHistorical = activeTab === 'historical';
+    const itemTitle = entryToDelete.title || 'Untitled Entry';
 
+    const promptMessage = isLive
+      ? `Permanently delete live published piece "${itemTitle}"?\n\nThis will remove it from the live broadsheet and database.`
+      : isHistorical
+      ? `Remove "${itemTitle}" from your historical archive view?`
+      : `Permanently delete "${itemTitle}"? This cannot be undone.`;
+
+    const confirmed = window.confirm(promptMessage);
+    if (!confirmed) return;
+
+    // 1. If in historical archive, add to deleted slugs
+    if (isHistorical || entryToDelete.slug?.startsWith('wp-')) {
+      const slugKey = entryToDelete.slug || entryToDelete.id;
+      try {
+        const stored = localStorage.getItem('rww_deleted_archive_slugs');
+        let list: string[] = stored ? JSON.parse(stored) : [];
+        list.push(slugKey);
+        localStorage.setItem('rww_deleted_archive_slugs', JSON.stringify(list));
+      } catch (e) {}
+      setHistoricalEntries((prev) => prev.filter((h) => (h.slug || h.id) !== slugKey));
+    }
+
+    // 2. Delete from Supabase
     try {
-      const savedLocal = localStorage.getItem('rww_local_entries');
-      if (savedLocal) {
-        const parsed = JSON.parse(savedLocal).filter((e: Entry) => e.id !== activeEntry.id);
-        localStorage.setItem('rww_local_entries', JSON.stringify(parsed));
+      const supabase = createClient();
+      if (entryToDelete.id) {
+        await supabase.from('entries').delete().eq('id', entryToDelete.id);
+      }
+      if (entryToDelete.slug) {
+        await supabase.from('entries').delete().eq('slug', entryToDelete.slug);
       }
     } catch (e) {}
 
-    if (remaining.length > 0) {
-      selectEntry(remaining[0]);
-    } else {
-      createNewDraft();
+    // 3. Delete from LocalStorage
+    try {
+      const savedLocal = localStorage.getItem('rww_local_entries');
+      if (savedLocal) {
+        const parsed: Entry[] = JSON.parse(savedLocal);
+        const filtered = parsed.filter(
+          (p) => p.id !== entryToDelete.id && p.slug !== entryToDelete.slug
+        );
+        localStorage.setItem('rww_local_entries', JSON.stringify(filtered));
+      }
+    } catch (e) {}
+
+    // 4. Update state lists
+    setDraftEntries((prev) => prev.filter((d) => d.id !== entryToDelete.id && d.slug !== entryToDelete.slug));
+    setPublishedEntries((prev) => prev.filter((p) => p.id !== entryToDelete.id && p.slug !== entryToDelete.slug));
+    setPrivateEntries((prev) => prev.filter((p) => p.id !== entryToDelete.id && p.slug !== entryToDelete.slug));
+
+    // 5. If active entry was deleted, select another or create new
+    if (activeEntry?.id === entryToDelete.id || activeEntry?.slug === entryToDelete.slug) {
+      const currentList = getVisibleList().filter((e) => e.id !== entryToDelete.id && e.slug !== entryToDelete.slug);
+      if (currentList.length > 0) {
+        selectEntry(currentList[0]);
+      } else {
+        createNewDraft();
+      }
     }
   };
 
@@ -506,6 +626,7 @@ export default function JournalStudioPage() {
   }
 
   const isPrivateActive = entryStatus === 'private' || metadata.isPrivate;
+  const isLiveActive = entryStatus === 'published' && !metadata.isPrivate;
   const visibleList = getVisibleList();
 
   return (
@@ -544,37 +665,51 @@ export default function JournalStudioPage() {
               <Lock className="w-3 h-3 text-[#B45309]" />
               <span>DRAFTING ATELIER</span>
             </div>
-
-            {/* Status Badges */}
-            {isPrivateActive ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded text-[10px] font-display uppercase tracking-wider font-bold">
-                <Shield className="w-3 h-3 text-amber-700" />
-                <span>Private Entry</span>
-              </span>
-            ) : activeEntry?.status === 'published' ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded text-[10px] font-display uppercase tracking-wider font-bold">
-                <CheckCircle className="w-3 h-3 text-emerald-600" />
-                <span>Live Entry</span>
-              </span>
-            ) : (
-              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 bg-stone-100 text-stone-700 border border-stone-300 rounded text-[10px] font-display uppercase tracking-wider font-semibold">
-                <span>Working Draft</span>
-              </span>
-            )}
           </div>
 
-          {/* Right Action Controls */}
-          <div className="flex items-center gap-2">
-            {/* Private Mode Toggle */}
-            <label className="hidden md:flex items-center gap-1.5 text-[11px] font-display uppercase tracking-wider font-bold text-[#44403C] hover:text-[#1C1917] cursor-pointer bg-[#F2ECE1] px-2.5 py-1.5 rounded border border-[#DDD5C7]">
-              <input
-                type="checkbox"
-                checked={!!isPrivateActive}
-                onChange={(e) => handleTogglePrivate(e.target.checked)}
-                className="w-3.5 h-3.5 accent-[#B45309] cursor-pointer"
-              />
-              <span>Private Entry</span>
-            </label>
+          {/* Interactive Status & Action Controls */}
+          <div className="flex items-center gap-2.5">
+            {/* Clear Status Segmented Switcher */}
+            <div className="flex items-center bg-[#EAE4D7] p-0.5 rounded text-[11px] font-display uppercase tracking-wider font-bold">
+              <button
+                type="button"
+                onClick={() => handleSetStatus('draft')}
+                className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
+                  !isPrivateActive && !isLiveActive
+                    ? 'bg-[#FAF8F5] text-[#1C1917] shadow-xs'
+                    : 'text-[#66615C] hover:text-[#1C1917]'
+                }`}
+                title="Mark as in-progress working draft"
+              >
+                Draft
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSetStatus('private')}
+                className={`px-2.5 py-1 rounded transition-colors cursor-pointer flex items-center gap-1 ${
+                  isPrivateActive
+                    ? 'bg-amber-100 text-amber-900 shadow-xs'
+                    : 'text-[#66615C] hover:text-[#1C1917]'
+                }`}
+                title="Mark as private journal entry (shielded from public broadsheet)"
+              >
+                <Shield className="w-3 h-3" />
+                <span>Private</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSetStatus('published')}
+                className={`px-2.5 py-1 rounded transition-colors cursor-pointer flex items-center gap-1 ${
+                  isLiveActive
+                    ? 'bg-emerald-100 text-emerald-900 shadow-xs'
+                    : 'text-[#66615C] hover:text-[#1C1917]'
+                }`}
+                title="Publish to public broadsheet"
+              >
+                <Globe className="w-3 h-3" />
+                <span>Live</span>
+              </button>
+            </div>
 
             <span className="hidden lg:inline text-[11px] font-display uppercase tracking-widest text-[#66615C]">
               {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Unsaved'}
@@ -600,20 +735,20 @@ export default function JournalStudioPage() {
             {/* Save Button */}
             <button
               onClick={saveCurrentDraft}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#F3EFEA] hover:bg-[#E5DFC5] text-[#1C1917] rounded text-xs font-display uppercase tracking-widest font-bold transition-colors cursor-pointer border border-[#DDD5C7]"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#1C1917] hover:bg-[#1E40AF] text-[#FAF8F5] rounded text-xs font-display uppercase tracking-widest font-bold transition-colors cursor-pointer shadow-xs"
             >
-              <Save className="w-3.5 h-3.5 text-[#B45309]" />
-              <span>{isPrivateActive ? 'Save Private' : 'Save'}</span>
+              <Save className="w-3.5 h-3.5 text-[#E5DFC5]" />
+              <span>{isPrivateActive ? 'Save Private' : isLiveActive ? 'Update Live' : 'Save Draft'}</span>
             </button>
 
-            {/* Promote Button (Only if not private) */}
-            {!isPrivateActive && (
+            {/* Promote Button (When in draft mode) */}
+            {!isPrivateActive && !isLiveActive && (
               <button
                 onClick={() => setIsPromoteOpen(true)}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#1E40AF] hover:bg-[#1D4ED8] text-white rounded text-xs font-display uppercase tracking-widest font-bold transition-colors shadow-xs cursor-pointer"
               >
                 <Globe className="w-3.5 h-3.5" />
-                <span>{activeEntry?.status === 'published' ? 'Update Live' : 'Promote'}</span>
+                <span>Promote Live</span>
               </button>
             )}
 
@@ -645,14 +780,14 @@ export default function JournalStudioPage() {
                 className="py-2 px-2.5 bg-[#1C1917] hover:bg-[#1E40AF] text-[#FAF8F5] rounded text-[10px] font-display uppercase tracking-wider font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer"
               >
                 <Plus className="w-3 h-3" />
-                <span>+ Draft</span>
+                <span>+ New Draft</span>
               </button>
               <button
                 onClick={() => createNewDraft('thought', true)}
                 className="py-2 px-2.5 bg-[#B45309] hover:bg-[#92400E] text-[#FAF8F5] rounded text-[10px] font-display uppercase tracking-wider font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer"
               >
                 <Shield className="w-3 h-3" />
-                <span>+ Private</span>
+                <span>+ New Private</span>
               </button>
             </div>
 
@@ -665,7 +800,7 @@ export default function JournalStudioPage() {
                     ? 'bg-[#FAF8F5] text-[#1C1917] shadow-xs'
                     : 'text-[#66615C] hover:text-[#1C1917]'
                 }`}
-                title="Drafts"
+                title="Working Drafts"
               >
                 Drafts ({draftEntries.length})
               </button>
@@ -716,97 +851,145 @@ export default function JournalStudioPage() {
               />
             </div>
 
-            {/* Document List */}
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1 max-h-[calc(100vh-280px)]">
+            {/* Document List with Direct Trash Action */}
+            <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 max-h-[calc(100vh-280px)]">
               {visibleList.length > 0 ? (
-                visibleList.map((entry, idx) => (
-                  <div
-                    key={entry.id || entry.slug || `entry-${idx}`}
-                    onClick={() => selectEntry(entry)}
-                    className={`p-2.5 rounded cursor-pointer transition-colors border ${
-                      activeEntry?.slug === entry.slug || activeEntry?.id === entry.id
-                        ? 'bg-[#F3EFEA] border-[#1E40AF] shadow-xs'
-                        : 'border-transparent hover:bg-[#F3EFEA]/60 text-[#66615C]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-0.5">
-                      <span className="text-[9px] font-display uppercase tracking-widest text-[#B45309] font-bold">
-                        {entry.metadata?.category || entry.entry_type?.replace('_', ' ') || 'DISPATCH'}
-                      </span>
-                      {entry.status === 'private' ? (
-                        <span className="text-[8px] font-display uppercase tracking-wider text-amber-800 bg-amber-100/90 px-1 py-0.2 rounded font-bold flex items-center gap-0.5">
-                          <Lock className="w-2.5 h-2.5" />
-                          <span>Private</span>
+                visibleList.map((entry, idx) => {
+                  const isActive = activeEntry?.slug === entry.slug || activeEntry?.id === entry.id;
+                  return (
+                    <div
+                      key={entry.id || entry.slug || `entry-${idx}`}
+                      onClick={() => selectEntry(entry)}
+                      className={`group p-2.5 rounded cursor-pointer transition-colors border relative ${
+                        isActive
+                          ? 'bg-[#F3EFEA] border-[#1E40AF] shadow-xs'
+                          : 'border-transparent hover:bg-[#F3EFEA]/60 text-[#66615C]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-[9px] font-display uppercase tracking-widest text-[#B45309] font-bold">
+                          {entry.metadata?.category || entry.entry_type?.replace('_', ' ') || 'DISPATCH'}
                         </span>
-                      ) : entry.status === 'published' ? (
-                        <span className="text-[8px] font-display uppercase tracking-wider text-emerald-700 bg-emerald-100/80 px-1 py-0.2 rounded font-bold">
-                          Live
-                        </span>
-                      ) : (
-                        <span className="text-[8px] font-display uppercase tracking-wider text-stone-600 bg-stone-200/80 px-1 py-0.2 rounded font-bold">
-                          Draft
-                        </span>
-                      )}
+                        
+                        <div className="flex items-center gap-1">
+                          {entry.status === 'private' ? (
+                            <span className="text-[8px] font-display uppercase tracking-wider text-amber-800 bg-amber-100/90 px-1 py-0.2 rounded font-bold flex items-center gap-0.5">
+                              <Lock className="w-2.5 h-2.5" />
+                              <span>Private</span>
+                            </span>
+                          ) : entry.status === 'published' ? (
+                            <span className="text-[8px] font-display uppercase tracking-wider text-emerald-700 bg-emerald-100/80 px-1 py-0.2 rounded font-bold">
+                              Live
+                            </span>
+                          ) : (
+                            <span className="text-[8px] font-display uppercase tracking-wider text-stone-600 bg-stone-200/80 px-1 py-0.2 rounded font-bold">
+                              Draft
+                            </span>
+                          )}
+
+                          {/* Direct Trash Icon */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteEntry(entry);
+                            }}
+                            className="opacity-0 group-hover:opacity-100 p-0.5 text-stone-400 hover:text-red-700 transition-opacity cursor-pointer"
+                            title="Delete this entry"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <h4 className="font-display font-semibold text-xs text-[#1C1917] line-clamp-1 pr-4">
+                        {entry.title || 'Untitled Entry'}
+                      </h4>
+
+                      <p className="text-[10px] text-[#9C9589] mt-0.5 font-sans flex items-center justify-between">
+                        <span>{entry.published_at ? new Date(entry.published_at).toLocaleDateString() : (entry.status === 'private' ? 'Private Journal' : 'Draft')}</span>
+                        {entry.slug && <span className="font-mono text-[9px] text-stone-400">/{entry.slug.substring(0, 15)}...</span>}
+                      </p>
                     </div>
-
-                    <h4 className="font-display font-semibold text-xs text-[#1C1917] line-clamp-1">
-                      {entry.title || 'Untitled Entry'}
-                    </h4>
-
-                    <p className="text-[10px] text-[#9C9589] mt-0.5 font-sans flex items-center justify-between">
-                      <span>{entry.published_at ? new Date(entry.published_at).toLocaleDateString() : (entry.status === 'private' ? 'Private Journal' : 'Draft')}</span>
-                      {entry.slug && <span className="font-mono text-[9px] text-stone-400">/{entry.slug.substring(0, 15)}...</span>}
-                    </p>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="text-center py-8 text-xs font-serif text-[#9C9589] italic">
                   {searchFilter ? 'No matching entries found.' : `No ${activeTab} available.`}
                 </div>
               )}
             </div>
-
-            {activeEntry && (activeTab === 'drafts' || activeTab === 'private') && (
-              <button
-                onClick={deleteCurrentDraft}
-                className="text-xs text-stone-400 hover:text-red-700 flex items-center gap-1.5 pt-2 border-t border-[#E5DFC5] transition-colors cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Discard Active {activeTab === 'private' ? 'Private Entry' : 'Draft'}</span>
-              </button>
-            )}
           </aside>
         )}
 
         {/* Center Editorial Writing Canvas (Hard-capped to max-w-[680px]) */}
         <main className="flex-1 max-w-[680px] mx-auto w-full">
-          {/* Active Status Banner */}
-          {activeEntry?.status === 'published' && activeEntry.slug && !isPrivateActive && (
-            <div className="mb-4 p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center justify-between font-serif">
+          {/* Active Status Banner & Quick Action Buttons */}
+          {isLiveActive && activeEntry?.slug && (
+            <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 font-serif rounded">
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>Editing Live Entry. Saving will immediately update this published article.</span>
+                <span>Live on Public Broadsheet.</span>
               </div>
-              <Link
-                href={`/${activeEntry.slug}`}
-                target="_blank"
-                className="inline-flex items-center gap-1 text-[11px] font-display font-bold uppercase tracking-wider text-[#1E40AF] hover:underline shrink-0"
-              >
-                <span>View Live</span>
-                <ExternalLink className="w-3 h-3" />
-              </Link>
+              <div className="flex items-center gap-2 shrink-0">
+                <Link
+                  href={`/${activeEntry.slug}`}
+                  target="_blank"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded text-[10px] font-display font-bold uppercase tracking-wider transition-colors"
+                >
+                  <span>View Live</span>
+                  <ExternalLink className="w-3 h-3" />
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleUnpublishToDraft}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#FAF8F5] hover:bg-amber-100 text-amber-800 border border-amber-300 rounded text-[10px] font-display font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                  title="Unpublish this article and return it to Drafts"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Unpublish</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteEntry(activeEntry)}
+                  className="inline-flex items-center gap-1 px-2 py-1 text-red-700 hover:bg-red-100 rounded text-[10px] font-display font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                  title="Permanently delete from database"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
             </div>
           )}
 
           {isPrivateActive && (
-            <div className="mb-4 p-2.5 bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between font-serif">
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between font-serif rounded">
               <div className="flex items-center gap-2">
                 <Shield className="w-4 h-4 text-amber-700 shrink-0" />
-                <span>Private Entry Shielded. This piece will never appear on the public broadsheet.</span>
+                <span>Private Journal Entry (Shielded from public broadsheet).</span>
               </div>
-              <span className="text-[10px] font-display uppercase tracking-widest font-bold text-amber-800">
-                LOCKED TO AUTHOR
-              </span>
+              <button
+                type="button"
+                onClick={() => handleDeleteEntry(activeEntry!)}
+                className="inline-flex items-center gap-1 text-red-700 hover:underline text-[10px] font-display uppercase tracking-wider font-bold cursor-pointer"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>Delete</span>
+              </button>
+            </div>
+          )}
+
+          {!isPrivateActive && !isLiveActive && activeEntry && (
+            <div className="mb-4 p-2 bg-[#F2ECE1] border border-[#DDD5C7] text-[#44403C] text-xs flex items-center justify-between font-serif rounded">
+              <span className="text-[11px] italic">Editing unpublished working draft.</span>
+              <button
+                type="button"
+                onClick={() => handleDeleteEntry(activeEntry)}
+                className="inline-flex items-center gap-1 text-stone-500 hover:text-red-700 text-[10px] font-display uppercase tracking-wider font-bold cursor-pointer"
+                title="Discard this draft"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>Discard Draft</span>
+              </button>
             </div>
           )}
 
