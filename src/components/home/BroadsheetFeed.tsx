@@ -15,19 +15,7 @@ interface BroadsheetFeedProps {
 export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) {
   const [entries, setEntries] = useState<Entry[]>(initialEntries);
 
-  // Fast Client-Side Hydration with Local Cache to prevent initial load flicker
   useEffect(() => {
-    try {
-      const cached = localStorage.getItem('rww_broadsheet_feed_cache');
-      if (cached) {
-        const parsed: Entry[] = JSON.parse(cached);
-        if (parsed && parsed.length > 0) {
-          setEntries(parsed);
-        }
-      }
-    } catch (e) {}
-
-    // Revalidate with Supabase live data
     try {
       const supabase = createClient();
       supabase
@@ -52,10 +40,14 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
               const timeB = new Date(b.published_at || b.created_at || '').getTime() || 0;
               return timeB - timeA;
             });
-            setEntries(merged);
-            try {
-              localStorage.setItem('rww_broadsheet_feed_cache', JSON.stringify(merged));
-            } catch (err) {}
+
+            // Compare top 10 items to prevent unnecessary re-render / visual layout shifts
+            const currentTopSlugs = entries.slice(0, 10).map((e) => e.slug || e.id).join(',');
+            const newTopSlugs = merged.slice(0, 10).map((e) => e.slug || e.id).join(',');
+
+            if (currentTopSlugs !== newTopSlugs || entries.length !== merged.length) {
+              setEntries(merged);
+            }
           }
         });
     } catch (e) {}
