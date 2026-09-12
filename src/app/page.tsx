@@ -3,6 +3,7 @@ import BroadsheetFeed from '@/components/home/BroadsheetFeed';
 import { createClient } from '@/lib/supabase/server';
 import { Entry } from '@/types/database';
 import Link from 'next/link';
+import { Suspense } from 'react';
 import fs from 'fs';
 import path from 'path';
 
@@ -53,7 +54,9 @@ export default async function HomePage() {
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-[#242120] flex flex-col selection:bg-[#1E40AF] selection:text-white">
       <Masthead />
-      <BroadsheetFeed initialEntries={allEntries} />
+      <Suspense fallback={null}>
+        <BroadsheetFeed initialEntries={allEntries} />
+      </Suspense>
       {/* Footer */}
       <footer className="w-full bg-[#FAF8F5] border-t-2 border-[#1C1917] mt-16 py-8">
         <div className="max-w-6xl mx-auto px-4 sm:px-8 lg:px-12 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-serif text-[#44403C]">
