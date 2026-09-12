@@ -6,7 +6,6 @@ import { EntryType, Entry, EntryMetadata, EDITORIAL_DESKS, SubCategory, DeskType
 import TipTapEditor from '@/components/journal/TipTapEditor';
 import MediaRibbon from '@/components/journal/MediaRibbon';
 import PromoteModal from '@/components/journal/PromoteModal';
-import AuthModal from '@/components/journal/AuthModal';
 import AnalyticsModal from '@/components/journal/AnalyticsModal';
 import Link from 'next/link';
 import {
@@ -23,6 +22,12 @@ import {
 
 export default function JournalStudioPage() {
   const [user, setUser] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
+  const [isSignUpMode, setIsSignUpMode] = useState(false);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [activeEntry, setActiveEntry] = useState<Entry | null>(null);
   const [title, setTitle] = useState('');
@@ -33,9 +38,68 @@ export default function JournalStudioPage() {
   const [metadata, setMetadata] = useState<EntryMetadata>({});
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const [isPromoteOpen, setIsPromoteOpen] = useState(false);
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      const supabase = createClient();
+      supabase.auth.getSession().then(({ data }) => {
+        if (data?.session?.user) {
+          setUser(data.session.user);
+        }
+        setAuthLoading(false);
+      }).catch(() => {
+        setAuthLoading(false);
+      });
+
+      const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+        setUser(session?.user || null);
+      });
+
+      return () => {
+        authListener.subscription.unsubscribe();
+      };
+    } catch (e) {
+      setAuthLoading(false);
+    }
+  }, []);
+
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsAuthSubmitting(true);
+    setAuthError(null);
+    try {
+      const supabase = createClient();
+      if (isSignUpMode) {
+        const { data, error } = await supabase.auth.signUp({
+          email: authEmail,
+          password: authPassword,
+        });
+        if (error) throw error;
+        if (data?.user) setUser(data.user);
+      } else {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: authEmail,
+          password: authPassword,
+        });
+        if (error) throw error;
+        if (data?.user) setUser(data.user);
+      }
+    } catch (err: any) {
+      setAuthError(err.message || 'Authentication failed. Please verify credentials.');
+    } finally {
+      setIsAuthSubmitting(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+    } catch (e) {}
+    setUser(null);
+  };
 
   const handleDeskChange = (deskId: DeskType) => {
     setSelectedDesk(deskId);
@@ -74,6 +138,7 @@ export default function JournalStudioPage() {
   }, [user]);
 
   useEffect(() => {
+    if (!user) return;
     const saved = localStorage.getItem('rww_local_entries');
     if (saved) {
       try {
@@ -86,7 +151,7 @@ export default function JournalStudioPage() {
       } catch (e) {}
     }
     createNewDraft();
-  }, [createNewDraft]);
+  }, [user, createNewDraft]);
 
   const selectEntry = (entry: Entry) => {
     setActiveEntry(entry);
@@ -143,6 +208,101 @@ export default function JournalStudioPage() {
       createNewDraft();
     }
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center">
+        <div className="text-xs font-display uppercase tracking-[0.25em] text-[#B45309] font-bold animate-pulse flex items-center gap-2">
+          <Lock className="w-4 h-4" />
+          <span>Verifying Press Credentials...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-[#FAF8F5] flex flex-col items-center justify-center p-6 selection:bg-[#1E40AF] selection:text-white">
+        <div className="max-w-md w-full bg-[#FAF8F5] border-2 border-[#1C1917] p-8 shadow-[8px_8px_0px_0px_#1C1917] relative">
+          <div className="border-b-2 border-[#1C1917] pb-4 mb-6 text-center">
+            <div className="text-[10px] font-display uppercase tracking-[0.25em] text-[#B45309] font-bold mb-1">
+              Confidential Atelier
+            </div>
+            <h1 className="font-display font-black text-2xl tracking-wider text-[#1C1917] uppercase">
+              Rock The Western World
+            </h1>
+            <div className="text-[11px] font-serif italic text-[#66615C] mt-1">
+              Editorial Studio • Authorized Access Only
+            </div>
+          </div>
+
+          {authError && (
+            <div className="mb-5 p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-serif">
+              {authError}
+            </div>
+          )}
+
+          <form onSubmit={handleSignIn} className="space-y-4">
+            <div>
+              <label className="block text-[10px] font-display font-bold uppercase tracking-widest text-[#1C1917] mb-1">
+                Author Email
+              </label>
+              <input
+                type="email"
+                required
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                placeholder="editor@rockthewesternworld.com"
+                className="w-full text-xs font-serif bg-white border border-[#E5DFC5] rounded px-3 py-2 text-[#1C1917] focus:outline-[#1E40AF]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-display font-bold uppercase tracking-widest text-[#1C1917] mb-1">
+                Studio Password
+              </label>
+              <input
+                type="password"
+                required
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+                placeholder="••••••••••••"
+                className="w-full text-xs font-serif bg-white border border-[#E5DFC5] rounded px-3 py-2 text-[#1C1917] focus:outline-[#1E40AF]"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isAuthSubmitting}
+              className="w-full py-2.5 px-4 bg-[#1C1917] hover:bg-[#1E40AF] text-[#FAF8F5] text-xs font-display uppercase tracking-widest font-bold transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-xs"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>{isAuthSubmitting ? 'Authenticating...' : isSignUpMode ? 'Create Author Account' : 'Unlock Studio'}</span>
+            </button>
+          </form>
+
+          <div className="mt-4 pt-4 border-t border-[#E5DFC5] flex items-center justify-between text-[11px] font-serif">
+            <button
+              type="button"
+              onClick={() => {
+                setIsSignUpMode(!isSignUpMode);
+                setAuthError(null);
+              }}
+              className="text-[#66615C] hover:text-[#1E40AF] underline underline-offset-2"
+            >
+              {isSignUpMode ? 'Already have an account? Sign in' : 'Create new author account'}
+            </button>
+            <Link
+              href="/"
+              className="text-[#B45309] hover:underline"
+            >
+              Return to Public Broadsheet
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-[#242120] flex flex-col font-reading selection:bg-[#1E40AF] selection:text-white">
@@ -202,6 +362,15 @@ export default function JournalStudioPage() {
             >
               <Globe className="w-3.5 h-3.5" />
               <span>Promote</span>
+            </button>
+
+            <button
+              onClick={handleSignOut}
+              className="flex items-center gap-1 p-1.5 rounded text-[#66615C] hover:text-[#B45309] hover:bg-[#F3EFEA] transition-colors text-[11px] font-display uppercase tracking-wider"
+              title={`Signed in as ${user?.email || 'Author'}. Click to Lock / Sign Out`}
+            >
+              <Lock className="w-3.5 h-3.5 text-[#B45309]" />
+              <span className="hidden sm:inline">Lock</span>
             </button>
           </div>
         </div>
@@ -359,16 +528,6 @@ export default function JournalStudioPage() {
         <AnalyticsModal
           isOpen={isAnalyticsOpen}
           onClose={() => setIsAnalyticsOpen(false)}
-        />
-      )}
-
-      {/* Auth Modal */}
-      {isAuthOpen && (
-        <AuthModal
-          isOpen={isAuthOpen}
-          onClose={() => setIsAuthOpen(false)}
-          onAuthenticated={(u: any) => setUser(u)}
-          onContinueOffline={() => setIsAuthOpen(false)}
         />
       )}
     </div>

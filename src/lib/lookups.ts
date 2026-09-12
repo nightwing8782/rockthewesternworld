@@ -14,8 +14,8 @@ export const CURATED_ARCHIVE: ImageResult[] = [
   {
     id: 'jury-1',
     title: 'The Jury (1861)',
-    url: 'https://upload.wikimedia.org/wikipedia/commons/d/d4/The_Jury_by_John_Morgan.jpg',
-    thumbUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/The_Jury_by_John_Morgan.jpg/640px-The_Jury_by_John_Morgan.jpg',
+    url: '/images/the-jury.jpg',
+    thumbUrl: '/images/the-jury.jpg',
     artist: 'Painting by John Morgan (1823–1886)',
     category: 'potomac',
   },
@@ -23,8 +23,8 @@ export const CURATED_ARCHIVE: ImageResult[] = [
   {
     id: 'chi-1',
     title: 'Chicago River & Marina City Towers at Twilight',
-    url: 'https://images.unsplash.com/photo-1477959858617-67f30bc75b82?w=1600&auto=format&fit=crop&q=80',
-    thumbUrl: 'https://images.unsplash.com/photo-1477959858617-67f30bc75b82?w=500&auto=format&fit=crop&q=80',
+    url: '/images/chicago-river.jpg',
+    thumbUrl: '/images/chicago-river.jpg',
     artist: 'Photo by Neal Kharawala',
     category: 'chicago',
   },
