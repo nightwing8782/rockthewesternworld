@@ -123,7 +123,7 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
                 href={`/${leadFeature.slug}`}
                 className="inline-flex items-center gap-2 text-xs font-display font-bold uppercase tracking-[0.2em] text-[#1E40AF] hover:text-[#1D4ED8] pb-1 border-b border-[#1E40AF] group"
               >
-                <span>Read Complete Broadside</span>
+                <span>Read Entry</span>
                 <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
               </Link>
             </div>
@@ -165,7 +165,7 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
         <div className="py-16 text-center border-b border-[#DDD5C7]">
           <h2 className="font-display font-bold text-2xl text-[#1C1917] mb-2">No Published Entries Yet</h2>
           <p className="text-sm font-serif text-[#44403C] max-w-md mx-auto mb-6">
-            Use the Private Studio to draft your first broadside.
+            Use the Private Studio to draft your first entry.
           </p>
           <Link
             href="/journal"

@@ -61,127 +61,73 @@ export const CURATED_ARCHIVE: ImageResult[] = [
     artist: 'Photo by Claire Anderson',
     category: 'potomac',
   },
-  {
-    id: 'cap-3',
-    title: 'Potomac River Mist & Historical Monument Silhouette',
-    url: 'https://images.unsplash.com/photo-1501446529957-6226bd447c46?w=1600&auto=format&fit=crop&q=80',
-    thumbUrl: 'https://images.unsplash.com/photo-1501446529957-6226bd447c46?w=500&auto=format&fit=crop&q=80',
-    artist: 'Photo by Tim Mossholder',
-    category: 'potomac',
-  },
-  // Desert & Frontier
+  // Desert Sublime
   {
     id: 'des-1',
-    title: 'High Desert Mineral Plateau & Red Evening Sunset',
-    url: 'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?w=1600&auto=format&fit=crop&q=80',
-    thumbUrl: 'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?w=500&auto=format&fit=crop&q=80',
-    artist: 'Photo by Patrick Hendry',
+    title: 'American Western Desert Basin & Distant Mesa',
+    url: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=1600&auto=format&fit=crop&q=80',
+    thumbUrl: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=500&auto=format&fit=crop&q=80',
+    artist: 'Photo by Austin Schmid',
     category: 'desert',
   },
   {
     id: 'des-2',
-    title: 'Solitary Desert Highway Crossing the Great Basin',
-    url: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=1600&auto=format&fit=crop&q=80',
-    thumbUrl: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=500&auto=format&fit=crop&q=80',
-    artist: 'Photo by Leio McLaren',
+    title: 'Open Highway Across the Mojave Wilderness',
+    url: 'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?w=1600&auto=format&fit=crop&q=80',
+    thumbUrl: 'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?w=500&auto=format&fit=crop&q=80',
+    artist: 'Photo by Jeremy Bishop',
     category: 'desert',
   },
-  // Broadsheet, Typewriters
+  // Broadsheet & Typewriters
   {
     id: 'typ-1',
-    title: 'Vintage Mechanical Typewriter with Fresh Manuscript Paper',
-    url: 'https://images.unsplash.com/photo-1516962215378-7fa2e137ae93?w=1600&auto=format&fit=crop&q=80',
-    thumbUrl: 'https://images.unsplash.com/photo-1516962215378-7fa2e137ae93?w=500&auto=format&fit=crop&q=80',
-    artist: 'Photo by Florian Klauer',
+    title: 'Vintage Mechanical Typewriter & Fresh Heavy Stock',
+    url: 'https://images.unsplash.com/photo-1526280760714-f9e8b06f3181?w=1600&auto=format&fit=crop&q=80',
+    thumbUrl: 'https://images.unsplash.com/photo-1526280760714-f9e8b06f3181?w=500&auto=format&fit=crop&q=80',
+    artist: 'Photo by Patrick Fore',
     category: 'broadsheet',
   },
   {
     id: 'typ-2',
-    title: 'Archival Library Room & Bound Leather Volumes',
-    url: 'https://images.unsplash.com/photo-1521587760476-6c12a4b040da?w=1600&auto=format&fit=crop&q=80',
-    thumbUrl: 'https://images.unsplash.com/photo-1521587760476-6c12a4b040da?w=500&auto=format&fit=crop&q=80',
+    title: 'Historical Classical Library Stacks & Leather Folios',
+    url: 'https://images.unsplash.com/photo-1507842229450-78212b4b455b?w=1600&auto=format&fit=crop&q=80',
+    thumbUrl: 'https://images.unsplash.com/photo-1507842229450-78212b4b455b?w=500&auto=format&fit=crop&q=80',
     artist: 'Photo by Giammarco Boscaro',
     category: 'broadsheet',
   },
-  // Jazz, Vinyl
+  // Jazz & Vinyl
   {
     id: 'jaz-1',
-    title: 'Vinyl Record Spinning on Turntable Center Label',
+    title: 'Analog Vinyl Record Spinning on Turntable',
     url: 'https://images.unsplash.com/photo-1539375665275-f9de415ef9ac?w=1600&auto=format&fit=crop&q=80',
     thumbUrl: 'https://images.unsplash.com/photo-1539375665275-f9de415ef9ac?w=500&auto=format&fit=crop&q=80',
-    artist: 'Photo by Travis Yewell',
+    artist: 'Photo by Adrian Kister',
     category: 'jazz',
   },
   {
     id: 'jaz-2',
-    title: 'Atmospheric Jazz Club Stage & Upright Bass',
-    url: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=1600&auto=format&fit=crop&q=80',
-    thumbUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop&q=80',
-    artist: 'Photo by Gabriel Gurrola',
+    title: 'Brass Trombone in Smoky Club Light',
+    url: 'https://images.unsplash.com/photo-1511192336575-5a79af67a629?w=1600&auto=format&fit=crop&q=80',
+    thumbUrl: 'https://images.unsplash.com/photo-1511192336575-5a79af67a629?w=500&auto=format&fit=crop&q=80',
+    artist: 'Photo by Jens Thekkeveettil',
     category: 'jazz',
   },
-  // Cinema
+  // Cinema & Noir
   {
     id: 'cin-1',
-    title: 'Vintage Art Deco Cinema Marquee at Night',
+    title: 'Vintage Cinema Marquee Glowing in Night Mist',
     url: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1600&auto=format&fit=crop&q=80',
     thumbUrl: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&auto=format&fit=crop&q=80',
-    artist: 'Photo by Felix Mooneeram',
+    artist: 'Photo by Kilyan Sockalingum',
     category: 'cinema',
   },
-];
-
-const FALLBACK_BOOKS = [
   {
-    title: 'Dune',
-    author: 'Frank Herbert',
-    year: '1965',
-    isbn: '9780441172719',
-    coverUrl: 'https://covers.openlibrary.org/b/isbn/9780441172719-M.jpg',
-  },
-  {
-    title: 'Blood Meridian',
-    author: 'Cormac McCarthy',
-    year: '1985',
-    isbn: '9780679728757',
-    coverUrl: 'https://covers.openlibrary.org/b/isbn/9780679728757-M.jpg',
-  },
-  {
-    title: 'Gravity\'s Rainbow',
-    author: 'Thomas Pynchon',
-    year: '1973',
-    isbn: '9780140188592',
-    coverUrl: 'https://covers.openlibrary.org/b/isbn/9780140188592-M.jpg',
-  },
-];
-
-const FALLBACK_MUSIC = [
-  {
-    id: 'mb-1',
-    title: 'OK Computer',
-    artist: 'Radiohead',
-    year: '1997',
-    coverUrl: 'https://images.unsplash.com/photo-1539375665275-f9de415ef9ac?w=500&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'mb-2',
-    title: 'A Love Supreme',
-    artist: 'John Coltrane',
-    year: '1965',
-    coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop&q=80',
-  },
-];
-
-const FALLBACK_PODCASTS = [
-  {
-    podcastName: 'Hardcore History',
-    creator: 'Dan Carlin',
-    artworkUrl: 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=500&auto=format&fit=crop&q=80',
-  },
-  {
-    podcastName: 'The Daily',
-    creator: 'The New York Times',
-    artworkUrl: 'https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=500&auto=format&fit=crop&q=80',
+    id: 'cin-2',
+    title: 'Shadow and Architectural Silhouettes in Noir Light',
+    url: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=1600&auto=format&fit=crop&q=80',
+    thumbUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=500&auto=format&fit=crop&q=80',
+    artist: 'Photo by Joshua Fuller',
+    category: 'cinema',
   },
 ];
 
@@ -199,78 +145,127 @@ export async function lookupImages(theme: string = '', query: string = ''): Prom
   return results.length > 0 ? results : CURATED_ARCHIVE.slice(0, 6);
 }
 
+// 1. Google Books API for Books
 export async function lookupBooks(query: string) {
-  if (!query.trim()) return FALLBACK_BOOKS;
+  if (!query.trim()) return [];
   try {
-    const res = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=8`, {
-      signal: AbortSignal.timeout(3500),
-    });
+    const url = 'https://www.googleapis.com/books/v1/volumes?q=' + encodeURIComponent(query) + '&maxResults=10';
+    const res = await fetch(url, { signal: AbortSignal.timeout(4500) });
     if (res.ok) {
       const data = await res.json();
-      const docs = data.docs || [];
-      if (docs.length > 0) {
-        return docs.map((doc: any) => {
-          const isbn = doc.isbn ? doc.isbn[0] : null;
-          const coverId = doc.cover_i;
-          let coverUrl = null;
-          if (coverId) coverUrl = `https://covers.openlibrary.org/b/id/${coverId}-M.jpg`;
-          else if (isbn) coverUrl = `https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg`;
-          return {
-            title: doc.title,
-            author: doc.author_name ? doc.author_name.join(', ') : 'Unknown Author',
-            year: doc.first_publish_year || (doc.publish_year ? doc.publish_year[0] : null),
-            isbn: isbn || null,
-            coverUrl,
-          };
-        });
-      }
+      const items = data.items || [];
+      return items.map((item: any) => {
+        const info = item.volumeInfo || {};
+        const isbn13 = info.industryIdentifiers?.find((id: any) => id.type === 'ISBN_13')?.identifier;
+        const isbn10 = info.industryIdentifiers?.find((id: any) => id.type === 'ISBN_10')?.identifier;
+        const cover = info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || null;
+        const cleanCover = cover ? cover.replace('http://', 'https://') : null;
+        return {
+          id: item.id,
+          title: info.title || 'Untitled Volume',
+          subtitle: info.subtitle || null,
+          author: info.authors ? info.authors.join(', ') : 'Unknown Author',
+          publisher: info.publisher || '',
+          year: info.publishedDate ? info.publishedDate.substring(0, 4) : '',
+          isbn: isbn13 || isbn10 || '',
+          pageCount: info.pageCount || '',
+          coverUrl: cleanCover,
+          description: info.description || '',
+          categories: info.categories || [],
+        };
+      });
     }
-  } catch (e) {}
-  return FALLBACK_BOOKS.filter((b) => b.title.toLowerCase().includes(query.toLowerCase()));
+  } catch (e) {
+    console.warn('Google Books API lookup warning:', e);
+  }
+  return [];
 }
 
+// 2. Google Books specialized for Comics / Graphic Novels
+export async function lookupComics(query: string) {
+  if (!query.trim()) return [];
+  try {
+    const url = 'https://www.googleapis.com/books/v1/volumes?q=' + encodeURIComponent(query + ' comic graphic novel') + '&maxResults=10';
+    const res = await fetch(url, { signal: AbortSignal.timeout(4500) });
+    if (res.ok) {
+      const data = await res.json();
+      const items = data.items || [];
+      return items.map((item: any) => {
+        const info = item.volumeInfo || {};
+        const cover = info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || null;
+        const cleanCover = cover ? cover.replace('http://', 'https://') : null;
+        return {
+          id: item.id,
+          series: info.title || 'Untitled Series',
+          writer: info.authors ? info.authors.join(', ') : 'Unknown Writer',
+          publisher: info.publisher || '',
+          year: info.publishedDate ? info.publishedDate.substring(0, 4) : '',
+          coverUrl: cleanCover,
+          description: info.description || '',
+        };
+      });
+    }
+  } catch (e) {
+    console.warn('Comic lookup warning:', e);
+  }
+  return [];
+}
+
+// 3. iTunes Search API for Records / Music Albums
 export async function lookupMusic(query: string) {
-  if (!query.trim()) return FALLBACK_MUSIC;
+  if (!query.trim()) return [];
   try {
-    const res = await fetch(`https://musicbrainz.org/ws/2/release?query=${encodeURIComponent(query)}&fmt=json&limit=8`, {
-      signal: AbortSignal.timeout(3500),
-    });
+    const url = 'https://itunes.apple.com/search?term=' + encodeURIComponent(query) + '&entity=album&limit=10';
+    const res = await fetch(url, { signal: AbortSignal.timeout(4500) });
     if (res.ok) {
       const data = await res.json();
-      const releases = data.releases || [];
-      if (releases.length > 0) {
-        return releases.map((rel: any) => ({
-          id: rel.id,
-          title: rel.title,
-          artist: rel['artist-credit'] ? rel['artist-credit'].map((a: any) => a.name).join('') : 'Unknown Artist',
-          year: rel.date ? rel.date.substring(0, 4) : null,
-          coverUrl: `https://coverartarchive.org/release/${rel.id}/front-250`,
-        }));
-      }
+      const items = data.results || [];
+      return items.map((item: any) => {
+        let artwork = item.artworkUrl100 || null;
+        if (artwork) {
+          artwork = artwork.replace('100x100bb', '600x600bb');
+        }
+        return {
+          id: String(item.collectionId),
+          title: item.collectionName || 'Untitled Album',
+          artist: item.artistName || 'Unknown Artist',
+          year: item.releaseDate ? item.releaseDate.substring(0, 4) : '',
+          label: item.copyright || item.primaryGenreName || '',
+          coverUrl: artwork,
+          genre: item.primaryGenreName || '',
+          trackCount: item.trackCount || null,
+        };
+      });
     }
-  } catch (e) {}
-  return FALLBACK_MUSIC.filter((m) => m.title.toLowerCase().includes(query.toLowerCase()));
+  } catch (e) {
+    console.warn('iTunes Music API lookup warning:', e);
+  }
+  return [];
 }
 
+// 4. iTunes Podcast Search API for Podcasts
 export async function lookupPodcasts(query: string) {
-  if (!query.trim()) return FALLBACK_PODCASTS;
+  if (!query.trim()) return [];
   try {
-    const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=podcast&limit=8`, {
-      signal: AbortSignal.timeout(3500),
-    });
+    const url = 'https://itunes.apple.com/search?term=' + encodeURIComponent(query) + '&entity=podcast&limit=10';
+    const res = await fetch(url, { signal: AbortSignal.timeout(4500) });
     if (res.ok) {
       const data = await res.json();
-      const results = data.results || [];
-      if (results.length > 0) {
-        return results.map((item: any) => ({
-          podcastName: item.collectionName || item.trackName,
-          creator: item.artistName,
-          artworkUrl: item.artworkUrl600 || item.artworkUrl100,
-        }));
-      }
+      const items = data.results || [];
+      return items.map((item: any) => ({
+        id: String(item.collectionId || item.trackId),
+        podcastName: item.collectionName || item.trackName || 'Untitled Podcast',
+        creator: item.artistName || 'Unknown Host / Studio',
+        network: item.artistName || '',
+        artworkUrl: item.artworkUrl600 || item.artworkUrl100 || null,
+        feedUrl: item.feedUrl || '',
+        primaryGenre: item.primaryGenreName || '',
+      }));
     }
-  } catch (e) {}
-  return FALLBACK_PODCASTS.filter((p) => p.podcastName.toLowerCase().includes(query.toLowerCase()));
+  } catch (e) {
+    console.warn('iTunes Podcast API lookup warning:', e);
+  }
+  return [];
 }
 
 export async function subscribeUser(email: string) {

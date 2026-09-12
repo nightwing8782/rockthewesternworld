@@ -61,15 +61,22 @@ export type EntryType =
   | 'music_review'
   | 'podcast_review';
 
-export type EntryStatus = 'draft' | 'published' | 'archived';
+export type EntryStatus = 'draft' | 'published' | 'archived' | 'private';
 
 export interface BookMetadata {
   title?: string;
   author?: string;
+  translator?: string;
+  publisher?: string;
   year?: number | string;
   isbn?: string;
-  coverUrl?: string;
+  pageCount?: number | string;
+  pacing?: 'Slow Burn' | 'Deliberate' | 'Page-Turner' | string;
+  pullQuote?: string;
+  proseRating?: number;
+  narrativeRating?: number;
   rating?: number;
+  coverUrl?: string;
   openLibraryKey?: string;
 }
 
@@ -80,17 +87,27 @@ export interface ComicMetadata {
   artist?: string;
   publisher?: string;
   year?: number | string;
-  coverUrl?: string;
+  accessibility?: 'Accessible Standalone' | 'Jumping-on Point' | 'Requires Prior Context' | string;
+  prevReviewLink?: string;
+  nextReviewLink?: string;
+  storyRating?: number;
+  artRating?: number;
   rating?: number;
+  coverUrl?: string;
 }
 
 export interface MusicMetadata {
   title?: string;
   artist?: string;
-  year?: number | string;
   label?: string;
-  coverUrl?: string;
+  year?: number | string;
+  format?: 'Vinyl' | 'Digital' | 'CD' | string;
+  essentialTracks?: string;
+  sonicNeighbors?: string;
+  songwritingRating?: number;
+  productionRating?: number;
   rating?: number;
+  coverUrl?: string;
   musicBrainzId?: string;
 }
 
@@ -98,9 +115,15 @@ export interface PodcastMetadata {
   podcastName?: string;
   episodeTitle?: string;
   creator?: string;
+  network?: string;
+  style?: 'Narrative' | 'Interview' | 'Panel' | string;
+  startingEpisode?: string;
+  averageRuntime?: string;
   episodeNumber?: string;
   feedUrl?: string;
   artworkUrl?: string;
+  researchRating?: number;
+  audioCraftRating?: number;
   rating?: number;
 }
 
@@ -115,6 +138,8 @@ export interface EntryMetadata extends BookMetadata, ComicMetadata, MusicMetadat
   imageCredit?: string;
   readingTime?: string;
   categories?: string[];
+  isPrivate?: boolean;
+  reflectionPrompt?: string;
 }
 
 export interface Entry {

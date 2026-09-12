@@ -33,13 +33,13 @@ export default function PromoteModal({
       .replace(/(^-|-$)+/g, '');
 
   const [slug, setSlug] = useState(
-    activeEntry?.slug || generateSlug(title) || 'untitled-broadside'
+    activeEntry?.slug || generateSlug(title) || 'untitled-entry'
   );
   const [desk, setDesk] = useState<DeskType>(metadata.desk || 'commonwealth');
   const [category, setCategory] = useState<SubCategory>(
     (metadata.category as SubCategory) || 'Dan Reads the News'
   );
-  const [kicker, setKicker] = useState(metadata.kicker || 'EDITORIAL BROADSIDE');
+  const [kicker, setKicker] = useState(metadata.kicker || 'EDITORIAL DISPATCH');
   const [excerpt, setExcerpt] = useState(metadata.excerpt || '');
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishSuccess, setPublishSuccess] = useState(false);
@@ -57,12 +57,13 @@ export default function PromoteModal({
       category,
       kicker,
       excerpt,
+      isPrivate: false,
     };
 
     try {
       const supabase = createClient();
       const payload = {
-        title: title.trim() || 'Untitled Broadside',
+        title: title.trim() || 'Untitled Entry',
         slug: slug.trim(),
         entry_type: entryType,
         status: 'published',
@@ -83,9 +84,9 @@ export default function PromoteModal({
       setPublishSuccess(true);
       setTimeout(() => {
         onPublished();
-      }, 1200);
+      }, 1000);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Error promoting broadside');
+      setErrorMsg(err.message || 'Error promoting entry');
     } finally {
       setIsPublishing(false);
     }
@@ -101,7 +102,7 @@ export default function PromoteModal({
               Promote to Public Broadsheet
             </h3>
           </div>
-          <button onClick={onClose} className="p-1 text-[#66615C] hover:text-[#1C1917]">
+          <button onClick={onClose} className="p-1 text-[#66615C] hover:text-[#1C1917] cursor-pointer">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -112,7 +113,7 @@ export default function PromoteModal({
               <Check className="w-6 h-6" />
             </div>
             <h4 className="font-display font-bold text-lg text-[#1C1917]">
-              Broadside Published Successfully!
+              Entry Published Successfully!
             </h4>
             <p className="text-xs font-serif text-[#66615C]">
               Your dispatch is now live in the archival index.
@@ -207,17 +208,17 @@ export default function PromoteModal({
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E5DFC5]">
               <button
                 onClick={onClose}
-                className="px-4 py-2 text-xs font-display uppercase tracking-widest text-[#66615C] hover:text-[#1C1917]"
+                className="px-4 py-2 text-xs font-display uppercase tracking-widest text-[#66615C] hover:text-[#1C1917] cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={handlePromote}
                 disabled={isPublishing}
-                className="flex items-center gap-2 px-5 py-2 bg-[#1E40AF] hover:bg-[#1D4ED8] text-white rounded text-xs font-display font-bold uppercase tracking-widest shadow-xs disabled:opacity-50"
+                className="flex items-center gap-2 px-5 py-2 bg-[#1E40AF] hover:bg-[#1D4ED8] text-white rounded text-xs font-display font-bold uppercase tracking-widest shadow-xs disabled:opacity-50 cursor-pointer"
               >
                 {isPublishing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
-                <span>Publish Broadside</span>
+                <span>Publish Entry</span>
               </button>
             </div>
           </div>
