@@ -27,7 +27,6 @@ export default function JournalStudioPage() {
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
-  const [isSignUpMode, setIsSignUpMode] = useState(false);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [activeEntry, setActiveEntry] = useState<Entry | null>(null);
   const [title, setTitle] = useState('');
@@ -71,23 +70,14 @@ export default function JournalStudioPage() {
     setAuthError(null);
     try {
       const supabase = createClient();
-      if (isSignUpMode) {
-        const { data, error } = await supabase.auth.signUp({
-          email: authEmail,
-          password: authPassword,
-        });
-        if (error) throw error;
-        if (data?.user) setUser(data.user);
-      } else {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: authEmail,
-          password: authPassword,
-        });
-        if (error) throw error;
-        if (data?.user) setUser(data.user);
-      }
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: authEmail.trim(),
+        password: authPassword,
+      });
+      if (error) throw error;
+      if (data?.user) setUser(data.user);
     } catch (err: any) {
-      setAuthError(err.message || 'Authentication failed. Please verify credentials.');
+      setAuthError(err.message || 'Authentication failed. Please verify author credentials.');
     } finally {
       setIsAuthSubmitting(false);
     }
@@ -277,26 +267,16 @@ export default function JournalStudioPage() {
               className="w-full py-2.5 px-4 bg-[#1C1917] hover:bg-[#1E40AF] text-[#FAF8F5] text-xs font-display uppercase tracking-widest font-bold transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-xs"
             >
               <Lock className="w-3.5 h-3.5" />
-              <span>{isAuthSubmitting ? 'Authenticating...' : isSignUpMode ? 'Create Author Account' : 'Unlock Studio'}</span>
+              <span>{isAuthSubmitting ? 'Verifying...' : 'Unlock Studio'}</span>
             </button>
           </form>
 
-          <div className="mt-4 pt-4 border-t border-[#E5DFC5] flex items-center justify-between text-[11px] font-serif">
-            <button
-              type="button"
-              onClick={() => {
-                setIsSignUpMode(!isSignUpMode);
-                setAuthError(null);
-              }}
-              className="text-[#66615C] hover:text-[#1E40AF] underline underline-offset-2"
-            >
-              {isSignUpMode ? 'Already have an account? Sign in' : 'Create new author account'}
-            </button>
+          <div className="mt-5 pt-4 border-t border-[#E5DFC5] text-center text-[11px] font-serif">
             <Link
               href="/"
-              className="text-[#B45309] hover:underline"
+              className="text-[#66615C] hover:text-[#1E40AF] hover:underline"
             >
-              Return to Public Broadsheet
+              ← Return to Public Broadsheet
             </Link>
           </div>
         </div>
