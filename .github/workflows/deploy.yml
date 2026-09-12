@@ -72,5 +72,17 @@ jobs:
           
           chmod 600 ~/.ssh/siteground_key
           
-          # Sync out/ folder contents into SiteGround public_html/ with RSA algorithm compatibility
-          rsync -rlgoDzvc -i --delete -e "ssh -p ${SSH_PORT:-18765} -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa,rsa-sha2-512,rsa-sha2-256 -o HostkeyAlgorithms=+ssh-rsa -i ~/.ssh/siteground_key" out/ $SSH_USER@$SSH_HOST:public_html/
+          # Determine SiteGround public_html directory path (domain-specific vs root public_html)
+          TARGET_DIR="public_html"
+          if ssh -p ${SSH_PORT:-18765} -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa,rsa-sha2-512,rsa-sha2-256 -o HostkeyAlgorithms=+ssh-rsa -i ~/.ssh/siteground_key $SSH_USER@$SSH_HOST "[ -d www/rockthewesternworld.com/public_html ]"; then
+            TARGET_DIR="www/rockthewesternworld.com/public_html"
+            echo "Detected SiteGround domain path: $TARGET_DIR"
+          else
+            echo "Detected default path: $TARGET_DIR"
+          fi
+
+          # Ensure .htaccess is copied
+          cp -f public/.htaccess out/.htaccess 2>/dev/null || true
+          
+          # Sync out/ folder contents into SiteGround with explicit D755 / F644 permissions to prevent 403 Forbidden errors
+          rsync -avz --chmod=D755,F644 -i --delete -e "ssh -p ${SSH_PORT:-18765} -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa,rsa-sha2-512,rsa-sha2-256 -o HostkeyAlgorithms=+ssh-rsa -i ~/.ssh/siteground_key" out/ $SSH_USER@$SSH_HOST:$TARGET_DIR/
