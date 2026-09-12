@@ -77,3 +77,27 @@ CREATE POLICY "Public can view published entries"
     ON public.entries
     FOR SELECT
     USING (status = 'published');
+
+-- Table: subscribers (For The Dispatch newsletter signups)
+CREATE TABLE IF NOT EXISTS public.subscribers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email TEXT UNIQUE NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'unsubscribed')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_subscribers_email ON public.subscribers(email);
+
+ALTER TABLE public.subscribers ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow public subscribe" ON public.subscribers;
+CREATE POLICY "Allow public subscribe"
+    ON public.subscribers
+    FOR INSERT
+    WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow author view subscribers" ON public.subscribers;
+CREATE POLICY "Allow author view subscribers"
+    ON public.subscribers
+    FOR SELECT
+    USING (auth.uid() IS NOT NULL);
