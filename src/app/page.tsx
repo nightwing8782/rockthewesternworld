@@ -7,7 +7,9 @@ import fs from 'fs';
 import path from 'path';
 
 async function getPublishedEntries(): Promise<Entry[]> {
-  // 1. Check Supabase
+  const map = new Map<string, Entry>();
+
+  // 1. Fetch published entries from Supabase
   try {
     const supabase = await createClient();
     const { data, error } = await supabase
@@ -16,26 +18,33 @@ async function getPublishedEntries(): Promise<Entry[]> {
       .eq('status', 'published')
       .order('published_at', { ascending: false });
 
-    if (!error && data && data.length > 0) {
-      return data as Entry[];
+    if (!error && data) {
+      data.forEach((item) => {
+        const s = item.slug || item.id;
+        if (s) map.set(s, item as Entry);
+      });
     }
   } catch (err) {}
 
-  // 2. Load from WordPress imported JSON archive
+  // 2. Load and merge WordPress historical archive
   try {
     const archivePath = path.join(process.cwd(), 'public', 'archive', 'imported-entries.json');
     if (fs.existsSync(archivePath)) {
       const parsed: Entry[] = JSON.parse(fs.readFileSync(archivePath, 'utf8'));
-      if (parsed.length > 0) {
-        return parsed.map((e, idx) => ({
-          ...e,
-          id: e.id || e.slug || `wp-${idx}`,
-        }));
-      }
+      parsed.forEach((e, idx) => {
+        const s = e.slug || e.id || `wp-${idx}`;
+        if (s && !map.has(s) && (e.status === 'published' || !e.status)) {
+          map.set(s, { ...e, id: e.id || s });
+        }
+      });
     }
   } catch (e) {}
 
-  return [];
+  return Array.from(map.values()).sort((a, b) => {
+    const timeA = new Date(a.published_at || a.created_at || '').getTime() || 0;
+    const timeB = new Date(b.published_at || b.created_at || '').getTime() || 0;
+    return timeB - timeA;
+  });
 }
 
 export default async function HomePage() {
@@ -52,7 +61,7 @@ export default async function HomePage() {
             <span className="font-display font-bold uppercase tracking-wider text-[#1C1917]">
               Rock The Western World
             </span>{' '}
-            — An occasional journal of essays, culture, and records.
+            — An occasional journal of essays, culture, and records by Dan Billings.
           </div>
           <div className="flex items-center gap-4 text-xs font-display uppercase tracking-wider font-semibold">
             <Link href="/journal" className="hover:text-[#1E40AF] transition-colors">

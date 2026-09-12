@@ -15,7 +15,19 @@ interface BroadsheetFeedProps {
 export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) {
   const [entries, setEntries] = useState<Entry[]>(initialEntries);
 
+  // Fast Client-Side Hydration with Local Cache to prevent initial load flicker
   useEffect(() => {
+    try {
+      const cached = localStorage.getItem('rww_broadsheet_feed_cache');
+      if (cached) {
+        const parsed: Entry[] = JSON.parse(cached);
+        if (parsed && parsed.length > 0) {
+          setEntries(parsed);
+        }
+      }
+    } catch (e) {}
+
+    // Revalidate with Supabase live data
     try {
       const supabase = createClient();
       supabase
@@ -41,6 +53,9 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
               return timeB - timeA;
             });
             setEntries(merged);
+            try {
+              localStorage.setItem('rww_broadsheet_feed_cache', JSON.stringify(merged));
+            } catch (err) {}
           }
         });
     } catch (e) {}
