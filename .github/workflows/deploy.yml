@@ -33,10 +33,9 @@ jobs:
         uses: easingthemes/ssh-deploy@v5.0.3
         with:
           SSH_PRIVATE_KEY: ${{ secrets.SG_SSH_KEY }}
-          SSH_PASSPHRASE: ${{ secrets.SG_SSH_PASSPHRASE }}
           ARGS: "-rlgoDzvc -i --delete"
           SOURCE: "out/"
           REMOTE_HOST: ${{ secrets.SG_SSH_HOST }}
           REMOTE_USER: ${{ secrets.SG_SSH_USER }}
-          SSH_PORT: ${{ secrets.SG_SSH_PORT }}
+          REMOTE_PORT: ${{ secrets.SG_SSH_PORT }}
           TARGET: "public_html/"
