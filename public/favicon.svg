@@ -1,50 +1,107 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
   <defs>
-    <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%" fx="30%" fy="30%">
-      <stop offset="0%" stop-color="#262320" />
-      <stop offset="100%" stop-color="#141210" />
+    <!-- Background Gradient (Obsidian to Charcoal) -->
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="55%" fx="35%" fy="35%">
+      <stop offset="0%" stop-color="#282420" />
+      <stop offset="60%" stop-color="#191715" />
+      <stop offset="100%" stop-color="#0E0C0B" />
     </radialGradient>
-    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#FCD34D" />
+
+    <!-- 24K Brilliant Gold Facet Gradients -->
+    <linearGradient id="facetTop" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFBEB" />
+      <stop offset="40%" stop-color="#FEF08A" />
+      <stop offset="100%" stop-color="#F59E0B" />
+    </linearGradient>
+
+    <linearGradient id="facetRight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FBBF24" />
       <stop offset="50%" stop-color="#D97706" />
       <stop offset="100%" stop-color="#92400E" />
     </linearGradient>
-    <linearGradient id="creamGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#FFFFFF" />
-      <stop offset="100%" stop-color="#FAF8F5" />
+
+    <linearGradient id="facetBottom" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#78350F" />
+      <stop offset="50%" stop-color="#92400E" />
+      <stop offset="100%" stop-color="#B45309" />
     </linearGradient>
+
+    <linearGradient id="facetLeft" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FEF08A" />
+      <stop offset="60%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#D97706" />
+    </linearGradient>
+
+    <!-- Outer Gold Ring Gradient -->
+    <linearGradient id="ringGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FEF08A" />
+      <stop offset="35%" stop-color="#D97706" />
+      <stop offset="70%" stop-color="#FCD34D" />
+      <stop offset="100%" stop-color="#78350F" />
+    </linearGradient>
+
+    <!-- Center Glow -->
+    <radialGradient id="centerGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFBEB" stop-opacity="0.8" />
+      <stop offset="40%" stop-color="#FDE047" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#D97706" stop-opacity="0" />
+    </radialGradient>
   </defs>
 
-  <!-- Background Base -->
-  <rect width="512" height="512" rx="108" fill="url(#bgGrad)" />
+  <!-- Deep Obsidian Shield Background Base with Rounded Deco Corners -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
 
-  <!-- Outer Art Deco Gold Ring & Stepped Corners -->
-  <rect x="28" y="28" width="456" height="456" rx="84" fill="none" stroke="url(#goldGrad)" stroke-width="8" stroke-opacity="0.9" />
-  <rect x="44" y="44" width="424" height="424" rx="68" fill="none" stroke="url(#goldGrad)" stroke-width="3" stroke-opacity="0.4" />
+  <!-- Outer Fine Art Deco Border -->
+  <rect x="24" y="24" width="464" height="464" rx="88" fill="none" stroke="url(#ringGold)" stroke-width="6" stroke-opacity="0.85" />
+  <rect x="38" y="38" width="436" height="436" rx="74" fill="none" stroke="url(#ringGold)" stroke-width="2" stroke-opacity="0.35" />
 
-  <!-- Corner Art Deco Chevrons -->
-  <polygon points="56,56 86,56 56,86" fill="url(#goldGrad)" opacity="0.8" />
-  <polygon points="456,56 426,56 456,86" fill="url(#goldGrad)" opacity="0.8" />
-  <polygon points="56,456 86,456 56,426" fill="url(#goldGrad)" opacity="0.8" />
-  <polygon points="456,456 426,456 456,426" fill="url(#goldGrad)" opacity="0.8" />
+  <!-- Corner Art Deco Stepped Chevrons -->
+  <polygon points="48,48 76,48 48,76" fill="url(#ringGold)" opacity="0.6" />
+  <polygon points="464,48 436,48 464,76" fill="url(#ringGold)" opacity="0.6" />
+  <polygon points="48,464 76,464 48,436" fill="url(#ringGold)" opacity="0.6" />
+  <polygon points="464,464 436,464 464,436" fill="url(#ringGold)" opacity="0.6" />
 
-  <!-- Deco Geometric Diamond Accent at Top and Bottom -->
-  <polygon points="256,60 268,76 256,92 244,76" fill="url(#goldGrad)" />
-  <polygon points="256,420 268,436 256,452 244,436" fill="url(#goldGrad)" />
+  <!-- Outer Concentric Secondary Diamond Frame -->
+  <polygon points="256,76 392,256 256,436 120,256" fill="none" stroke="url(#ringGold)" stroke-width="3" stroke-opacity="0.3" />
 
-  <!-- Central Broadside "R" Letterform (Cinzel / Art Deco Classical Serif) -->
-  <g transform="translate(0, 10)">
-    <!-- Shadow for Depth -->
-    <path d="M 166 128 L 290 128 C 348 128 386 160 386 210 C 386 250 354 282 308 290 L 396 386 L 334 386 L 254 298 L 216 298 L 216 386 L 166 386 Z" fill="#000000" opacity="0.5" transform="translate(4, 6)" />
+  <!-- Soft Radiant Ambient Glow Behind Diamond -->
+  <circle cx="256" cy="256" r="160" fill="url(#centerGlow)" />
+
+  <!-- Drop Shadow for Dimensionality -->
+  <polygon points="256,92 410,256 256,420 102,256" fill="#000000" opacity="0.6" transform="translate(0, 10)" />
+
+  <!-- PRIMARY ART DECO GOLD DIAMOND (CARET ◆) -->
+  <g>
+    <!-- Facet 1: Top Quadrant (High Light & Brilliance) -->
+    <polygon points="256,92 410,256 256,256" fill="url(#facetTop)" />
     
-    <!-- Gold Trim Underlayer -->
-    <path d="M 166 128 L 290 128 C 348 128 386 160 386 210 C 386 250 354 282 308 290 L 396 386 L 334 386 L 254 298 L 216 298 L 216 386 L 166 386 Z M 216 172 L 216 254 L 284 254 C 318 254 338 238 338 213 C 338 188 318 172 284 172 Z" fill="url(#goldGrad)" />
+    <!-- Facet 2: Right Quadrant (Deep Amber Warmth) -->
+    <polygon points="410,256 256,420 256,256" fill="url(#facetRight)" />
+    
+    <!-- Facet 3: Bottom Quadrant (Rich Antique Bronze Base) -->
+    <polygon points="256,420 102,256 256,256" fill="url(#facetBottom)" />
+    
+    <!-- Facet 4: Left Quadrant (Radiant Golden Tone) -->
+    <polygon points="102,256 256,92 256,256" fill="url(#facetLeft)" />
 
-    <!-- Pure Cream Inset Face -->
-    <path d="M 172 134 L 288 134 C 342 134 378 164 378 210 C 378 246 348 276 304 284 L 388 380 L 338 380 L 256 292 L 212 292 L 212 380 L 172 380 Z M 212 178 L 212 248 L 282 248 C 312 248 330 234 330 213 C 330 192 312 178 282 178 Z" fill="url(#creamGrad)" />
+    <!-- Inner Stepped Diamond Inset Faceting -->
+    <polygon points="256,160 352,256 256,256" fill="url(#facetTop)" opacity="0.5" />
+    <polygon points="352,256 256,352 256,256" fill="url(#facetRight)" opacity="0.5" />
+    <polygon points="256,352 160,256 256,256" fill="url(#facetBottom)" opacity="0.5" />
+    <polygon points="160,256 256,160 256,256" fill="url(#facetLeft)" opacity="0.5" />
+
+    <!-- Central Brilliant Apex Diamond -->
+    <polygon points="256,212 300,256 256,300 212,256" fill="#FFFBEB" opacity="0.9" />
+
+    <!-- Fine Gold Facet Ridge Lines -->
+    <line x1="256" y1="92" x2="256" y2="420" stroke="#FFFBEB" stroke-width="2.5" stroke-opacity="0.8" />
+    <line x1="102" y1="256" x2="410" y2="256" stroke="#FFFBEB" stroke-width="2.5" stroke-opacity="0.8" />
+    <polygon points="256,92 410,256 256,420 102,256" fill="none" stroke="#FFFBEB" stroke-width="3" stroke-opacity="0.9" />
   </g>
 
-  <!-- Left/Right Deco Accent Pips -->
-  <polygon points="76,256 92,244 108,256 92,268" fill="url(#goldGrad)" opacity="0.7" />
-  <polygon points="404,256 420,244 436,256 420,268" fill="url(#goldGrad)" opacity="0.7" />
+  <!-- Left and Right Deco Gold Accent Pips -->
+  <polygon points="64,256 76,244 88,256 76,268" fill="url(#ringGold)" opacity="0.8" />
+  <polygon points="424,256 436,244 448,256 436,268" fill="url(#ringGold)" opacity="0.8" />
+  <polygon points="256,48 268,60 256,72 244,60" fill="url(#ringGold)" opacity="0.8" />
+  <polygon points="256,440 268,452 256,464 244,452" fill="url(#ringGold)" opacity="0.8" />
 </svg>
