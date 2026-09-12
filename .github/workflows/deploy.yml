@@ -37,14 +37,36 @@ jobs:
           SSH_USER: ${{ secrets.SG_SSH_USER }}
           SSH_PORT: ${{ secrets.SG_SSH_PORT }}
         run: |
+          sudo apt-get update -y && sudo apt-get install -y putty-tools
           mkdir -p ~/.ssh
-          echo "$SSH_KEY" > ~/.ssh/siteground_key
-          chmod 600 ~/.ssh/siteground_key
           
-          # If key is encrypted with a passphrase (standard for SiteGround generated keys), decrypt it for the session
-          if [ -n "$SSH_PASSPHRASE" ]; then
-            ssh-keygen -p -P "$SSH_PASSPHRASE" -N "" -f ~/.ssh/siteground_key || true
+          # Write raw key cleanly using python to preserve exact formatting & strip Windows CRLF
+          python3 -c "
+          import os
+          key = os.environ.get('SSH_KEY', '').strip()
+          with open('/home/runner/.ssh/raw_key', 'w', newline='\n') as f:
+              f.write(key + '\n')
+          "
+          chmod 600 ~/.ssh/raw_key
+
+          # Check if key is PuTTY format or OpenSSH format
+          if grep -q "PuTTY-User-Key-File" ~/.ssh/raw_key; then
+            echo "Converting PuTTY formatted key..."
+            if [ -n "$SSH_PASSPHRASE" ]; then
+              puttygen ~/.ssh/raw_key -P "$SSH_PASSPHRASE" -O private-openssh -o ~/.ssh/siteground_key
+            else
+              puttygen ~/.ssh/raw_key -O private-openssh -o ~/.ssh/siteground_key
+            fi
+          else
+            cp ~/.ssh/raw_key ~/.ssh/siteground_key
+            if [ -n "$SSH_PASSPHRASE" ]; then
+              # Attempt openssl / ssh-keygen decryption for passphrase-protected OpenSSH keys
+              openssl rsa -in ~/.ssh/raw_key -passin "pass:$SSH_PASSPHRASE" -out ~/.ssh/siteground_key 2>/dev/null || \
+              ssh-keygen -p -P "$SSH_PASSPHRASE" -N "" -f ~/.ssh/siteground_key || true
+            fi
           fi
           
-          # Sync out/ folder contents into SiteGround public_html/
-          rsync -rlgoDzvc -i --delete -e "ssh -p ${SSH_PORT:-18765} -o StrictHostKeyChecking=no -i ~/.ssh/siteground_key" out/ $SSH_USER@$SSH_HOST:public_html/
+          chmod 600 ~/.ssh/siteground_key
+          
+          # Sync out/ folder contents into SiteGround public_html/ with RSA algorithm compatibility
+          rsync -rlgoDzvc -i --delete -e "ssh -p ${SSH_PORT:-18765} -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa,rsa-sha2-512,rsa-sha2-256 -o HostkeyAlgorithms=+ssh-rsa -i ~/.ssh/siteground_key" out/ $SSH_USER@$SSH_HOST:public_html/
