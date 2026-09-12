@@ -1,0 +1,41 @@
+name: Deploy to SiteGround
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build static export
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_UMAMI_WEBSITE_ID: ${{ secrets.NEXT_PUBLIC_UMAMI_WEBSITE_ID }}
+        run: npm run build
+
+      - name: Deploy to SiteGround via rsync
+        uses: easingthemes/ssh-deploy@v5.0.3
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.SG_SSH_KEY }}
+          ARGS: "-rlgoDzvc -i --delete"
+          SOURCE: "out/"
+          REMOTE_HOST: ${{ secrets.SG_SSH_HOST }}
+          REMOTE_USER: ${{ secrets.SG_SSH_USER }}
+          SSH_PORT: ${{ secrets.SG_SSH_PORT }}
+          TARGET: "public_html/"
