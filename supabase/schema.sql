@@ -1,4 +1,4 @@
-﻿-- Supabase Schema for Rock The Western World
+-- Supabase Schema for Rock The Western World
 -- Table: entries
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
@@ -27,12 +27,12 @@ CREATE INDEX IF NOT EXISTS idx_entries_published_at ON public.entries(published_
 
 -- Automatic updated_at timestamp trigger
 CREATE OR REPLACE FUNCTION public.handle_updated_at()
-RETURNS TRIGGER AS 
+RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = now();
     RETURN NEW;
 END;
- LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS set_entries_updated_at ON public.entries;
 CREATE TRIGGER set_entries_updated_at
