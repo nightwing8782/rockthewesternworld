@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Entry, EntryMetadata, EntryType, EDITORIAL_DESKS, DeskType, SubCategory } from '@/types/database';
-import { Globe, X, Check, Loader2 } from 'lucide-react';
+import { Globe, X, Check, Loader2, Mail } from 'lucide-react';
 
 interface PromoteModalProps {
   isOpen: boolean;
@@ -13,7 +13,7 @@ interface PromoteModalProps {
   entryType: EntryType;
   metadata: EntryMetadata;
   activeEntry: Entry | null;
-  onPublished: () => void;
+  onPublished: (openDispatch?: boolean) => void;
 }
 
 export default function PromoteModal({
@@ -41,6 +41,7 @@ export default function PromoteModal({
   );
   const [kicker, setKicker] = useState(metadata.kicker || 'EDITORIAL DISPATCH');
   const [excerpt, setExcerpt] = useState(metadata.excerpt || '');
+  const [broadcastToDispatch, setBroadcastToDispatch] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishSuccess, setPublishSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -83,7 +84,7 @@ export default function PromoteModal({
 
       setPublishSuccess(true);
       setTimeout(() => {
-        onPublished();
+        onPublished(broadcastToDispatch);
       }, 1000);
     } catch (err: any) {
       setErrorMsg(err.message || 'Error promoting entry');
@@ -93,7 +94,7 @@ export default function PromoteModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 font-serif">
       <div className="bg-[#FAF8F5] border border-[#E5DFC5] rounded-lg shadow-2xl max-w-lg w-full p-6 text-[#242120]">
         <div className="flex items-center justify-between pb-3 border-b border-[#E5DFC5]">
           <div className="flex items-center gap-2">
@@ -117,6 +118,7 @@ export default function PromoteModal({
             </h4>
             <p className="text-xs font-serif text-[#66615C]">
               Your dispatch is now live in the archival index.
+              {broadcastToDispatch && ' Opening The Dispatch sender...'}
             </p>
           </div>
         ) : (
@@ -201,6 +203,24 @@ export default function PromoteModal({
                 rows={2}
                 className="w-full text-xs bg-[#F3EFEA] border border-[#E5DFC5] rounded px-3 py-1.5 text-[#1C1917]"
               />
+            </div>
+
+            {/* Newsletter Dispatch Checkbox */}
+            <div className="p-3 bg-[#F2ECE1] border border-[#DDD5C7] rounded">
+              <label className="flex items-center gap-2.5 cursor-pointer text-xs font-serif text-[#1C1917]">
+                <input
+                  type="checkbox"
+                  checked={broadcastToDispatch}
+                  onChange={(e) => setBroadcastToDispatch(e.target.checked)}
+                  className="w-4 h-4 rounded text-[#1E40AF] focus:ring-[#1E40AF]"
+                />
+                <div className="flex items-center gap-1.5">
+                  <Mail className="w-3.5 h-3.5 text-[#B45309]" />
+                  <span className="font-display font-bold uppercase tracking-wider text-[11px]">
+                    Open The Dispatch sender upon publish
+                  </span>
+                </div>
+              </label>
             </div>
 
             {errorMsg && <div className="text-xs text-red-600">{errorMsg}</div>}

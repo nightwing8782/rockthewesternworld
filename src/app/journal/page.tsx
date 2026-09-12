@@ -17,6 +17,7 @@ import ReflectionPromptBar from '@/components/journal/ReflectionPromptBar';
 import EditorialPhotographyAccordion from '@/components/journal/EditorialPhotographyAccordion';
 import PromoteModal from '@/components/journal/PromoteModal';
 import AnalyticsModal from '@/components/journal/AnalyticsModal';
+import DispatchModal from '@/components/journal/DispatchModal';
 import Link from 'next/link';
 import {
   Lock,
@@ -42,6 +43,7 @@ import {
   ExternalLink,
   RotateCcw,
   Archive,
+  Mail,
 } from 'lucide-react';
 
 const ENTRY_TYPES: { type: EntryType; label: string; icon: any }[] = [
@@ -85,6 +87,7 @@ export default function JournalStudioPage() {
   const [isPromoteOpen, setIsPromoteOpen] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
+  const [isDispatchOpen, setIsDispatchOpen] = useState(false);
 
   // Load Saved Sidebar State from LocalStorage
   useEffect(() => {
@@ -716,6 +719,15 @@ export default function JournalStudioPage() {
             </span>
 
             <button
+              onClick={() => setIsDispatchOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[#44403C] hover:text-[#1E40AF] hover:bg-[#F2ECE1] transition-colors text-xs font-display uppercase tracking-wider font-bold cursor-pointer"
+              title="The Dispatch • Broadcast Newsletter to Subscribers"
+            >
+              <Mail className="w-3.5 h-3.5 text-[#B45309]" />
+              <span className="hidden sm:inline">The Dispatch</span>
+            </button>
+
+            <button
               onClick={() => setIsAnalyticsOpen(true)}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[#44403C] hover:text-[#1E40AF] hover:bg-[#F2ECE1] transition-colors text-xs font-display uppercase tracking-wider font-bold cursor-pointer"
               title="View Umami Analytics"
@@ -942,6 +954,15 @@ export default function JournalStudioPage() {
                 </Link>
                 <button
                   type="button"
+                  onClick={() => setIsDispatchOpen(true)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#1C1917] hover:bg-[#1E40AF] text-[#FAF8F5] rounded text-[10px] font-display font-bold uppercase tracking-wider transition-colors cursor-pointer shadow-xs"
+                  title="Broadcast this article to subscribers via The Dispatch"
+                >
+                  <Mail className="w-3 h-3 text-[#D4AF37]" />
+                  <span>Dispatch Email</span>
+                </button>
+                <button
+                  type="button"
                   onClick={handleUnpublishToDraft}
                   className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#FAF8F5] hover:bg-amber-100 text-amber-800 border border-amber-300 rounded text-[10px] font-display font-bold uppercase tracking-wider transition-colors cursor-pointer"
                   title="Unpublish this article and return it to Drafts"
@@ -1140,8 +1161,11 @@ export default function JournalStudioPage() {
           entryType={entryType}
           metadata={{ ...metadata, desk: selectedDesk, category: selectedCategory }}
           activeEntry={activeEntry}
-          onPublished={() => {
+          onPublished={(openDispatch) => {
             setIsPromoteOpen(false);
+            if (openDispatch) {
+              setIsDispatchOpen(true);
+            }
             const publishedItem: Entry = {
               ...(activeEntry || {}),
               id: activeEntry?.id || ('entry-' + Date.now()),
@@ -1160,6 +1184,20 @@ export default function JournalStudioPage() {
             setDraftEntries((prev) => prev.filter((d) => d.id !== activeEntry?.id));
             setActiveTab('published');
           }}
+        />
+      )}
+
+            {/* The Dispatch Modal */}
+      {isDispatchOpen && (
+        <DispatchModal
+          isOpen={isDispatchOpen}
+          onClose={() => setIsDispatchOpen(false)}
+          title={title}
+          slug={activeEntry?.slug || (title ? title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '') : 'untitled')}
+          kicker={metadata.kicker || 'EDITORIAL DISPATCH'}
+          excerpt={metadata.excerpt || ''}
+          contentHtml={contentHtml}
+          publishedAt={activeEntry?.published_at || undefined}
         />
       )}
 

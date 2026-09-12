@@ -107,7 +107,7 @@ export default function AnalyticsModal({ isOpen, onClose }: AnalyticsModalProps)
                     <Globe className="w-3.5 h-3.5 text-[#1E40AF]" />
                     <span>Primary City</span>
                   </div>
-                  <div className="font-display font-black text-xl text-[#1C1917]">Chicago</div>
+                  <div className="font-display font-black text-xl text-[#1C1917]">Lexington, KY</div>
                 </div>
               </div>
 
