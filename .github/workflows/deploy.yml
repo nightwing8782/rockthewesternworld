@@ -30,12 +30,21 @@ jobs:
         run: npm run build
 
       - name: Deploy to SiteGround via rsync
-        uses: easingthemes/ssh-deploy@v5.0.3
-        with:
-          SSH_PRIVATE_KEY: ${{ secrets.SG_SSH_KEY }}
-          ARGS: "-rlgoDzvc -i --delete"
-          SOURCE: "out/"
-          REMOTE_HOST: ${{ secrets.SG_SSH_HOST }}
-          REMOTE_USER: ${{ secrets.SG_SSH_USER }}
-          REMOTE_PORT: ${{ secrets.SG_SSH_PORT }}
-          TARGET: "public_html/"
+        env:
+          SSH_KEY: ${{ secrets.SG_SSH_KEY }}
+          SSH_PASSPHRASE: ${{ secrets.SG_SSH_PASSPHRASE }}
+          SSH_HOST: ${{ secrets.SG_SSH_HOST }}
+          SSH_USER: ${{ secrets.SG_SSH_USER }}
+          SSH_PORT: ${{ secrets.SG_SSH_PORT }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/siteground_key
+          chmod 600 ~/.ssh/siteground_key
+          
+          # If key is encrypted with a passphrase (standard for SiteGround generated keys), decrypt it for the session
+          if [ -n "$SSH_PASSPHRASE" ]; then
+            ssh-keygen -p -P "$SSH_PASSPHRASE" -N "" -f ~/.ssh/siteground_key || true
+          fi
+          
+          # Sync out/ folder contents into SiteGround public_html/
+          rsync -rlgoDzvc -i --delete -e "ssh -p ${SSH_PORT:-18765} -o StrictHostKeyChecking=no -i ~/.ssh/siteground_key" out/ $SSH_USER@$SSH_HOST:public_html/
