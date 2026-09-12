@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Entry } from '@/types/database';
 import DispatchSignup from '@/components/home/DispatchSignup';
 import CategoryFilterBanner from '@/components/home/CategoryFilterBanner';
-import { Star, ArrowUpRight } from 'lucide-react';
+import { Star } from 'lucide-react';
 
 interface BroadsheetFeedProps {
   initialEntries: Entry[];
@@ -118,25 +118,36 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
               </div>
             </div>
 
-            <div className="pt-2">
+            {/* Read Entry CTA Bar */}
+            <div className="pt-4 border-t border-[#DDD5C7]/60 flex items-center justify-between text-xs font-serif text-[#66615C]">
+              <span>
+                {leadFeature.published_at
+                  ? new Date(leadFeature.published_at).toLocaleDateString('en-US', {
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })
+                  : 'Recent Entry'}
+              </span>
+
               <Link
                 href={`/${leadFeature.slug}`}
-                className="inline-flex items-center gap-2 text-xs font-display font-bold uppercase tracking-[0.2em] text-[#1E40AF] hover:text-[#1D4ED8] pb-1 border-b border-[#1E40AF] group"
+                className="font-display font-bold uppercase tracking-wider text-[#1E40AF] hover:text-[#1C1917] transition-colors flex items-center gap-1 group"
               >
                 <span>Read Entry</span>
-                <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                <span className="group-hover:translate-x-0.5 transition-transform">→</span>
               </Link>
             </div>
           </article>
 
-          {/* Side 1/3 Column: Email Dispatch Signup & In This Edition */}
-          <aside className="lg:col-span-4 flex flex-col gap-6 pl-0 lg:pl-2 w-full min-w-0">
+          {/* Right 1/3 Column: Dispatch Form & In This Edition */}
+          <aside className="lg:col-span-4 flex flex-col justify-between gap-6">
             <DispatchSignup />
 
-            {/* In This Edition Index */}
+            {/* In This Edition List */}
             {entries.length > 1 && (
-              <div className="border-t-2 border-[#1C1917] pt-4">
-                <div className="text-xs font-display font-bold tracking-[0.2em] text-[#1C1917] uppercase mb-3 flex items-center justify-between">
+              <div className="bg-[#FAF8F5] p-4 sm:p-5 border border-[#DDD5C7]">
+                <div className="flex items-center justify-between text-xs font-display font-bold uppercase tracking-[0.2em] text-[#1C1917] border-b border-[#DDD5C7] pb-2 mb-3">
                   <span>IN THIS EDITION</span>
                   <span className="text-[#B45309]">◆</span>
                 </div>
@@ -205,22 +216,36 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
             </div>
 
             {commonwealthEntries.length > 0 ? (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 {commonwealthEntries.slice(0, 6).map((post, idx) => (
-                  <article key={post.id || post.slug || `cw-${idx}`} className="group">
-                    <div className="text-xs font-display font-bold tracking-wider text-[#B45309] uppercase mb-1">
-                      {post.metadata?.category || 'ANALYSIS'}
+                  <article
+                    key={post.id || post.slug || `cw-${idx}`}
+                    className="group flex gap-3.5 border-b border-[#DDD5C7]/60 pb-4 last:border-b-0 min-h-[96px]"
+                  >
+                    {post.metadata?.coverUrl && (
+                      <img
+                        src={post.metadata.coverUrl}
+                        alt=""
+                        className="w-16 h-20 object-cover border border-[#DDD5C7] shrink-0 bg-[#F2ECE1]"
+                      />
+                    )}
+                    <div className="flex-1 flex flex-col justify-between">
+                      <div>
+                        <div className="text-[11px] font-display font-bold tracking-wider text-[#B45309] uppercase mb-1">
+                          {post.metadata?.category || 'ANALYSIS'}
+                        </div>
+                        <Link href={`/${post.slug}`}>
+                          <h4 className="font-display font-bold text-sm text-[#1C1917] group-hover:text-[#1E40AF] transition-colors leading-snug mb-1">
+                            {post.title}
+                          </h4>
+                        </Link>
+                      </div>
+                      <p className="text-[12.5px] font-serif leading-snug text-[#44403C] line-clamp-2">
+                        {post.metadata?.excerpt ||
+                          post.body_html?.replace(/<[^>]+>/g, ' ').substring(0, 130) ||
+                          'Constitutional and statutory analysis examining current institutions and civic friction.'}
+                      </p>
                     </div>
-                    <Link href={`/${post.slug}`}>
-                      <h4 className="font-display font-bold text-base text-[#1C1917] group-hover:text-[#1E40AF] transition-colors leading-snug mb-1.5">
-                        {post.title}
-                      </h4>
-                    </Link>
-                    <p className="text-[13px] font-serif leading-relaxed text-[#44403C] line-clamp-3">
-                      {post.metadata?.excerpt ||
-                        post.body_html?.replace(/<[^>]+>/g, ' ').substring(0, 150) ||
-                        'Constitutional and statutory analysis examining current institutions and civic friction.'}
-                    </p>
                   </article>
                 ))}
               </div>
@@ -246,40 +271,45 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
             </div>
 
             {galleryEntries.length > 0 ? (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 {galleryEntries.slice(0, 6).map((post, idx) => (
-                  <article key={post.id || post.slug || `gal-${idx}`} className="group flex gap-3.5">
+                  <article
+                    key={post.id || post.slug || `gal-${idx}`}
+                    className="group flex gap-3.5 border-b border-[#DDD5C7]/60 pb-4 last:border-b-0 min-h-[96px]"
+                  >
                     {post.metadata?.coverUrl && (
                       <img
                         src={post.metadata.coverUrl}
                         alt=""
-                        className="w-16 h-22 object-cover border border-[#DDD5C7] shrink-0"
+                        className="w-16 h-20 object-cover border border-[#DDD5C7] shrink-0 bg-[#F2ECE1]"
                       />
                     )}
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between gap-1 mb-1">
-                        <span className="text-xs font-display font-bold tracking-wider text-[#1E40AF] uppercase">
-                          {post.metadata?.category || 'THE ARTS'}
-                        </span>
-                        {post.metadata?.rating && (
-                          <div className="flex items-center">
-                            {[...Array(post.metadata.rating)].map((_, i) => (
-                              <Star key={i} className="w-3.5 h-3.5 fill-[#B45309] text-[#B45309]" />
-                            ))}
-                          </div>
-                        )}
+                    <div className="flex-1 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between gap-1 mb-1">
+                          <span className="text-[11px] font-display font-bold tracking-wider text-[#1E40AF] uppercase">
+                            {post.metadata?.category || 'THE ARTS'}
+                          </span>
+                          {post.metadata?.rating && (
+                            <div className="flex items-center">
+                              {[...Array(post.metadata.rating)].map((_, i) => (
+                                <Star key={i} className="w-3 h-3 fill-[#B45309] text-[#B45309]" />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <Link href={`/${post.slug}`}>
+                          <h4 className="font-display font-bold text-sm text-[#1C1917] group-hover:text-[#1E40AF] transition-colors leading-snug mb-1">
+                            {post.title}
+                          </h4>
+                        </Link>
                       </div>
 
-                      <Link href={`/${post.slug}`}>
-                        <h4 className="font-display font-bold text-sm text-[#1C1917] group-hover:text-[#1E40AF] transition-colors leading-snug mb-1">
-                          {post.title}
-                        </h4>
-                      </Link>
-
-                      <p className="text-[13px] font-serif leading-snug text-[#44403C] line-clamp-2">
+                      <p className="text-[12.5px] font-serif leading-snug text-[#44403C] line-clamp-2">
                         {post.metadata?.series
                           ? `${post.metadata.series} ${post.metadata.issueNumber || ''}`
-                          : post.metadata?.excerpt || post.body_html?.replace(/<[^>]+>/g, ' ').substring(0, 120)}
+                          : post.metadata?.excerpt || post.body_html?.replace(/<[^>]+>/g, ' ').substring(0, 130)}
                       </p>
                     </div>
                   </article>
@@ -307,40 +337,45 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
             </div>
 
             {logbookEntries.length > 0 ? (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 {logbookEntries.slice(0, 6).map((post, idx) => (
-                  <article key={post.id || post.slug || `log-${idx}`} className="group flex gap-3.5">
+                  <article
+                    key={post.id || post.slug || `log-${idx}`}
+                    className="group flex gap-3.5 border-b border-[#DDD5C7]/60 pb-4 last:border-b-0 min-h-[96px]"
+                  >
                     {post.metadata?.coverUrl && (
                       <img
                         src={post.metadata.coverUrl}
                         alt=""
-                        className="w-16 h-20 object-cover border border-[#DDD5C7] shrink-0"
+                        className="w-16 h-20 object-cover border border-[#DDD5C7] shrink-0 bg-[#F2ECE1]"
                       />
                     )}
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between gap-1 mb-1">
-                        <span className="text-xs font-display font-bold tracking-wider text-[#B45309] uppercase">
-                          {post.metadata?.category || 'RECORDS & BOOKS'}
-                        </span>
-                        {post.metadata?.rating && (
-                          <div className="flex items-center">
-                            {[...Array(post.metadata.rating)].map((_, i) => (
-                              <Star key={i} className="w-3.5 h-3.5 fill-[#B45309] text-[#B45309]" />
-                            ))}
-                          </div>
-                        )}
+                    <div className="flex-1 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between gap-1 mb-1">
+                          <span className="text-[11px] font-display font-bold tracking-wider text-[#B45309] uppercase">
+                            {post.metadata?.category || 'RECORDS & BOOKS'}
+                          </span>
+                          {post.metadata?.rating && (
+                            <div className="flex items-center">
+                              {[...Array(post.metadata.rating)].map((_, i) => (
+                                <Star key={i} className="w-3 h-3 fill-[#B45309] text-[#B45309]" />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <Link href={`/${post.slug}`}>
+                          <h4 className="font-display font-bold text-sm text-[#1C1917] group-hover:text-[#1E40AF] transition-colors leading-snug mb-1">
+                            {post.title}
+                          </h4>
+                        </Link>
                       </div>
 
-                      <Link href={`/${post.slug}`}>
-                        <h4 className="font-display font-bold text-sm text-[#1C1917] group-hover:text-[#1E40AF] transition-colors leading-snug mb-1">
-                          {post.title}
-                        </h4>
-                      </Link>
-
-                      <p className="text-[13px] font-serif leading-snug text-[#44403C] line-clamp-2">
+                      <p className="text-[12.5px] font-serif leading-snug text-[#44403C] line-clamp-2">
                         {post.metadata?.author || post.metadata?.artist
                           ? `By ${post.metadata.author || post.metadata.artist}`
-                          : post.metadata?.excerpt || post.body_html?.replace(/<[^>]+>/g, ' ').substring(0, 120)}
+                          : post.metadata?.excerpt || post.body_html?.replace(/<[^>]+>/g, ' ').substring(0, 130)}
                       </p>
                     </div>
                   </article>

@@ -4,13 +4,15 @@ Options -Indexes +FollowSymLinks
 RewriteEngine On
 RewriteBase /
 
-# Route Studio directly to journal.html
-RewriteRule ^journal/?$ journal.html [L]
+# Ensure directory requests without trailing slash redirect cleanly to trailing slash
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteCond %{REQUEST_URI} !(.*)/$
+RewriteRule ^(.*)$ $1/ [L,R=301]
 
-# Clean HTML URLs (e.g. /slug -> /slug.html)
+# Dynamic client-side fallback for new Supabase entries published without a rebuild
 RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME}.html -f
-RewriteRule ^(.*)$ $1.html [L]
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ /_not-found/index.html [L]
 
-# Smart 404 Resolver for newly published Supabase articles
-ErrorDocument 404 /_not-found.html
+ErrorDocument 404 /_not-found/index.html
+ErrorDocument 403 /_not-found/index.html
