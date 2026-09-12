@@ -81,8 +81,10 @@ jobs:
             echo "Detected default path: $TARGET_DIR"
           fi
 
-          # Ensure .htaccess is copied
+          # Ensure .htaccess and journal/index.html are copied
           cp -f public/.htaccess out/.htaccess 2>/dev/null || true
+          mkdir -p out/journal
+          cp -f out/journal.html out/journal/index.html 2>/dev/null || true
           
           # Sync out/ folder contents into SiteGround with explicit D755 / F644 permissions to prevent 403 Forbidden errors
           rsync -avz --chmod=D755,F644 -i --delete -e "ssh -p ${SSH_PORT:-18765} -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa,rsa-sha2-512,rsa-sha2-256 -o HostkeyAlgorithms=+ssh-rsa -i ~/.ssh/siteground_key" out/ $SSH_USER@$SSH_HOST:$TARGET_DIR/

@@ -4,13 +4,10 @@ Options -Indexes +FollowSymLinks
 RewriteEngine On
 RewriteBase /
 
-# Check for corresponding HTML file
+# Route Studio directly to journal.html
+RewriteRule ^journal/?$ journal.html [L]
+
+# Clean HTML URLs (e.g. /slug -> /slug.html)
 RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
 RewriteCond %{REQUEST_FILENAME}.html -f
 RewriteRule ^(.*)$ $1.html [L]
-
-# SPA fallback for private studio
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^journal/?$ journal/index.html [L]
