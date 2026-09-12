@@ -1,14 +1,32 @@
 export async function generateStaticParams() {
+  const slugs = new Set<string>();
+
+  // 1. Fetch from Supabase
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from('entries')
+      .select('slug')
+      .eq('status', 'published');
+    if (data) {
+      data.forEach((item) => {
+        if (item.slug) slugs.add(item.slug);
+      });
+    }
+  } catch (e) {}
+
+  // 2. Load from WordPress imported JSON archive
   const archivePath = path.join(process.cwd(), 'public', 'archive', 'imported-entries.json');
   if (fs.existsSync(archivePath)) {
     try {
       const entries: Entry[] = JSON.parse(fs.readFileSync(archivePath, 'utf8'));
-      return entries.map((e) => ({
-        slug: e.slug,
-      }));
+      entries.forEach((e) => {
+        if (e.slug) slugs.add(e.slug);
+      });
     } catch (e) {}
   }
-  return [];
+
+  return Array.from(slugs).map((slug) => ({ slug }));
 }
 
 import { notFound } from 'next/navigation';
