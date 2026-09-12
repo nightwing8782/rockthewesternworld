@@ -368,13 +368,42 @@ export async function lookupPodcasts(query: string) {
   return [];
 }
 
-export async function subscribeUser(email: string) {
+export async function subscribeUser(
+  email: string,
+  honeypot: string = '',
+  elapsedMs: number = 2000
+) {
+  // 1. Silent rejection for automated bot submissions that fill the hidden honeypot
+  if (honeypot && honeypot.trim().length > 0) {
+    console.warn('Bot detected via honeypot field. Silently ignoring.');
+    return { success: true, message: 'Subscribed to The Dispatch' };
+  }
+
+  // 2. Silent rejection for ultra-fast bot submissions (< 800ms)
+  if (elapsedMs < 800) {
+    console.warn('Bot detected via sub-second timing threshold. Silently ignoring.');
+    return { success: true, message: 'Subscribed to The Dispatch' };
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(cleanEmail)) {
+    throw new Error('Please provide a valid email address.');
+  }
+
   try {
     const supabase = createClient();
     await supabase.from('subscribers').upsert(
-      { email: email.trim().toLowerCase(), created_at: new Date().toISOString() },
+      {
+        email: cleanEmail,
+        status: 'active',
+        created_at: new Date().toISOString(),
+      },
       { onConflict: 'email' }
     );
-  } catch (e) {}
+  } catch (e) {
+    console.warn('Supabase subscription warning:', e);
+  }
+
   return { success: true, message: 'Subscribed to The Dispatch' };
 }

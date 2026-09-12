@@ -1,14 +1,19 @@
 'use client';
 
 import { subscribeUser } from '@/lib/lookups';
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Mail, CheckCircle2, Loader2 } from 'lucide-react';
 
 export default function DispatchSignup() {
   const [email, setEmail] = useState('');
+  const [honeypot, setHoneypot] = useState('');
+  const [mountedAt, setMountedAt] = useState<number>(Date.now());
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    setMountedAt(Date.now());
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,12 +27,14 @@ export default function DispatchSignup() {
     setErrorMessage('');
 
     try {
-      await subscribeUser(email);
+      const elapsed = Date.now() - mountedAt;
+      await subscribeUser(email, honeypot, elapsed);
       setStatus('success');
       setEmail('');
+      setHoneypot('');
     } catch (err: any) {
-      setStatus('success');
-      setEmail('');
+      setStatus('error');
+      setErrorMessage(err.message || 'Unable to subscribe. Please try again.');
     }
   };
 
@@ -55,6 +62,24 @@ export default function DispatchSignup() {
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-2 w-full">
+          {/* Invisible Anti-Spam Honeypot Field */}
+          <div
+            className="hidden"
+            aria-hidden="true"
+            style={{ display: 'none', position: 'absolute', left: '-9999px' }}
+          >
+            <label htmlFor="website_url_verification">Do not fill this field</label>
+            <input
+              id="website_url_verification"
+              type="text"
+              name="website_url_verification"
+              tabIndex={-1}
+              autoComplete="off"
+              value={honeypot}
+              onChange={(e) => setHoneypot(e.target.value)}
+            />
+          </div>
+
           <div className="flex flex-col gap-2 w-full">
             <input
               type="email"
@@ -67,7 +92,7 @@ export default function DispatchSignup() {
             <button
               type="submit"
               disabled={status === 'loading'}
-              className="w-full bg-stone-900 text-stone-100 px-4 py-2.5 text-xs uppercase tracking-wider font-display font-bold hover:bg-stone-800 transition-colors shrink-0 flex items-center justify-center gap-1.5"
+              className="w-full bg-stone-900 text-stone-100 px-4 py-2.5 text-xs uppercase tracking-wider font-display font-bold hover:bg-stone-800 transition-colors shrink-0 flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
             >
               {status === 'loading' ? (
                 <>
