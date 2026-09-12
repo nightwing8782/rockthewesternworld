@@ -49,7 +49,10 @@ jobs:
           "
           chmod 600 ~/.ssh/raw_key
 
-          # Check if key is PuTTY format or OpenSSH format
+          # Inspect first line type for debugging in logs
+          echo "Key format detected: $(head -n 1 ~/.ssh/raw_key | cut -c 1-30)..."
+          
+          # Check if key is PuTTY format
           if grep -q "PuTTY-User-Key-File" ~/.ssh/raw_key; then
             echo "Converting PuTTY formatted key..."
             if [ -n "$SSH_PASSPHRASE" ]; then
@@ -60,7 +63,8 @@ jobs:
           else
             cp ~/.ssh/raw_key ~/.ssh/siteground_key
             if [ -n "$SSH_PASSPHRASE" ]; then
-              # Attempt openssl / ssh-keygen decryption for passphrase-protected OpenSSH keys
+              echo "Decrypting SiteGround OpenSSL/RSA key with legacy provider support..."
+              openssl rsa -legacy -provider default -provider legacy -in ~/.ssh/raw_key -passin "pass:$SSH_PASSPHRASE" -out ~/.ssh/siteground_key 2>/dev/null || \
               openssl rsa -in ~/.ssh/raw_key -passin "pass:$SSH_PASSPHRASE" -out ~/.ssh/siteground_key 2>/dev/null || \
               ssh-keygen -p -P "$SSH_PASSPHRASE" -N "" -f ~/.ssh/siteground_key || true
             fi
