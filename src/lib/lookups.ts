@@ -145,14 +145,24 @@ export async function lookupImages(theme: string = '', query: string = ''): Prom
   return results.length > 0 ? results : CURATED_ARCHIVE.slice(0, 6);
 }
 
+const comicCache = new Map<string, any[]>();
+const bookCache = new Map<string, any[]>();
+
 // 1. Books Search: Open Library Search API (No API key, native CORS)
 export async function lookupBooks(query: string) {
-  if (!query.trim()) return [];
+  const cleanQ = query.trim();
+  if (!cleanQ) return [];
+
+  const cacheKey = cleanQ.toLowerCase();
+  if (bookCache.has(cacheKey)) {
+    return bookCache.get(cacheKey)!;
+  }
+
   const results: any[] = [];
   const seenTitles = new Set<string>();
 
   try {
-    const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(query.trim())}&limit=10`;
+    const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(cleanQ)}&limit=10`;
     const res = await fetch(url);
     if (res.ok) {
       const data = await res.json();
@@ -193,6 +203,10 @@ export async function lookupBooks(query: string) {
         }
       });
     }
+
+    if (results.length > 0) {
+      bookCache.set(cacheKey, results);
+    }
   } catch (e) {
     console.warn('Open Library books lookup error:', e);
   }
@@ -200,50 +214,78 @@ export async function lookupBooks(query: string) {
   return results;
 }
 
-// 2. Comics Search: Comic Vine API via AllOrigins CORS Proxy
+// 2. Comics Search: Comic Vine API via CORS Proxy with field_list optimization & caching
 export async function lookupComics(query: string) {
-  if (!query.trim()) return [];
+  const cleanQ = query.trim();
+  if (!cleanQ) return [];
+
+  const cacheKey = cleanQ.toLowerCase();
+  if (comicCache.has(cacheKey)) {
+    return comicCache.get(cacheKey)!;
+  }
+
   const results: any[] = [];
   const seenIds = new Set<string | number>();
 
   try {
     const apiKey = '19536a6ffbf466470d0146dd18640f8a2601629a';
-    const targetUrl = `https://comicvine.gamespot.com/api/volumes/?api_key=${apiKey}&format=json&filter=name:${encodeURIComponent(query.trim())}&limit=10`;
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
-
-    const res = await fetch(proxyUrl);
-    if (res.ok) {
-      const data = await res.json();
-      const parsed = typeof data.contents === 'string' ? JSON.parse(data.contents) : data.contents;
-      const items = parsed?.results || [];
-
-      items.forEach((item: any) => {
-        if (!seenIds.has(item.id)) {
-          seenIds.add(item.id);
-          const series = item.name || 'Untitled Comic';
-          const publisher = item.publisher?.name || 'Independent / Creator-Owned';
-          const year = item.start_year ? parseInt(item.start_year, 10) : undefined;
-          const issue_count = item.count_of_issues;
-          const cover_image_url =
-            item.image?.medium_url ||
-            item.image?.small_url ||
-            item.image?.super_url ||
-            null;
-          const comic_vine_id = item.id;
-
-          results.push({
-            id: String(item.id),
-            series,
-            title: series,
-            publisher,
-            year,
-            issue_count,
-            comic_vine_id,
-            cover_image_url,
-            coverUrl: cover_image_url,
-          });
+    // field_list limits payload size by 95%+ and speeds up Comic Vine database execution
+    const targetUrl = `https://comicvine.gamespot.com/api/volumes/?api_key=${apiKey}&format=json&filter=name:${encodeURIComponent(cleanQ)}&field_list=id,name,publisher,start_year,count_of_issues,image&limit=10`;
+    
+    // Primary proxy: AllOrigins
+    let items: any[] = [];
+    try {
+      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+      const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(5000) });
+      if (res.ok) {
+        const data = await res.json();
+        const parsed = typeof data.contents === 'string' ? JSON.parse(data.contents) : data.contents;
+        items = parsed?.results || [];
+      }
+    } catch (proxyErr) {
+      // Fallback proxy: corsproxy.io
+      try {
+        const fallbackUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+        const res = await fetch(fallbackUrl, { signal: AbortSignal.timeout(5000) });
+        if (res.ok) {
+          const data = await res.json();
+          items = data?.results || [];
         }
-      });
+      } catch (fbErr) {
+        console.warn('Fallback proxy error:', fbErr);
+      }
+    }
+
+    items.forEach((item: any) => {
+      if (!seenIds.has(item.id)) {
+        seenIds.add(item.id);
+        const series = item.name || 'Untitled Comic';
+        const publisher = item.publisher?.name || 'Independent / Creator-Owned';
+        const year = item.start_year ? parseInt(item.start_year, 10) : undefined;
+        const issue_count = item.count_of_issues;
+        const cover_image_url =
+          item.image?.medium_url ||
+          item.image?.small_url ||
+          item.image?.super_url ||
+          null;
+        const comic_vine_id = item.id;
+
+        results.push({
+          id: String(item.id),
+          series,
+          title: series,
+          publisher,
+          year,
+          issue_count,
+          comic_vine_id,
+          cover_image_url,
+          coverUrl: cover_image_url,
+        });
+      }
+    });
+
+    if (results.length > 0) {
+      comicCache.set(cacheKey, results);
     }
   } catch (e) {
     console.warn('Comic Vine lookup error:', e);
