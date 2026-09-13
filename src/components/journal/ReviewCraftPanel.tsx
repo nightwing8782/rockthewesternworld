@@ -91,6 +91,8 @@ export default function ReviewCraftPanel({
       const cover = item.cover_image_url || item.coverUrl || metadata.cover_image_url || metadata.coverUrl;
       const updated: Partial<EntryMetadata> = {
         series: item.series || item.title || '',
+        writer: item.writer || metadata.writer || '',
+        artist: item.artist || metadata.artist || '',
         publisher: item.publisher || 'Independent / Creator-Owned',
         year: item.year || '',
         issue_count: item.issue_count || undefined,
@@ -329,8 +331,8 @@ export default function ReviewCraftPanel({
         <div className="relative space-y-1.5">
           <div className="flex items-center justify-between">
             <label className="block text-[10px] font-display font-bold uppercase tracking-widest text-[#B45309]">
-              {entryType === 'comic_review' && 'COMIC VINE VOLUMES SEARCH (DIRECT CLIENT)'}
-              {entryType === 'book_review' && 'OPEN LIBRARY SEARCH API (NO KEY REQUIRED)'}
+              {entryType === 'comic_review' && 'COMIC & GRAPHIC NOVEL SEARCH (AUTO-FILLS WRITER, ARTIST, PUBLISHER & COVER)'}
+              {entryType === 'book_review' && 'OPEN LIBRARY SEARCH (AUTO-FILLS AUTHOR, PUBLISHER, ISBN & COVER)'}
               {entryType === 'music_review' && 'ITUNES ALBUMS API'}
               {entryType === 'podcast_review' && 'ITUNES PODCASTS API'}
             </label>
@@ -356,9 +358,9 @@ export default function ReviewCraftPanel({
               onChange={(e) => handleSearchChange(e.target.value)}
               placeholder={
                 entryType === 'comic_review'
-                  ? 'Search Comic Vine volumes (e.g. Watchmen, Saga, Sandman, Batman)...'
+                  ? 'Type comic title or series name (e.g. Watchmen, Saga, Sandman, Batman, Maus)...'
                   : entryType === 'book_review'
-                  ? 'Search Open Library by title, author, or ISBN (e.g. Moby Dick, Cormac McCarthy)...'
+                  ? 'Type book title, author, or ISBN (e.g. Moby Dick, Cormac McCarthy)...'
                   : entryType === 'music_review'
                   ? 'Search album or artist (e.g. Blue Train, Radiohead)...'
                   : 'Search podcast title or host (e.g. Hardcore History)...'
