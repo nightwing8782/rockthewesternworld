@@ -372,28 +372,36 @@ export default function JournalStudioPage() {
   };
 
   // Save Current Entry (Local + Supabase)
-  const saveCurrentDraft = async () => {
+  const saveCurrentDraft = async (explicitMeta?: Partial<EntryMetadata>, explicitTitle?: string) => {
     if (!activeEntry) return;
     setSaveStatus('saving');
 
-    const updatedStatus = metadata.isPrivate ? 'private' : entryStatus;
+    const mergedMeta: EntryMetadata = {
+      ...metadata,
+      ...(explicitMeta || {}),
+      desk: selectedDesk,
+      category: selectedCategory,
+    };
+
+    const finalTitle = (explicitTitle !== undefined ? explicitTitle : title).trim() || 'Untitled Entry';
+    const updatedStatus = mergedMeta.isPrivate ? 'private' : entryStatus;
+    mergedMeta.isPrivate = updatedStatus === 'private';
 
     const updated: Entry = {
       ...activeEntry,
-      title: title.trim() || 'Untitled Entry',
+      title: finalTitle,
       body_html: contentHtml,
       entry_type: entryType,
       status: updatedStatus,
-      metadata: {
-        ...metadata,
-        desk: selectedDesk,
-        category: selectedCategory,
-        isPrivate: updatedStatus === 'private',
-      },
+      metadata: mergedMeta,
       updated_at: new Date().toISOString(),
     };
 
     setActiveEntry(updated);
+    setMetadata(mergedMeta);
+    if (explicitTitle !== undefined && !title.trim()) {
+      setTitle(finalTitle);
+    }
 
     // Save to Supabase
     try {
@@ -719,7 +727,7 @@ export default function JournalStudioPage() {
 
             {/* Primary Save Button */}
             <button
-              onClick={saveCurrentDraft}
+              onClick={() => saveCurrentDraft()}
               className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 bg-[#1C1917] hover:bg-[#1E40AF] text-[#FAF8F5] rounded text-[11px] sm:text-xs font-display uppercase tracking-widest font-bold transition-colors cursor-pointer shadow-xs shrink-0"
             >
               <Save className="w-3.5 h-3.5 text-[#E5DFC5]" />
@@ -1184,13 +1192,20 @@ export default function JournalStudioPage() {
           <ReviewCraftPanel
             entryType={entryType}
             metadata={metadata}
-            onMetadataChange={(newMeta) => {
+            onMetadataChange={(newMeta, shouldAutoSave) => {
               setMetadata((prev) => ({ ...prev, ...newMeta }));
-              setSaveStatus('unsaved');
+              if (shouldAutoSave) {
+                saveCurrentDraft(newMeta);
+              } else {
+                setSaveStatus('unsaved');
+              }
             }}
             onApplyTemplate={handleApplyTemplate}
             onAutoTitle={(suggested) => {
-              if (!title.trim()) setTitle(suggested);
+              if (!title.trim()) {
+                setTitle(suggested);
+                setSaveStatus('unsaved');
+              }
             }}
           />
 

@@ -11,7 +11,6 @@ import {
   Radio,
   Star,
   CheckCircle2,
-  X,
   Loader2,
   FileText,
 } from 'lucide-react';
@@ -19,7 +18,7 @@ import {
 interface ReviewCraftPanelProps {
   entryType: EntryType;
   metadata: EntryMetadata;
-  onMetadataChange: (newMeta: Partial<EntryMetadata>) => void;
+  onMetadataChange: (newMeta: Partial<EntryMetadata>, autoSave?: boolean) => void;
   onApplyTemplate: (templateHtml: string) => void;
   onAutoTitle?: (suggestedTitle: string) => void;
 }
@@ -35,6 +34,7 @@ export default function ReviewCraftPanel({
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isChangingSelection, setIsChangingSelection] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const isReview = ['book_review', 'comic_review', 'music_review', 'podcast_review'].includes(entryType);
@@ -43,6 +43,7 @@ export default function ReviewCraftPanel({
     setSearchQuery('');
     setSearchResults([]);
     setIsDropdownOpen(false);
+    setIsChangingSelection(false);
   }, [entryType]);
 
   if (!isReview) return null;
@@ -78,61 +79,72 @@ export default function ReviewCraftPanel({
       } finally {
         setIsSearching(false);
       }
-    }, 200);
+    }, 250);
   };
 
   const handleSelectItem = (item: any) => {
     setIsDropdownOpen(false);
     setSearchQuery('');
+    setIsChangingSelection(false);
 
     if (entryType === 'comic_review') {
+      const cover = item.cover_image_url || item.coverUrl || metadata.cover_image_url || metadata.coverUrl;
       const updated: Partial<EntryMetadata> = {
         series: item.series || item.title || '',
-        writer: item.writer || item.author || '',
-        artist: item.artist || '',
-        publisher: item.publisher || '',
+        publisher: item.publisher || 'Independent / Creator-Owned',
         year: item.year || '',
-        coverUrl: item.coverUrl || metadata.coverUrl,
+        issue_count: item.issue_count || undefined,
+        comic_vine_id: item.comic_vine_id || item.id || undefined,
+        cover_image_url: cover,
+        coverUrl: cover,
       };
-      onMetadataChange(updated);
-      if (onAutoTitle && item.series) {
-        onAutoTitle(`Review: ${item.series}`);
+      onMetadataChange(updated, true);
+      if (onAutoTitle && (item.series || item.title)) {
+        onAutoTitle(`Review: ${item.series || item.title}`);
       }
     } else if (entryType === 'book_review') {
+      const cover = item.cover_image_url || item.coverUrl || metadata.cover_image_url || metadata.coverUrl;
       const updated: Partial<EntryMetadata> = {
         title: item.title || '',
-        author: item.author || '',
+        author: item.author || item.creator || 'Unknown',
         publisher: item.publisher || '',
         year: item.year || '',
         isbn: item.isbn || '',
-        pageCount: item.pageCount || '',
-        coverUrl: item.coverUrl || metadata.coverUrl,
+        page_count: item.page_count || item.pageCount || undefined,
+        pageCount: item.page_count || item.pageCount || undefined,
+        cover_image_url: cover,
+        coverUrl: cover,
+        openLibraryKey: item.openLibraryKey || undefined,
       };
-      onMetadataChange(updated);
+      onMetadataChange(updated, true);
       if (onAutoTitle && item.title) {
         onAutoTitle(`Review: ${item.title} by ${item.author || 'Author'}`);
       }
     } else if (entryType === 'music_review') {
+      const cover = item.coverUrl || item.cover_image_url || metadata.coverUrl;
       const updated: Partial<EntryMetadata> = {
         title: item.title || '',
         artist: item.artist || '',
         label: item.label || '',
         year: item.year || '',
-        coverUrl: item.coverUrl || metadata.coverUrl,
+        cover_image_url: cover,
+        coverUrl: cover,
       };
-      onMetadataChange(updated);
+      onMetadataChange(updated, true);
       if (onAutoTitle && item.title) {
         onAutoTitle(`Review: ${item.title} — ${item.artist || 'Artist'}`);
       }
     } else if (entryType === 'podcast_review') {
+      const cover = item.artworkUrl || item.coverUrl || metadata.artworkUrl || metadata.coverUrl;
       const updated: Partial<EntryMetadata> = {
         podcastName: item.podcastName || item.title || '',
         creator: item.creator || '',
         network: item.network || item.creator || '',
-        artworkUrl: item.artworkUrl || metadata.artworkUrl || metadata.coverUrl,
-        coverUrl: item.artworkUrl || metadata.coverUrl,
+        artworkUrl: cover,
+        cover_image_url: cover,
+        coverUrl: cover,
       };
-      onMetadataChange(updated);
+      onMetadataChange(updated, true);
       if (onAutoTitle && item.podcastName) {
         onAutoTitle(`Podcast Review: ${item.podcastName}`);
       }
@@ -140,25 +152,37 @@ export default function ReviewCraftPanel({
   };
 
   const handleClearSelected = () => {
-    onMetadataChange({
-      title: '',
-      series: '',
-      podcastName: '',
-      author: '',
-      writer: '',
-      artist: '',
-      creator: '',
-      publisher: '',
-      label: '',
-      year: '',
-      isbn: '',
-      coverUrl: undefined,
-      artworkUrl: undefined,
-    });
+    setIsChangingSelection(false);
+    setIsDropdownOpen(false);
+    setSearchQuery('');
+    onMetadataChange(
+      {
+        title: '',
+        series: '',
+        podcastName: '',
+        author: '',
+        writer: '',
+        artist: '',
+        creator: '',
+        publisher: '',
+        label: '',
+        year: '',
+        isbn: '',
+        page_count: undefined,
+        pageCount: undefined,
+        issue_count: undefined,
+        comic_vine_id: undefined,
+        coverUrl: undefined,
+        cover_image_url: undefined,
+        artworkUrl: undefined,
+        openLibraryKey: undefined,
+      },
+      true
+    );
   };
 
   const getSelectedTitle = () => {
-    return metadata.title || metadata.series || metadata.podcastName || '';
+    return metadata.series || metadata.title || metadata.podcastName || '';
   };
 
   const getSelectedCreator = () => {
@@ -221,6 +245,8 @@ export default function ReviewCraftPanel({
 
   const selectedTitle = getSelectedTitle();
   const selectedCreator = getSelectedCreator();
+  const isWorkSelected = Boolean(selectedTitle);
+  const activeCover = metadata.cover_image_url || metadata.coverUrl || metadata.artworkUrl;
 
   return (
     <div className="mb-6 p-4 bg-[#F2ECE1] border border-[#DDD5C7] rounded shadow-xs space-y-4">
@@ -250,50 +276,78 @@ export default function ReviewCraftPanel({
         </button>
       </div>
 
-      {/* Selected Confirmation Badge or Search Box */}
-      {selectedTitle ? (
-        <div className="p-3 bg-[#FAF8F5] border border-emerald-300 rounded flex items-center justify-between gap-3 shadow-2xs">
-          <div className="flex items-center gap-3 min-w-0">
-            {metadata.coverUrl ? (
+      {/* Selected Confirmation Card OR Search Input */}
+      {isWorkSelected && !isChangingSelection ? (
+        <div className="p-3.5 bg-[#FAF8F5] border border-emerald-400/80 rounded flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3.5 min-w-0">
+            {activeCover ? (
               <img
-                src={metadata.coverUrl}
+                src={activeCover}
                 alt=""
-                className="w-10 h-14 object-cover border border-[#DDD5C7] shrink-0 rounded"
+                className="w-12 h-16 object-cover border border-[#DDD5C7] shrink-0 rounded shadow-xs"
               />
             ) : (
-              <div className="w-10 h-10 bg-emerald-50 text-emerald-700 flex items-center justify-center rounded shrink-0">
-                <CheckCircle2 className="w-5 h-5" />
+              <div className="w-12 h-16 bg-[#EAE4D7] text-[#44403C] flex items-center justify-center rounded shrink-0 border border-[#DDD5C7]">
+                <CheckCircle2 className="w-6 h-6 text-emerald-700" />
               </div>
             )}
             <div className="min-w-0">
-              <div className="text-[10px] font-display uppercase tracking-wider font-bold text-emerald-800">
-                Selected Work:
+              <div className="text-[10px] font-display uppercase tracking-widest font-bold text-emerald-800 flex items-center gap-1 mb-0.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 inline shrink-0" />
+                <span>Locked Work</span>
               </div>
-              <div className="font-display font-bold text-sm text-[#1C1917] truncate">
-                {selectedTitle}
+              <div className="font-display font-bold text-sm sm:text-base text-[#1C1917] truncate">
+                {selectedTitle} {metadata.year ? `(${metadata.year})` : ''}
               </div>
-              {selectedCreator && (
-                <div className="text-xs font-serif text-[#66615C] truncate">
-                  by {selectedCreator} {metadata.year ? `(${metadata.year})` : ''}
-                </div>
-              )}
+              <div className="text-xs font-serif text-[#66615C] truncate mt-0.5">
+                {selectedCreator ? `by ${selectedCreator}` : ''}
+                {selectedCreator && metadata.publisher ? ` • ` : ''}
+                {metadata.publisher ? `${metadata.publisher}` : ''}
+                {metadata.issue_count ? ` • ${metadata.issue_count} issues` : ''}
+              </div>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleClearSelected}
-            className="text-xs font-display uppercase tracking-wider text-[#9C9589] hover:text-red-700 p-1.5 rounded transition-colors shrink-0 cursor-pointer"
-            title="Clear and search another work"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setIsChangingSelection(true)}
+              className="px-2.5 py-1 text-xs font-display uppercase tracking-wider font-semibold text-[#1E40AF] hover:bg-[#EEF2FF] border border-[#BFDBFE] rounded transition-colors cursor-pointer"
+            >
+              Change Selection
+            </button>
+            <button
+              type="button"
+              onClick={handleClearSelected}
+              className="px-2.5 py-1 text-xs font-display uppercase tracking-wider font-semibold text-[#9C9589] hover:text-red-700 hover:bg-red-50 border border-transparent rounded transition-colors cursor-pointer"
+            >
+              Clear
+            </button>
+          </div>
         </div>
       ) : (
-        <div className="relative">
-          <label className="block text-[10px] font-display font-bold uppercase tracking-widest text-[#B45309] mb-1">
-            DIRECT CLIENT LOOKUP ({entryType === 'comic_review' ? 'Open Library Comics & Google Books' : entryType === 'book_review' ? 'Open Library & Google Books' : entryType === 'music_review' ? 'iTunes Albums API' : 'iTunes Podcast API'})
-          </label>
+        <div className="relative space-y-1.5">
+          <div className="flex items-center justify-between">
+            <label className="block text-[10px] font-display font-bold uppercase tracking-widest text-[#B45309]">
+              {entryType === 'comic_review' && 'COMIC VINE VOLUMES SEARCH (DIRECT CLIENT)'}
+              {entryType === 'book_review' && 'OPEN LIBRARY SEARCH API (NO KEY REQUIRED)'}
+              {entryType === 'music_review' && 'ITUNES ALBUMS API'}
+              {entryType === 'podcast_review' && 'ITUNES PODCASTS API'}
+            </label>
+            {isChangingSelection && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsChangingSelection(false);
+                  setIsDropdownOpen(false);
+                }}
+                className="text-[10px] font-display uppercase tracking-wider text-[#66615C] hover:text-[#1C1917] underline cursor-pointer"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+
           <div className="relative">
             <Search className="w-3.5 h-3.5 text-[#9C9589] absolute left-3 top-3" />
             <input
@@ -302,9 +356,9 @@ export default function ReviewCraftPanel({
               onChange={(e) => handleSearchChange(e.target.value)}
               placeholder={
                 entryType === 'comic_review'
-                  ? 'Search comic series, graphic novel, or creator (e.g. Watchmen, Saga, Neil Gaiman)...'
+                  ? 'Search Comic Vine volumes (e.g. Watchmen, Saga, Sandman, Batman)...'
                   : entryType === 'book_review'
-                  ? 'Search book title or author (e.g. Moby Dick, Cormac McCarthy)...'
+                  ? 'Search Open Library by title, author, or ISBN (e.g. Moby Dick, Cormac McCarthy)...'
                   : entryType === 'music_review'
                   ? 'Search album or artist (e.g. Blue Train, Radiohead)...'
                   : 'Search podcast title or host (e.g. Hardcore History)...'
@@ -318,38 +372,58 @@ export default function ReviewCraftPanel({
 
           {/* Results Dropdown */}
           {isDropdownOpen && searchResults.length > 0 && (
-            <div className="absolute z-20 top-full left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-[#FAF8F5] border border-[#DDD5C7] rounded shadow-lg divide-y divide-[#E5DFC5]">
-              {searchResults.map((item, idx) => (
-                <div
-                  key={item.id || idx}
-                  onClick={() => handleSelectItem(item)}
-                  className="p-2.5 hover:bg-[#F3EFEA] cursor-pointer flex items-center gap-3 transition-colors"
-                >
-                  {item.coverUrl || item.artworkUrl ? (
-                    <img
-                      src={item.coverUrl || item.artworkUrl}
-                      alt=""
-                      className="w-8 h-11 object-cover border border-[#DDD5C7] shrink-0 rounded"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 bg-stone-200 flex items-center justify-center shrink-0">
-                      <Search className="w-3.5 h-3.5 text-stone-500" />
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="font-display font-semibold text-xs text-[#1C1917] truncate">
-                      {item.title || item.series || item.podcastName}
-                    </div>
-                    <div className="text-[11px] font-serif text-[#66615C] truncate">
-                      {item.writer ? `Writer: ${item.writer}` : (item.author || item.artist || item.creator)}
-                      {item.artist ? ` • Art: ${item.artist}` : ''}
-                      {item.year ? ` (${item.year})` : ''}
+            <div className="absolute z-20 top-full left-0 right-0 mt-1 max-h-72 overflow-y-auto bg-[#FAF8F5] border border-[#DDD5C7] rounded shadow-lg divide-y divide-[#E5DFC5]">
+              {searchResults.map((item, idx) => {
+                const thumb = item.cover_image_url || item.coverUrl || item.artworkUrl;
+                const itemTitle = item.series || item.title || item.podcastName;
+                const itemAuthor = item.author || item.creator || item.writer || item.artist;
+                return (
+                  <div
+                    key={item.id || idx}
+                    onClick={() => handleSelectItem(item)}
+                    className="p-3 hover:bg-[#F3EFEA] cursor-pointer flex items-center gap-3.5 transition-colors"
+                  >
+                    {thumb ? (
+                      <img
+                        src={thumb}
+                        alt=""
+                        className="w-12 h-16 object-cover border border-[#DDD5C7] shrink-0 rounded shadow-2xs"
+                      />
+                    ) : (
+                      <div className="w-12 h-16 bg-stone-200 flex items-center justify-center shrink-0 rounded">
+                        <Search className="w-4 h-4 text-stone-500" />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="font-display font-semibold text-xs sm:text-sm text-[#1C1917] truncate">
+                        {itemTitle} {item.year ? `(${item.year})` : ''}
+                      </div>
+                      <div className="text-[11px] font-serif text-[#66615C] truncate mt-0.5">
+                        {itemAuthor ? `by ${itemAuthor}` : ''}
+                        {item.publisher ? ` • ${item.publisher}` : ''}
+                        {item.issue_count ? ` • ${item.issue_count} issues` : ''}
+                        {item.isbn ? ` • ISBN: ${item.isbn}` : ''}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
+
+          {/* Quiet Manual Fallback Link */}
+          <div className="flex items-center justify-between pt-0.5">
+            <button
+              type="button"
+              onClick={() => {
+                setIsDropdownOpen(false);
+                setIsChangingSelection(false);
+              }}
+              className="text-[11px] font-serif italic text-[#78716C] hover:text-[#1E40AF] transition-colors cursor-pointer"
+            >
+              Fill in details manually →
+            </button>
+          </div>
         </div>
       )}
 
@@ -537,8 +611,13 @@ export default function ReviewCraftPanel({
             </label>
             <input
               type="text"
-              value={metadata.pageCount || ''}
-              onChange={(e) => onMetadataChange({ pageCount: e.target.value })}
+              value={metadata.page_count || metadata.pageCount || ''}
+              onChange={(e) =>
+                onMetadataChange({
+                  page_count: e.target.value,
+                  pageCount: e.target.value,
+                })
+              }
               placeholder="e.g. 796"
               className="w-full text-xs font-serif bg-[#FAF8F5] border border-[#DDD5C7] rounded px-2.5 py-1.5 text-[#1C1917]"
             />

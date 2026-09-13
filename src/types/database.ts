@@ -71,12 +71,14 @@ export interface BookMetadata {
   year?: number | string;
   isbn?: string;
   pageCount?: number | string;
+  page_count?: number | string;
   pacing?: 'Slow Burn' | 'Deliberate' | 'Page-Turner' | string;
   pullQuote?: string;
   proseRating?: number;
   narrativeRating?: number;
   rating?: number;
   coverUrl?: string;
+  cover_image_url?: string;
   openLibraryKey?: string;
 }
 
@@ -87,6 +89,8 @@ export interface ComicMetadata {
   artist?: string;
   publisher?: string;
   year?: number | string;
+  issue_count?: number | string;
+  comic_vine_id?: number | string;
   accessibility?: 'Accessible Standalone' | 'Jumping-on Point' | 'Requires Prior Context' | string;
   prevReviewLink?: string;
   nextReviewLink?: string;
@@ -94,6 +98,7 @@ export interface ComicMetadata {
   artRating?: number;
   rating?: number;
   coverUrl?: string;
+  cover_image_url?: string;
 }
 
 export interface MusicMetadata {
