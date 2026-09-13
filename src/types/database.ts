@@ -136,6 +136,12 @@ export interface EntryMetadata extends BookMetadata, ComicMetadata, MusicMetadat
   tags?: string[];
   imageCaption?: string;
   imageCredit?: string;
+  cover_image_url?: string;
+  credit_creator?: string;
+  credit_title?: string;
+  credit_source?: string;
+  credit_source_url?: string;
+  credit_license?: string;
   readingTime?: string;
   categories?: string[];
   isPrivate?: boolean;

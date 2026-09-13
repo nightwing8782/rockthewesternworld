@@ -89,12 +89,12 @@ export default function TipTapEditor({
 
   return (
     <div className="border border-[#DDD5C7] bg-[#FAF8F5]">
-      {/* Deco Toolbar */}
-      <div className="flex flex-wrap items-center gap-1 p-2 bg-[#F2ECE1] border-b border-[#DDD5C7] text-[#242120]">
+      {/* Deco Toolbar (iPadOS Touch-Swipeable & Min 40px Touch Targets) */}
+      <div className="flex items-center gap-1 p-2 bg-[#F2ECE1] border-b border-[#DDD5C7] text-[#242120] overflow-x-auto no-scrollbar touch-pan-x flex-nowrap shrink-0">
         <button
           type="button"
           onClick={() => editor.chain().focus().toggleBold().run()}
-          className={`p-1.5 rounded hover:bg-[#DDD5C7] transition-colors ${
+          className={`min-w-[38px] min-h-[38px] sm:min-w-[34px] sm:min-h-[34px] flex items-center justify-center p-2 rounded hover:bg-[#DDD5C7] transition-colors ${
             editor.isActive('bold') ? 'bg-[#DDD5C7] text-[#1E40AF] font-bold' : ''
           }`}
           title="Bold"
@@ -105,7 +105,7 @@ export default function TipTapEditor({
         <button
           type="button"
           onClick={() => editor.chain().focus().toggleItalic().run()}
-          className={`p-1.5 rounded hover:bg-[#DDD5C7] transition-colors ${
+          className={`min-w-[38px] min-h-[38px] sm:min-w-[34px] sm:min-h-[34px] flex items-center justify-center p-2 rounded hover:bg-[#DDD5C7] transition-colors ${
             editor.isActive('italic') ? 'bg-[#DDD5C7] text-[#1E40AF]' : ''
           }`}
           title="Italic"
@@ -116,7 +116,7 @@ export default function TipTapEditor({
         <button
           type="button"
           onClick={() => editor.chain().focus().toggleStrike().run()}
-          className={`p-1.5 rounded hover:bg-[#DDD5C7] transition-colors ${
+          className={`min-w-[38px] min-h-[38px] sm:min-w-[34px] sm:min-h-[34px] flex items-center justify-center p-2 rounded hover:bg-[#DDD5C7] transition-colors ${
             editor.isActive('strike') ? 'bg-[#DDD5C7] text-[#1E40AF]' : ''
           }`}
           title="Strikethrough"
@@ -129,7 +129,7 @@ export default function TipTapEditor({
         <button
           type="button"
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-          className={`p-1.5 rounded hover:bg-[#DDD5C7] transition-colors ${
+          className={`min-w-[38px] min-h-[38px] sm:min-w-[34px] sm:min-h-[34px] flex items-center justify-center p-2 rounded hover:bg-[#DDD5C7] transition-colors ${
             editor.isActive('heading', { level: 1 }) ? 'bg-[#DDD5C7] text-[#1E40AF]' : ''
           }`}
           title="Heading 1"
@@ -140,7 +140,7 @@ export default function TipTapEditor({
         <button
           type="button"
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-          className={`p-1.5 rounded hover:bg-[#DDD5C7] transition-colors ${
+          className={`min-w-[38px] min-h-[38px] sm:min-w-[34px] sm:min-h-[34px] flex items-center justify-center p-2 rounded hover:bg-[#DDD5C7] transition-colors ${
             editor.isActive('heading', { level: 2 }) ? 'bg-[#DDD5C7] text-[#1E40AF]' : ''
           }`}
           title="Heading 2"
@@ -151,7 +151,7 @@ export default function TipTapEditor({
         <button
           type="button"
           onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-          className={`p-1.5 rounded hover:bg-[#DDD5C7] transition-colors ${
+          className={`min-w-[38px] min-h-[38px] sm:min-w-[34px] sm:min-h-[34px] flex items-center justify-center p-2 rounded hover:bg-[#DDD5C7] transition-colors ${
             editor.isActive('heading', { level: 3 }) ? 'bg-[#DDD5C7] text-[#1E40AF]' : ''
           }`}
           title="Heading 3"
@@ -164,7 +164,7 @@ export default function TipTapEditor({
         <button
           type="button"
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
-          className={`p-1.5 rounded hover:bg-[#DDD5C7] transition-colors ${
+          className={`min-w-[38px] min-h-[38px] sm:min-w-[34px] sm:min-h-[34px] flex items-center justify-center p-2 rounded hover:bg-[#DDD5C7] transition-colors ${
             editor.isActive('blockquote') ? 'bg-[#DDD5C7] text-[#1E40AF]' : ''
           }`}
           title="Blockquote"
@@ -175,7 +175,7 @@ export default function TipTapEditor({
         <button
           type="button"
           onClick={() => editor.chain().focus().toggleBulletList().run()}
-          className={`p-1.5 rounded hover:bg-[#DDD5C7] transition-colors ${
+          className={`min-w-[38px] min-h-[38px] sm:min-w-[34px] sm:min-h-[34px] flex items-center justify-center p-2 rounded hover:bg-[#DDD5C7] transition-colors ${
             editor.isActive('bulletList') ? 'bg-[#DDD5C7] text-[#1E40AF]' : ''
           }`}
           title="Bullet List"
@@ -186,7 +186,7 @@ export default function TipTapEditor({
         <button
           type="button"
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          className={`p-1.5 rounded hover:bg-[#DDD5C7] transition-colors ${
+          className={`min-w-[38px] min-h-[38px] sm:min-w-[34px] sm:min-h-[34px] flex items-center justify-center p-2 rounded hover:bg-[#DDD5C7] transition-colors ${
             editor.isActive('orderedList') ? 'bg-[#DDD5C7] text-[#1E40AF]' : ''
           }`}
           title="Numbered List"

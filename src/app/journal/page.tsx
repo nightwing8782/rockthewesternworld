@@ -33,6 +33,8 @@ import {
   CheckCircle,
   PanelLeftClose,
   PanelLeftOpen,
+  MoreVertical,
+  Copy,
   Shield,
   Feather,
   Book,
@@ -88,6 +90,7 @@ export default function JournalStudioPage() {
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
   const [isDispatchOpen, setIsDispatchOpen] = useState(false);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
 
   // Load Saved Sidebar State from LocalStorage
   useEffect(() => {
@@ -633,7 +636,7 @@ export default function JournalStudioPage() {
   const visibleList = getVisibleList();
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-[#242120] flex flex-col font-reading selection:bg-[#1E40AF] selection:text-white">
+    <div className="min-h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#FAF8F5] text-[#242120] flex flex-col font-reading selection:bg-[#1E40AF] selection:text-white relative">
       {/* Studio Header */}
       <header className="border-b border-[#E5DFC5] bg-[#FAF8F5]/95 backdrop-blur-sm sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-8 py-3 flex items-center justify-between">
@@ -671,13 +674,13 @@ export default function JournalStudioPage() {
           </div>
 
           {/* Interactive Status & Action Controls */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 sm:gap-2.5">
             {/* Clear Status Segmented Switcher */}
-            <div className="flex items-center bg-[#EAE4D7] p-0.5 rounded text-[11px] font-display uppercase tracking-wider font-bold">
+            <div className="flex items-center bg-[#EAE4D7] p-0.5 rounded text-[10px] sm:text-[11px] font-display uppercase tracking-wider font-bold shrink-0">
               <button
                 type="button"
                 onClick={() => handleSetStatus('draft')}
-                className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
+                className={`px-2 sm:px-2.5 py-1 rounded transition-colors cursor-pointer ${
                   !isPrivateActive && !isLiveActive
                     ? 'bg-[#FAF8F5] text-[#1C1917] shadow-xs'
                     : 'text-[#66615C] hover:text-[#1C1917]'
@@ -689,7 +692,7 @@ export default function JournalStudioPage() {
               <button
                 type="button"
                 onClick={() => handleSetStatus('private')}
-                className={`px-2.5 py-1 rounded transition-colors cursor-pointer flex items-center gap-1 ${
+                className={`px-2 sm:px-2.5 py-1 rounded transition-colors cursor-pointer flex items-center gap-1 ${
                   isPrivateActive
                     ? 'bg-amber-100 text-amber-900 shadow-xs'
                     : 'text-[#66615C] hover:text-[#1C1917]'
@@ -702,7 +705,7 @@ export default function JournalStudioPage() {
               <button
                 type="button"
                 onClick={() => handleSetStatus('published')}
-                className={`px-2.5 py-1 rounded transition-colors cursor-pointer flex items-center gap-1 ${
+                className={`px-2 sm:px-2.5 py-1 rounded transition-colors cursor-pointer flex items-center gap-1 ${
                   isLiveActive
                     ? 'bg-emerald-100 text-emerald-900 shadow-xs'
                     : 'text-[#66615C] hover:text-[#1C1917]'
@@ -714,75 +717,158 @@ export default function JournalStudioPage() {
               </button>
             </div>
 
-            <span className="hidden lg:inline text-[11px] font-display uppercase tracking-widest text-[#66615C]">
-              {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Unsaved'}
-            </span>
-
-            <button
-              onClick={() => setIsDispatchOpen(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[#44403C] hover:text-[#1E40AF] hover:bg-[#F2ECE1] transition-colors text-xs font-display uppercase tracking-wider font-bold cursor-pointer"
-              title="The Dispatch • Broadcast Newsletter to Subscribers"
-            >
-              <Mail className="w-3.5 h-3.5 text-[#B45309]" />
-              <span className="hidden sm:inline">The Dispatch</span>
-            </button>
-
-            <button
-              onClick={() => setIsAnalyticsOpen(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[#44403C] hover:text-[#1E40AF] hover:bg-[#F2ECE1] transition-colors text-xs font-display uppercase tracking-wider font-bold cursor-pointer"
-              title="View Umami Analytics"
-            >
-              <BarChart3 className="w-3.5 h-3.5 text-[#1E40AF]" />
-              <span className="hidden sm:inline">Analytics</span>
-            </button>
-
-            <button
-              onClick={() => setIsFocusMode(!isFocusMode)}
-              className="p-1.5 rounded text-[#66615C] hover:text-[#1E40AF] hover:bg-[#F3EFEA] transition-colors cursor-pointer"
-              title={isFocusMode ? 'Exit Focus Mode' : 'Enter Focus Mode'}
-            >
-              {isFocusMode ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-            </button>
-
-            {/* Save Button */}
+            {/* Primary Save Button */}
             <button
               onClick={saveCurrentDraft}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#1C1917] hover:bg-[#1E40AF] text-[#FAF8F5] rounded text-xs font-display uppercase tracking-widest font-bold transition-colors cursor-pointer shadow-xs"
+              className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 bg-[#1C1917] hover:bg-[#1E40AF] text-[#FAF8F5] rounded text-[11px] sm:text-xs font-display uppercase tracking-widest font-bold transition-colors cursor-pointer shadow-xs shrink-0"
             >
               <Save className="w-3.5 h-3.5 text-[#E5DFC5]" />
-              <span>{isPrivateActive ? 'Save Private' : isLiveActive ? 'Update Live' : 'Save Draft'}</span>
+              <span className="hidden sm:inline">{isPrivateActive ? 'Save Private' : isLiveActive ? 'Update Live' : 'Save Draft'}</span>
+              <span className="sm:hidden">Save</span>
             </button>
 
             {/* Promote Button (When in draft mode) */}
             {!isPrivateActive && !isLiveActive && (
               <button
                 onClick={() => setIsPromoteOpen(true)}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#1E40AF] hover:bg-[#1D4ED8] text-white rounded text-xs font-display uppercase tracking-widest font-bold transition-colors shadow-xs cursor-pointer"
+                className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 bg-[#1E40AF] hover:bg-[#1D4ED8] text-white rounded text-[11px] sm:text-xs font-display uppercase tracking-widest font-bold transition-colors shadow-xs cursor-pointer shrink-0"
               >
                 <Globe className="w-3.5 h-3.5" />
-                <span>Promote Live</span>
+                <span className="hidden sm:inline">Promote Live</span>
+                <span className="sm:hidden">Promote</span>
               </button>
             )}
 
+            {/* Direct Dispatch Button (Visible on desktop) */}
             <button
-              onClick={handleSignOut}
-              className="flex items-center gap-1 p-1.5 rounded text-[#66615C] hover:text-[#B45309] hover:bg-[#F3EFEA] transition-colors text-[11px] font-display uppercase tracking-wider cursor-pointer"
-              title={`Signed in as ${user?.email || 'Author'}. Click to Lock / Sign Out`}
+              onClick={() => setIsDispatchOpen(true)}
+              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[#44403C] hover:text-[#1E40AF] hover:bg-[#F2ECE1] transition-colors text-xs font-display uppercase tracking-wider font-bold cursor-pointer shrink-0"
+              title="The Dispatch • Broadcast Newsletter to Subscribers"
             >
-              <Lock className="w-3.5 h-3.5 text-[#B45309]" />
-              <span className="hidden sm:inline">Lock</span>
+              <Mail className="w-3.5 h-3.5 text-[#B45309]" />
+              <span>The Dispatch</span>
             </button>
+
+            {/* Secondary Actions [•••] Overflow Dropdown Menu */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
+                className="p-1.5 rounded hover:bg-[#EAE4D7] text-[#44403C] hover:text-[#1C1917] transition-colors cursor-pointer border border-[#DDD5C7] bg-[#FAF8F5]"
+                title="More Studio Actions"
+              >
+                <MoreVertical className="w-4 h-4" />
+              </button>
+
+              {isMoreMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsMoreMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-1.5 w-52 bg-[#FAF8F5] border border-[#DDD5C7] shadow-xl rounded py-1 z-50 font-serif text-xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDispatchOpen(true);
+                        setIsMoreMenuOpen(false);
+                      }}
+                      className="w-full px-3.5 py-2 text-left hover:bg-[#F2ECE1] flex items-center gap-2 text-[#1C1917] cursor-pointer"
+                    >
+                      <Mail className="w-3.5 h-3.5 text-[#B45309]" />
+                      <span>The Dispatch Broadcast</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAnalyticsOpen(true);
+                        setIsMoreMenuOpen(false);
+                      }}
+                      className="w-full px-3.5 py-2 text-left hover:bg-[#F2ECE1] flex items-center gap-2 text-[#1C1917] cursor-pointer"
+                    >
+                      <BarChart3 className="w-3.5 h-3.5 text-[#1E40AF]" />
+                      <span>Umami Analytics</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsFocusMode(!isFocusMode);
+                        setIsMoreMenuOpen(false);
+                      }}
+                      className="w-full px-3.5 py-2 text-left hover:bg-[#F2ECE1] flex items-center gap-2 text-[#1C1917] cursor-pointer"
+                    >
+                      {isFocusMode ? <Minimize2 className="w-3.5 h-3.5 text-[#B45309]" /> : <Maximize2 className="w-3.5 h-3.5 text-[#1E40AF]" />}
+                      <span>{isFocusMode ? 'Exit Focus Mode' : 'Enter Focus Mode'}</span>
+                    </button>
+
+                    {isLiveActive && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleUnpublishToDraft();
+                          setIsMoreMenuOpen(false);
+                        }}
+                        className="w-full px-3.5 py-2 text-left hover:bg-[#F2ECE1] flex items-center gap-2 text-amber-800 cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Unpublish to Draft</span>
+                      </button>
+                    )}
+
+                    {activeEntry && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleDeleteEntry(activeEntry);
+                          setIsMoreMenuOpen(false);
+                        }}
+                        className="w-full px-3.5 py-2 text-left hover:bg-red-50 flex items-center gap-2 text-red-700 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete Current Entry</span>
+                      </button>
+                    )}
+
+                    <div className="my-1 border-t border-[#DDD5C7]" />
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleSignOut();
+                        setIsMoreMenuOpen(false);
+                      }}
+                      className="w-full px-3.5 py-2 text-left hover:bg-[#F2ECE1] flex items-center gap-2 text-[#66615C] cursor-pointer"
+                    >
+                      <Lock className="w-3.5 h-3.5 text-[#B45309]" />
+                      <span>Lock Studio / Sign Out</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Main Studio Area */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-6 w-full flex-1 flex gap-8">
-        {/* Left Sidebar Drawer */}
+      {/* Main Studio Area (Responsive Slide-over Drawer + Touch-Optimized Canvas) */}
+      <div className="max-w-7xl mx-auto px-3 sm:px-8 py-4 sm:py-6 w-full flex-1 flex gap-6 lg:gap-8 overflow-hidden">
+        {/* Off-Canvas Backdrop for < 1180px */}
+        {!isFocusMode && isSidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/30 backdrop-blur-xs z-40 xl:hidden"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
+
+        {/* Left Sidebar Drawer (< 1180px Slide-Over Drawer; >= 1180px Inline Sidebar) */}
         {!isFocusMode && (
           <aside
-            className={`shrink-0 flex flex-col gap-3.5 transition-all duration-200 overflow-hidden ${
-              isSidebarOpen ? 'w-72 border-r border-[#E5DFC5] pr-6' : 'w-0 opacity-0 pointer-events-none pr-0'
+            className={`shrink-0 flex flex-col gap-3.5 transition-all duration-200 bg-[#FAF8F5] ${
+              isSidebarOpen
+                ? 'fixed inset-y-0 left-0 z-50 w-80 shadow-2xl p-5 border-r border-[#E5DFC5] xl:static xl:z-auto xl:w-72 xl:shadow-none xl:p-0 xl:pr-6'
+                : 'w-0 opacity-0 pointer-events-none pr-0 -translate-x-full xl:translate-x-0'
             }`}
           >
             {/* New Entry Action Buttons */}
@@ -906,7 +992,7 @@ export default function JournalStudioPage() {
                               e.stopPropagation();
                               handleDeleteEntry(entry);
                             }}
-                            className="opacity-0 group-hover:opacity-100 p-0.5 text-stone-400 hover:text-red-700 transition-opacity cursor-pointer"
+                            className="p-1 text-stone-400 hover:text-red-700 active:text-red-800 transition-colors cursor-pointer"
                             title="Delete this entry"
                           >
                             <Trash2 className="w-3 h-3" />
@@ -934,8 +1020,8 @@ export default function JournalStudioPage() {
           </aside>
         )}
 
-        {/* Center Editorial Writing Canvas (Hard-capped to max-w-[680px]) */}
-        <main className="flex-1 max-w-[680px] mx-auto w-full">
+        {/* Center Editorial Writing Canvas (Hard-capped to max-w-[680px], Touch-friendly pb-48) */}
+        <main className="flex-1 max-w-[680px] mx-auto w-full overflow-y-auto pb-48 px-1 sm:px-0">
           {/* Active Status Banner & Quick Action Buttons */}
           {isLiveActive && activeEntry?.slug && (
             <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 font-serif rounded">

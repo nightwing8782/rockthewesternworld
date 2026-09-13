@@ -101,6 +101,21 @@ export default async function BlogPostPage({ params }: PageProps) {
     url: siteUrl,
   };
 
+  const heroUrl = metadata.cover_image_url || metadata.coverUrl;
+  const imageObject = heroUrl ? {
+    '@type': 'ImageObject',
+    url: heroUrl,
+    caption: metadata.credit_title || metadata.imageCaption || title,
+    creator: metadata.credit_creator ? { '@type': 'Person', name: metadata.credit_creator } : undefined,
+    creditText: [
+      metadata.credit_title || title,
+      metadata.credit_creator ? `by ${metadata.credit_creator}` : null,
+      metadata.credit_source ? `via ${metadata.credit_source}` : null,
+    ].filter(Boolean).join(' '),
+    license: metadata.credit_license || undefined,
+    acquireLicensePage: metadata.credit_source_url || undefined,
+  } : undefined;
+
   switch (entry_type) {
     case 'comic_review':
       jsonLd = {
@@ -112,7 +127,7 @@ export default async function BlogPostPage({ params }: PageProps) {
           author: metadata.writer ? { '@type': 'Person', name: metadata.writer } : undefined,
           illustrator: metadata.artist ? { '@type': 'Person', name: metadata.artist } : undefined,
           publisher: metadata.publisher ? { '@type': 'Organization', name: metadata.publisher } : undefined,
-          image: metadata.coverUrl || undefined,
+          image: imageObject || metadata.coverUrl || undefined,
         },
         reviewRating: metadata.rating ? { '@type': 'Rating', ratingValue: metadata.rating, bestRating: '5' } : undefined,
         author: authorObj,
@@ -132,7 +147,7 @@ export default async function BlogPostPage({ params }: PageProps) {
           author: metadata.author ? { '@type': 'Person', name: metadata.author } : undefined,
           isbn: metadata.isbn || undefined,
           publisher: metadata.publisher ? { '@type': 'Organization', name: metadata.publisher } : undefined,
-          image: metadata.coverUrl || undefined,
+          image: imageObject || metadata.coverUrl || undefined,
         },
         reviewRating: metadata.rating ? { '@type': 'Rating', ratingValue: metadata.rating, bestRating: '5' } : undefined,
         author: authorObj,
@@ -151,7 +166,7 @@ export default async function BlogPostPage({ params }: PageProps) {
           name: metadata.title || title,
           byArtist: metadata.artist ? { '@type': 'MusicGroup', name: metadata.artist } : undefined,
           recordLabel: metadata.label || undefined,
-          image: metadata.coverUrl || undefined,
+          image: imageObject || metadata.coverUrl || undefined,
         },
         reviewRating: metadata.rating ? { '@type': 'Rating', ratingValue: metadata.rating, bestRating: '5' } : undefined,
         author: authorObj,
@@ -169,7 +184,7 @@ export default async function BlogPostPage({ params }: PageProps) {
           '@type': 'PodcastSeries',
           name: metadata.podcastName || metadata.title || title,
           author: metadata.creator ? { '@type': 'Person', name: metadata.creator } : undefined,
-          image: metadata.artworkUrl || metadata.coverUrl || undefined,
+          image: imageObject || metadata.artworkUrl || metadata.coverUrl || undefined,
         },
         reviewRating: metadata.rating ? { '@type': 'Rating', ratingValue: metadata.rating, bestRating: '5' } : undefined,
         author: authorObj,
@@ -186,6 +201,7 @@ export default async function BlogPostPage({ params }: PageProps) {
         headline: title,
         author: authorObj,
         datePublished: published_at || updated_at,
+        image: imageObject || undefined,
         mainEntityOfPage: { '@type': 'WebPage', '@id': postUrl },
       };
       break;
@@ -240,16 +256,57 @@ export default async function BlogPostPage({ params }: PageProps) {
         </div>
 
         {/* Feature Hero Image for Essays / Thoughts */}
-        {metadata.coverUrl && !isReview && (
+        {heroUrl && !isReview && (
           <figure className="my-8">
             <img
-              src={metadata.coverUrl}
-              alt={metadata.imageCaption || title || ''}
+              src={heroUrl}
+              alt={metadata.credit_title || metadata.imageCaption || title || ''}
               className="w-full max-h-[460px] object-cover border border-[#DDD5C7] shadow-xs"
             />
-            {(metadata.imageCaption || metadata.imageCredit) && (
-              <figcaption className="mt-2 text-[12px] italic text-[#44403C] font-serif text-center">
-                {metadata.imageCaption} {metadata.imageCredit ? `— ${metadata.imageCredit}` : ''}
+            {(metadata.credit_title || metadata.credit_creator || metadata.credit_source || metadata.imageCaption || metadata.imageCredit) && (
+              <figcaption className="mt-2.5 text-[12px] text-[#57534E] font-serif text-center flex flex-wrap items-center justify-center gap-1.5 leading-relaxed">
+                {metadata.imageCaption && (
+                  <span className="italic text-[#292524] mr-1">{metadata.imageCaption}</span>
+                )}
+                {metadata.imageCaption && (metadata.credit_title || metadata.credit_creator || metadata.credit_source || metadata.imageCredit) && (
+                  <span className="text-[#A8A29E] font-sans text-[10px]">|</span>
+                )}
+                <span className="text-[#78716C] font-mono text-[11px]">
+                  Photo / Art:
+                </span>
+                {metadata.credit_title && (
+                  <span className="font-medium text-[#292524]">
+                    {metadata.credit_title}
+                  </span>
+                )}
+                {metadata.credit_creator && (
+                  <span>by <span className="text-[#292524]">{metadata.credit_creator}</span></span>
+                )}
+                {metadata.credit_source && (
+                  <span>
+                    via{' '}
+                    {metadata.credit_source_url ? (
+                      <a
+                        href={metadata.credit_source_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline hover:text-[#1E40AF] text-[#292524] transition-colors"
+                      >
+                        {metadata.credit_source}
+                      </a>
+                    ) : (
+                      <span className="text-[#292524]">{metadata.credit_source}</span>
+                    )}
+                  </span>
+                )}
+                {metadata.credit_license && (
+                  <span className="text-[#78716C] text-[11px] font-mono">
+                    ({metadata.credit_license})
+                  </span>
+                )}
+                {!metadata.credit_creator && !metadata.credit_source && metadata.imageCredit && (
+                  <span className="italic">— {metadata.imageCredit}</span>
+                )}
               </figcaption>
             )}
           </figure>
