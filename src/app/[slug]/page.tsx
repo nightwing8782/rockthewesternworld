@@ -21,7 +21,10 @@ export async function generateStaticParams() {
     try {
       const entries: Entry[] = JSON.parse(fs.readFileSync(archivePath, 'utf8'));
       entries.forEach((e) => {
-        if (e.slug && (e.status === 'published' || !e.status)) slugs.add(e.slug);
+        const isPublished = e.status ? e.status === 'published' : true;
+        if (e.slug && isPublished) {
+          slugs.add(e.slug);
+        }
       });
     } catch (e) {}
   }
@@ -63,7 +66,10 @@ async function getPost(slug: string): Promise<Entry | null> {
     if (fs.existsSync(archivePath)) {
       const entries: Entry[] = JSON.parse(fs.readFileSync(archivePath, 'utf8'));
       const match = entries.find((e) => e.slug === slug);
-      if (match && match.status !== 'private') return match;
+      if (match) {
+        const isPublished = match.status ? match.status === 'published' : true;
+        if (isPublished) return match;
+      }
     }
   } catch (e) {}
 

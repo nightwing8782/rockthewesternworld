@@ -34,7 +34,8 @@ async function getPublishedEntries(): Promise<Entry[]> {
       const parsed: Entry[] = JSON.parse(fs.readFileSync(archivePath, 'utf8'));
       parsed.forEach((e, idx) => {
         const s = e.slug || e.id || `wp-${idx}`;
-        if (s && !map.has(s) && (e.status === 'published' || !e.status)) {
+        const isPublished = e.status ? e.status === 'published' : true;
+        if (s && !map.has(s) && isPublished) {
           map.set(s, { ...e, id: e.id || s });
         }
       });

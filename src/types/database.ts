@@ -53,13 +53,17 @@ export const EDITORIAL_DESKS: DeskDefinition[] = [
   },
 ];
 
+import type { DailyLedgerMetadata } from './journal';
+export * from './journal';
+
 export type EntryType =
   | 'essay'
   | 'thought'
   | 'book_review'
   | 'comic_review'
   | 'music_review'
-  | 'podcast_review';
+  | 'podcast_review'
+  | 'personal_ledger';
 
 export type EntryStatus = 'draft' | 'published' | 'archived' | 'private';
 
@@ -132,7 +136,7 @@ export interface PodcastMetadata {
   rating?: number;
 }
 
-export interface EntryMetadata extends BookMetadata, ComicMetadata, MusicMetadata, PodcastMetadata {
+export interface EntryMetadata extends BookMetadata, ComicMetadata, MusicMetadata, PodcastMetadata, Partial<DailyLedgerMetadata> {
   desk?: DeskType;
   category?: SubCategory | string;
   kicker?: string;
@@ -151,6 +155,7 @@ export interface EntryMetadata extends BookMetadata, ComicMetadata, MusicMetadat
   categories?: string[];
   isPrivate?: boolean;
   reflectionPrompt?: string;
+  [key: string]: any;
 }
 
 export interface Entry {

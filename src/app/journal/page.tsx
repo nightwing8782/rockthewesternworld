@@ -15,6 +15,7 @@ import TipTapEditor from '@/components/journal/TipTapEditor';
 import ReviewCraftPanel from '@/components/journal/ReviewCraftPanel';
 import ReflectionPromptBar from '@/components/journal/ReflectionPromptBar';
 import EditorialPhotographyAccordion from '@/components/journal/EditorialPhotographyAccordion';
+import DailyPersonalLedger from '@/components/journal/DailyPersonalLedger';
 import PromoteModal from '@/components/journal/PromoteModal';
 import AnalyticsModal from '@/components/journal/AnalyticsModal';
 import DispatchModal from '@/components/journal/DispatchModal';
@@ -46,11 +47,14 @@ import {
   RotateCcw,
   Archive,
   Mail,
+  ArrowDownToLine,
+  Sparkles,
 } from 'lucide-react';
 
 const ENTRY_TYPES: { type: EntryType; label: string; icon: any }[] = [
   { type: 'essay', label: 'Essay', icon: Feather },
   { type: 'thought', label: 'Reflection / Note', icon: FileEdit },
+  { type: 'personal_ledger', label: 'Personal Ledger', icon: BookOpen },
   { type: 'book_review', label: 'Book Log', icon: Book },
   { type: 'comic_review', label: 'Comic Review', icon: BookOpen },
   { type: 'music_review', label: 'Record Log', icon: Music },
@@ -363,6 +367,38 @@ export default function JournalStudioPage() {
     setSaveStatus('unsaved');
   };
 
+  // Insert Formatted Daily Ledger into Editor Body
+  const handleInsertLedgerIntoBody = () => {
+    const energyMap: Record<string, string> = {
+      high_focused: 'High · Focused',
+      high_scattered: 'High · Scattered',
+      low_reflective: 'Low · Reflective',
+      low_depleted: 'Low · Depleted',
+    };
+    const energyLabel = metadata?.energy ? (energyMap[metadata.energy] || metadata.energy) : '—';
+    const habits = metadata?.habits || {};
+    const triad = metadata?.triad || { bright_spot: '', calibration: '', working_thought: '' };
+    
+    const dateFormatted = activeEntry?.created_at
+      ? new Date(activeEntry.created_at).toLocaleDateString('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        })
+      : new Date().toLocaleDateString('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        });
+
+    const ledgerHtml = `<blockquote><p><strong>Daily Ledger · ${dateFormatted}</strong><br/><em>Energy:</em> ${energyLabel}<br/><em>Practices:</em> Movement [${habits.movement ? '✓' : ' '}] · Reading [${habits.reading ? '✓' : ' '}] · Writing [${habits.writing ? '✓' : ' '}] · Unplug [${habits.unplug ? '✓' : ' '}]</p><p><strong>+ Bright Spot:</strong> ${triad.bright_spot || '—'}<br/><strong>△ Calibration:</strong> ${triad.calibration || '—'}<br/><strong>• Working Thought:</strong> ${triad.working_thought || '—'}</p></blockquote><p></p>`;
+
+    setContentHtml((prev) => ledgerHtml + prev);
+    setSaveStatus('unsaved');
+  };
+
   // Apply Review Template
   const handleApplyTemplate = (templateHtml: string) => {
     if (!contentHtml.trim() || window.confirm('Apply review structure to canvas? (Existing text will remain beneath).')) {
@@ -536,7 +572,7 @@ export default function JournalStudioPage() {
     }
   };
 
-  // Filter items based on active tab and search query
+  // Filter items based on active tab and search query (including Triad semantic search)
   const getVisibleList = () => {
     let list: Entry[] = [];
     if (activeTab === 'drafts') list = draftEntries;
@@ -546,12 +582,19 @@ export default function JournalStudioPage() {
 
     if (!searchFilter.trim()) return list;
     const q = searchFilter.toLowerCase();
-    return list.filter(
-      (item) =>
-        (item.title || '').toLowerCase().includes(q) ||
-        (item.slug || '').toLowerCase().includes(q) ||
-        (item.metadata?.category || '').toLowerCase().includes(q)
-    );
+    return list.filter((item) => {
+      const titleMatch = (item.title || '').toLowerCase().includes(q);
+      const slugMatch = (item.slug || '').toLowerCase().includes(q);
+      const catMatch = (item.metadata?.category || '').toLowerCase().includes(q);
+      const bodyMatch = (item.body_html || '').toLowerCase().includes(q);
+      
+      // Triad search matches for private ledger entries
+      const brightMatch = (item.metadata?.triad?.bright_spot || '').toLowerCase().includes(q);
+      const calibMatch = (item.metadata?.triad?.calibration || '').toLowerCase().includes(q);
+      const thoughtMatch = (item.metadata?.triad?.working_thought || '').toLowerCase().includes(q);
+
+      return titleMatch || slugMatch || catMatch || bodyMatch || brightMatch || calibMatch || thoughtMatch;
+    });
   };
 
   if (authLoading) {
@@ -952,7 +995,11 @@ export default function JournalStudioPage() {
                 type="text"
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
-                placeholder={`Search ${activeTab}...`}
+                placeholder={
+                  activeTab === 'private'
+                    ? 'Search reflections, bright spots, thoughts...'
+                    : `Search ${activeTab}...`
+                }
                 className="w-full pl-8 pr-2.5 py-1.5 bg-[#FAF8F5] border border-[#E5DFC5] rounded text-xs font-serif text-[#1C1917] placeholder:text-[#9C9589] focus:outline-[#1E40AF]"
               />
             </div>
@@ -962,6 +1009,83 @@ export default function JournalStudioPage() {
               {visibleList.length > 0 ? (
                 visibleList.map((entry, idx) => {
                   const isActive = activeEntry?.slug === entry.slug || activeEntry?.id === entry.id;
+
+                  if (activeTab === 'private') {
+                    const entryDate = entry.created_at || entry.published_at || new Date().toISOString();
+                    const formattedDate = new Date(entryDate).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    });
+                    const brightSpot = entry.metadata?.triad?.bright_spot;
+
+                    const renderEnergyBadge = (energy?: string | null) => {
+                      switch (energy) {
+                        case 'high_focused':
+                          return <span className="text-[8px] font-display uppercase tracking-wider text-amber-950 bg-amber-200/90 px-1.5 py-0.5 rounded font-bold">⚡ Focused</span>;
+                        case 'high_scattered':
+                          return <span className="text-[8px] font-display uppercase tracking-wider text-orange-950 bg-orange-200/90 px-1.5 py-0.5 rounded font-bold">🌀 Scattered</span>;
+                        case 'low_reflective':
+                          return <span className="text-[8px] font-display uppercase tracking-wider text-blue-950 bg-blue-200/90 px-1.5 py-0.5 rounded font-bold">🌱 Reflective</span>;
+                        case 'low_depleted':
+                          return <span className="text-[8px] font-display uppercase tracking-wider text-stone-900 bg-stone-200/90 px-1.5 py-0.5 rounded font-bold">🔋 Depleted</span>;
+                        default:
+                          return (
+                            <span className="text-[8px] font-display uppercase tracking-wider text-amber-800 bg-amber-100/90 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5">
+                              <Lock className="w-2.5 h-2.5" />
+                              <span>Private</span>
+                            </span>
+                          );
+                      }
+                    };
+
+                    return (
+                      <div
+                        key={entry.id || entry.slug || `entry-${idx}`}
+                        onClick={() => selectEntry(entry)}
+                        className={`group p-2.5 rounded cursor-pointer transition-colors border relative ${
+                          isActive
+                            ? 'bg-[#F3EFEA] border-[#B45309] shadow-xs'
+                            : 'border-transparent hover:bg-[#F3EFEA]/60 text-[#66615C]'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] font-display uppercase tracking-wider font-bold text-[#1C1917]">
+                            {formattedDate}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            {renderEnergyBadge(entry.metadata?.energy)}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteEntry(entry);
+                              }}
+                              className="p-1 text-stone-400 hover:text-red-700 active:text-red-800 transition-colors cursor-pointer"
+                              title="Delete this entry"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <h4 className="font-display font-semibold text-xs text-[#1C1917] line-clamp-1 pr-4">
+                          {entry.title || `Check-in · ${formattedDate}`}
+                        </h4>
+
+                        {brightSpot ? (
+                          <p className="line-clamp-1 italic text-xs text-stone-500 mt-1">
+                            ✦ {brightSpot}
+                          </p>
+                        ) : (
+                          <p className="line-clamp-1 italic text-xs text-stone-400 mt-1">
+                            {entry.body_html?.replace(/<[^>]*>/g, '').trim() || 'No reflection recorded.'}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  }
+
                   return (
                     <div
                       key={entry.id || entry.slug || `entry-${idx}`}
@@ -1208,6 +1332,31 @@ export default function JournalStudioPage() {
               }
             }}
           />
+
+          {/* Daily Personal Ledger (Active for Private entries or personal_ledger format) */}
+          {(isPrivateActive || entryType === 'personal_ledger') && (
+            <div className="mb-6 space-y-2.5">
+              <DailyPersonalLedger
+                metadata={metadata}
+                onUpdateMetadata={(newMeta) => {
+                  setMetadata((prev) => ({ ...prev, ...newMeta }));
+                  saveCurrentDraft(newMeta);
+                }}
+                onSelectMemory={(memoryEntry) => selectEntry(memoryEntry)}
+              />
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleInsertLedgerIntoBody}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#FAF8F5] hover:bg-[#EAE4D7] text-[#44403C] hover:text-[#1C1917] border border-[#DDD5C7] rounded text-[11px] font-display uppercase tracking-wider font-bold transition-colors cursor-pointer shadow-2xs"
+                  title="Insert formatted ledger summary into editor body"
+                >
+                  <ArrowDownToLine className="w-3.5 h-3.5 text-[#B45309]" />
+                  <span>Insert Ledger into Body</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Headline Input */}
           <input
