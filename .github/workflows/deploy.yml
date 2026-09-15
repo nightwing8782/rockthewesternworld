@@ -72,13 +72,16 @@ jobs:
           
           chmod 600 ~/.ssh/siteground_key
           
+          # Define standard SSH options with fast connection timeout and keepalive
+          SSH_OPTS="-p ${SSH_PORT:-18765} -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa,rsa-sha2-512,rsa-sha2-256 -o HostkeyAlgorithms=+ssh-rsa -i /home/runner/.ssh/siteground_key"
+
           # Determine SiteGround public_html directory path (domain-specific vs root public_html)
           TARGET_DIR="public_html"
-          if ssh -p ${SSH_PORT:-18765} -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa,rsa-sha2-512,rsa-sha2-256 -o HostkeyAlgorithms=+ssh-rsa -i ~/.ssh/siteground_key $SSH_USER@$SSH_HOST "[ -d www/rockthewesternworld.com/public_html ]"; then
+          if ssh $SSH_OPTS $SSH_USER@$SSH_HOST "[ -d www/rockthewesternworld.com/public_html ]"; then
             TARGET_DIR="www/rockthewesternworld.com/public_html"
             echo "Detected SiteGround domain path: $TARGET_DIR"
           else
-            echo "Detected default path: $TARGET_DIR"
+            echo "Using default target path: $TARGET_DIR"
           fi
 
           # Ensure .htaccess and journal/index.html are copied
@@ -87,4 +90,4 @@ jobs:
           cp -f out/journal.html out/journal/index.html 2>/dev/null || true
           
           # Sync out/ folder contents into SiteGround with explicit D755 / F644 permissions to prevent 403 Forbidden errors
-          rsync -avz --chmod=D755,F644 -i --delete -e "ssh -p ${SSH_PORT:-18765} -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa,rsa-sha2-512,rsa-sha2-256 -o HostkeyAlgorithms=+ssh-rsa -i ~/.ssh/siteground_key" out/ $SSH_USER@$SSH_HOST:$TARGET_DIR/
+          rsync -avz --chmod=D755,F644 -i --delete -e "ssh $SSH_OPTS" out/ $SSH_USER@$SSH_HOST:$TARGET_DIR/
