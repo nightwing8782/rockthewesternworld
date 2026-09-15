@@ -88,13 +88,13 @@ export default function DailyPersonalLedger({
   onUpdateMetadata,
   onSelectMemory,
 }: DailyPersonalLedgerProps) {
-  // 1. Internal state synced with metadata
-  const energy: EnergyQuadrant = metadata?.energy || null;
-  const habits: HabitMap = metadata?.habits || {};
+  // 1. Internal state synced with metadata (supporting top-level and metadata.ledger fallback)
+  const energy: EnergyQuadrant = metadata?.energy || metadata?.ledger?.energy || null;
+  const habits: HabitMap = metadata?.habits || metadata?.ledger?.habits || {};
   const triad: TriadState = {
-    bright_spot: metadata?.triad?.bright_spot || '',
-    calibration: metadata?.triad?.calibration || '',
-    working_thought: metadata?.triad?.working_thought || '',
+    bright_spot: metadata?.triad?.bright_spot || metadata?.ledger?.triad?.bright_spot || '',
+    calibration: metadata?.triad?.calibration || metadata?.ledger?.triad?.calibration || '',
+    working_thought: metadata?.triad?.working_thought || metadata?.ledger?.triad?.working_thought || '',
   };
 
   const [localTriad, setLocalTriad] = useState<TriadState>(triad);
@@ -110,11 +110,11 @@ export default function DailyPersonalLedger({
 
   useEffect(() => {
     setLocalTriad({
-      bright_spot: metadata?.triad?.bright_spot || '',
-      calibration: metadata?.triad?.calibration || '',
-      working_thought: metadata?.triad?.working_thought || '',
+      bright_spot: metadata?.triad?.bright_spot || metadata?.ledger?.triad?.bright_spot || '',
+      calibration: metadata?.triad?.calibration || metadata?.ledger?.triad?.calibration || '',
+      working_thought: metadata?.triad?.working_thought || metadata?.ledger?.triad?.working_thought || '',
     });
-  }, [metadata?.triad]);
+  }, [metadata?.triad, metadata?.ledger?.triad]);
 
   // Compute 7-day past week labels
   useEffect(() => {

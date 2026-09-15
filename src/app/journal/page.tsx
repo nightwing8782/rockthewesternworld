@@ -77,7 +77,7 @@ export default function JournalStudioPage() {
   const [publishedEntries, setPublishedEntries] = useState<Entry[]>([]);
   const [privateEntries, setPrivateEntries] = useState<Entry[]>([]);
   const [historicalEntries, setHistoricalEntries] = useState<Entry[]>([]);
-  const [activeTab, setActiveTab] = useState<'drafts' | 'published' | 'private' | 'historical'>('drafts');
+  const [activeTab, setActiveTab] = useState<'all' | 'published' | 'drafts' | 'private' | 'historical'>('drafts');
   const [searchFilter, setSearchFilter] = useState('');
 
   // Active Document State
@@ -239,29 +239,44 @@ export default function JournalStudioPage() {
       } catch (e) {}
     }
 
-    // 2. Fetch Live Published & Remote Privates from Supabase
+    // 2. Fetch All Entries (Published, Private, Drafts) from Supabase
     try {
       const supabase = createClient();
       supabase
         .from('entries')
         .select('*')
-        .order('published_at', { ascending: false })
-        .then(({ data }) => {
-          if (data) {
+        .order('created_at', { ascending: false })
+        .then(({ data, error }) => {
+          if (!error && data) {
             const pub = data.filter((e) => e.status === 'published') as Entry[];
             const priv = data.filter((e) => e.status === 'private') as Entry[];
+            const drafts = data.filter((e) => e.status === 'draft') as Entry[];
+
             if (pub.length > 0) setPublishedEntries(pub);
-            if (priv.length > 0) {
-              setPrivateEntries((prev) => {
-                const map = new Map<string, Entry>();
-                priv.forEach((p) => map.set(p.id || p.slug || '', p));
-                prev.forEach((p) => {
-                  const key = p.id || p.slug || '';
-                  if (!map.has(key)) map.set(key, p);
-                });
-                return Array.from(map.values());
+
+            setPrivateEntries((prev) => {
+              const map = new Map<string, Entry>();
+              priv.forEach((p) => map.set(p.id || p.slug || '', p));
+              prev.forEach((p) => {
+                const key = p.id || p.slug || '';
+                if (!map.has(key)) map.set(key, p);
               });
-            }
+              return Array.from(map.values()).sort((a, b) => 
+                new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+              );
+            });
+
+            setDraftEntries((prev) => {
+              const map = new Map<string, Entry>();
+              drafts.forEach((d) => map.set(d.id || d.slug || '', d));
+              prev.forEach((d) => {
+                const key = d.id || d.slug || '';
+                if (!map.has(key)) map.set(key, d);
+              });
+              return Array.from(map.values()).sort((a, b) => 
+                new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime()
+              );
+            });
           }
         });
     } catch (e) {}
@@ -442,17 +457,21 @@ export default function JournalStudioPage() {
     // Save to Supabase
     try {
       const supabase = createClient();
-      await supabase.from('entries').upsert({
+      const payload: any = {
         id: updated.id,
+        user_id: user?.id || updated.user_id || 'master-author',
         title: updated.title,
-        slug: updated.slug || (updated.title ? updated.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '') : null),
+        slug: updated.slug || (updated.title ? updated.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '') : ('entry-' + Date.now())),
         entry_type: updated.entry_type,
         status: updated.status,
         body_html: updated.body_html,
         metadata: updated.metadata,
         published_at: updated.status === 'published' ? (updated.published_at || new Date().toISOString()) : null,
         updated_at: updated.updated_at,
-      }, { onConflict: 'slug' });
+        created_at: updated.created_at || new Date().toISOString(),
+      };
+
+      await supabase.from('entries').upsert(payload, { onConflict: 'id' });
 
       if (updated.status === 'published') {
         setPublishedEntries((prev) => {
@@ -572,13 +591,25 @@ export default function JournalStudioPage() {
     }
   };
 
+  // Helper to compile master combined entries
+  const getAllEntriesList = useCallback(() => {
+    const map = new Map<string, Entry>();
+    [...publishedEntries, ...draftEntries, ...privateEntries, ...historicalEntries].forEach((e) => {
+      const key = e.id || e.slug || '';
+      if (key && !map.has(key)) map.set(key, e);
+    });
+    return Array.from(map.values()).sort((a, b) => 
+      new Date(b.created_at || b.published_at || 0).getTime() - new Date(a.created_at || a.published_at || 0).getTime()
+    );
+  }, [publishedEntries, draftEntries, privateEntries, historicalEntries]);
+
   // Filter items based on active tab and search query (including Triad semantic search)
   const getVisibleList = () => {
     let list: Entry[] = [];
-    if (activeTab === 'drafts') list = draftEntries;
+    if (activeTab === 'all') list = getAllEntriesList();
     else if (activeTab === 'published') list = publishedEntries;
+    else if (activeTab === 'drafts') list = draftEntries;
     else if (activeTab === 'private') list = privateEntries;
-    else if (activeTab === 'historical') list = historicalEntries;
 
     if (!searchFilter.trim()) return list;
     const q = searchFilter.toLowerCase();
@@ -589,9 +620,9 @@ export default function JournalStudioPage() {
       const bodyMatch = (item.body_html || '').toLowerCase().includes(q);
       
       // Triad search matches for private ledger entries
-      const brightMatch = (item.metadata?.triad?.bright_spot || '').toLowerCase().includes(q);
-      const calibMatch = (item.metadata?.triad?.calibration || '').toLowerCase().includes(q);
-      const thoughtMatch = (item.metadata?.triad?.working_thought || '').toLowerCase().includes(q);
+      const brightMatch = (item.metadata?.triad?.bright_spot || item.metadata?.ledger?.triad?.bright_spot || '').toLowerCase().includes(q);
+      const calibMatch = (item.metadata?.triad?.calibration || item.metadata?.ledger?.triad?.calibration || '').toLowerCase().includes(q);
+      const thoughtMatch = (item.metadata?.triad?.working_thought || item.metadata?.ledger?.triad?.working_thought || '').toLowerCase().includes(q);
 
       return titleMatch || slugMatch || catMatch || bodyMatch || brightMatch || calibMatch || thoughtMatch;
     });
@@ -940,18 +971,18 @@ export default function JournalStudioPage() {
               </button>
             </div>
 
-            {/* Sidebar 4-Tab Navigation: Drafts | Live | Private | Archive */}
+            {/* Sidebar 4-Tab Navigation: All | Published | Drafts | Private / Ledger */}
             <div className="grid grid-cols-4 bg-[#EAE4D7] p-0.5 rounded text-[9px] font-display uppercase tracking-wider font-bold">
               <button
-                onClick={() => setActiveTab('drafts')}
+                onClick={() => setActiveTab('all')}
                 className={`py-1.5 rounded transition-colors text-center cursor-pointer ${
-                  activeTab === 'drafts'
+                  activeTab === 'all'
                     ? 'bg-[#FAF8F5] text-[#1C1917] shadow-xs'
                     : 'text-[#66615C] hover:text-[#1C1917]'
                 }`}
-                title="Working Drafts"
+                title="All Working & Archival Entries"
               >
-                Drafts ({draftEntries.length})
+                All
               </button>
               <button
                 onClick={() => setActiveTab('published')}
@@ -962,7 +993,18 @@ export default function JournalStudioPage() {
                 }`}
                 title="Live Published Pieces"
               >
-                Live ({publishedEntries.length})
+                Published ({publishedEntries.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('drafts')}
+                className={`py-1.5 rounded transition-colors text-center cursor-pointer ${
+                  activeTab === 'drafts'
+                    ? 'bg-[#FAF8F5] text-stone-900 shadow-xs'
+                    : 'text-[#66615C] hover:text-[#1C1917]'
+                }`}
+                title="Working Drafts"
+              >
+                Drafts ({draftEntries.length})
               </button>
               <button
                 onClick={() => setActiveTab('private')}
@@ -971,20 +1013,9 @@ export default function JournalStudioPage() {
                     ? 'bg-[#FAF8F5] text-[#B45309] shadow-xs'
                     : 'text-[#66615C] hover:text-[#1C1917]'
                 }`}
-                title="Private Entries (Never Published)"
+                title="Private Entries & Daily Personal Ledgers"
               >
                 Private ({privateEntries.length})
-              </button>
-              <button
-                onClick={() => setActiveTab('historical')}
-                className={`py-1.5 rounded transition-colors text-center cursor-pointer ${
-                  activeTab === 'historical'
-                    ? 'bg-[#FAF8F5] text-stone-800 shadow-xs'
-                    : 'text-[#66615C] hover:text-[#1C1917]'
-                }`}
-                title="Historical 341 WordPress Archive"
-              >
-                Archive ({historicalEntries.length})
               </button>
             </div>
 
@@ -1010,14 +1041,15 @@ export default function JournalStudioPage() {
                 visibleList.map((entry, idx) => {
                   const isActive = activeEntry?.slug === entry.slug || activeEntry?.id === entry.id;
 
-                  if (activeTab === 'private') {
+                  if (activeTab === 'private' || (activeTab === 'all' && entry.status === 'private')) {
                     const entryDate = entry.created_at || entry.published_at || new Date().toISOString();
                     const formattedDate = new Date(entryDate).toLocaleDateString('en-US', {
                       month: 'short',
                       day: 'numeric',
                       year: 'numeric',
                     });
-                    const brightSpot = entry.metadata?.triad?.bright_spot;
+                    const energyVal = entry.metadata?.energy || entry.metadata?.ledger?.energy;
+                    const brightSpot = entry.metadata?.triad?.bright_spot || entry.metadata?.ledger?.triad?.bright_spot;
 
                     const renderEnergyBadge = (energy?: string | null) => {
                       switch (energy) {
@@ -1054,7 +1086,7 @@ export default function JournalStudioPage() {
                             {formattedDate}
                           </span>
                           <div className="flex items-center gap-1">
-                            {renderEnergyBadge(entry.metadata?.energy)}
+                            {renderEnergyBadge(energyVal)}
                             <button
                               type="button"
                               onClick={(e) => {
