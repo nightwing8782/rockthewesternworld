@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import {
   EntryType,
@@ -741,8 +741,12 @@ export default function JournalStudioPage() {
   const isLiveActive = entryStatus === 'published' && !metadata.isPrivate;
   const visibleList = getVisibleList();
 
+  const allStudioEntries = useMemo(() => {
+    return [...privateEntries, ...draftEntries, ...publishedEntries];
+  }, [privateEntries, draftEntries, publishedEntries]);
+
   return (
-    <div className="min-h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#FAF8F5] text-[#242120] flex flex-col font-reading selection:bg-[#1E40AF] selection:text-white relative">
+    <div className="min-h-screen bg-[#FAF8F5] text-[#242120] flex flex-col font-reading selection:bg-[#1E40AF] selection:text-white relative">
       {/* Studio Header */}
       <header className="border-b border-[#E5DFC5] bg-[#FAF8F5]/95 backdrop-blur-sm sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-8 py-3 flex items-center justify-between">
@@ -959,7 +963,7 @@ export default function JournalStudioPage() {
       </header>
 
       {/* Main Studio Area (Responsive Slide-over Drawer + Touch-Optimized Canvas) */}
-      <div className="max-w-7xl mx-auto px-3 sm:px-8 py-4 sm:py-6 w-full flex-1 flex gap-6 lg:gap-8 overflow-hidden">
+      <div className="max-w-7xl mx-auto px-3 sm:px-8 py-4 sm:py-6 w-full flex-1 flex gap-6 lg:gap-8">
         {/* Off-Canvas Backdrop for < 1180px */}
         {!isFocusMode && isSidebarOpen && (
           <div
@@ -968,12 +972,12 @@ export default function JournalStudioPage() {
           />
         )}
 
-        {/* Left Sidebar Drawer (< 1180px Slide-Over Drawer; >= 1180px Inline Sidebar) */}
+        {/* Left Sidebar Drawer (< 1180px Slide-Over Drawer; >= 1180px Inline Sticky Sidebar) */}
         {!isFocusMode && (
           <aside
             className={`shrink-0 flex flex-col gap-3.5 transition-all duration-200 bg-[#FAF8F5] ${
               isSidebarOpen
-                ? 'fixed inset-y-0 left-0 z-50 w-80 shadow-2xl p-5 border-r border-[#E5DFC5] xl:static xl:z-auto xl:w-72 xl:shadow-none xl:p-0 xl:pr-6'
+                ? 'fixed inset-y-0 left-0 z-50 w-80 shadow-2xl p-5 border-r border-[#E5DFC5] overflow-y-auto xl:sticky xl:top-16 xl:max-h-[calc(100vh-5rem)] xl:z-auto xl:w-72 xl:shadow-none xl:p-0 xl:pr-6'
                 : 'w-0 opacity-0 pointer-events-none pr-0 -translate-x-full xl:translate-x-0'
             }`}
           >
@@ -1216,7 +1220,7 @@ export default function JournalStudioPage() {
         )}
 
         {/* Center Editorial Writing Canvas (Hard-capped to max-w-[680px], Touch-friendly pb-48) */}
-        <main className="flex-1 max-w-[680px] mx-auto w-full overflow-y-auto pb-48 px-1 sm:px-0">
+        <main className="flex-1 max-w-[680px] mx-auto w-full pb-48 px-1 sm:px-0">
           {/* Active Status Banner & Quick Action Buttons */}
           {isLiveActive && activeEntry?.slug && (
             <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 font-serif rounded">
@@ -1401,7 +1405,7 @@ export default function JournalStudioPage() {
             <div className="mb-6 space-y-2.5">
               <DailyPersonalLedger
                 metadata={metadata}
-                entries={[...privateEntries, ...draftEntries, ...publishedEntries]}
+                entries={allStudioEntries}
                 onUpdateMetadata={(newMeta) => {
                   setMetadata((prev) => ({ ...prev, ...newMeta }));
                   saveCurrentDraft(newMeta);

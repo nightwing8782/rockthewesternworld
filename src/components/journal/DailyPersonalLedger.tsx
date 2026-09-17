@@ -174,15 +174,13 @@ export default function DailyPersonalLedger({
     setPastWeekRhythm(result);
   }, [habits, entries]);
 
-  // Fetch Wikipedia On This Day + Throwback Memory
+  // Fetch Wikipedia On This Day ONCE on mount
   useEffect(() => {
     let isMounted = true;
     const today = new Date();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const dd = String(today.getDate()).padStart(2, '0');
-    const currentYear = today.getFullYear();
 
-    // A. Fetch Wikipedia fact
     async function fetchOnThisDay() {
       setIsLoadingWiki(true);
       try {
@@ -213,7 +211,21 @@ export default function DailyPersonalLedger({
       }
     }
 
-    // B. Query Throwback Memory from Supabase or loaded entries
+    fetchOnThisDay();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Fetch Throwback Memory from Supabase or parent entries
+  useEffect(() => {
+    let isMounted = true;
+    const today = new Date();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const currentYear = today.getFullYear();
+
     async function fetchPastMemories() {
       try {
         let allPrivate: Entry[] = [];
@@ -254,13 +266,12 @@ export default function DailyPersonalLedger({
       } catch (e) {}
     }
 
-    fetchOnThisDay();
     fetchPastMemories();
 
     return () => {
       isMounted = false;
     };
-  }, [entries]);
+  }, [entries.length]);
 
   const emitUpdate = useCallback(
     (newEnergy: EnergyQuadrant, newHabits: HabitMap, newTriad: TriadState) => {
