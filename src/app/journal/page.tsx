@@ -95,6 +95,7 @@ export default function JournalStudioPage() {
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
   const [isDispatchOpen, setIsDispatchOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const [ledgerFeedback, setLedgerFeedback] = useState<string | null>(null);
 
   // Load Saved Sidebar State from LocalStorage
   useEffect(() => {
@@ -277,6 +278,22 @@ export default function JournalStudioPage() {
                 new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime()
               );
             });
+
+            // Update local storage cache with unified list
+            try {
+              const savedLocal = localStorage.getItem('rww_local_entries');
+              const localList: Entry[] = savedLocal ? JSON.parse(savedLocal) : [];
+              const combinedMap = new Map<string, Entry>();
+              data.forEach((e: Entry) => {
+                const k = e.id || e.slug || '';
+                if (k) combinedMap.set(k, e);
+              });
+              localList.forEach((e: Entry) => {
+                const k = e.id || e.slug || '';
+                if (k && !combinedMap.has(k)) combinedMap.set(k, e);
+              });
+              localStorage.setItem('rww_local_entries', JSON.stringify(Array.from(combinedMap.values())));
+            } catch (e) {}
           }
         });
     } catch (e) {}
@@ -414,6 +431,32 @@ export default function JournalStudioPage() {
     setSaveStatus('unsaved');
   };
 
+  // Explicitly Record / Save Daily Check-in with positive visual feedback
+  const handleRecordDailyCheckIn = async () => {
+    const formattedDate = new Date().toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+    const defaultTitle = title.trim() || `Daily Ledger · ${formattedDate}`;
+    if (!title.trim()) {
+      setTitle(defaultTitle);
+    }
+    const updatedMeta = { ...metadata, isPrivate: true };
+    setMetadata(updatedMeta);
+    setEntryStatus('private');
+    if (entryType !== 'personal_ledger') {
+      setEntryType('personal_ledger');
+    }
+    await saveCurrentDraft(updatedMeta, defaultTitle);
+
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    setLedgerFeedback(`Check-in recorded at ${timeStr}`);
+    setTimeout(() => {
+      setLedgerFeedback(null);
+    }, 3500);
+  };
+
   // Apply Review Template
   const handleApplyTemplate = (templateHtml: string) => {
     if (!contentHtml.trim() || window.confirm('Apply review structure to canvas? (Existing text will remain beneath).')) {
@@ -434,7 +477,8 @@ export default function JournalStudioPage() {
       category: selectedCategory,
     };
 
-    const finalTitle = (explicitTitle !== undefined ? explicitTitle : title).trim() || 'Untitled Entry';
+    const defaultPrivateTitle = `Daily Ledger · ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    const finalTitle = (explicitTitle !== undefined ? explicitTitle : title).trim() || (mergedMeta.isPrivate || entryType === 'personal_ledger' ? defaultPrivateTitle : 'Untitled Entry');
     const updatedStatus = mergedMeta.isPrivate ? 'private' : entryStatus;
     mergedMeta.isPrivate = updatedStatus === 'private';
 
@@ -450,7 +494,7 @@ export default function JournalStudioPage() {
 
     setActiveEntry(updated);
     setMetadata(mergedMeta);
-    if (explicitTitle !== undefined && !title.trim()) {
+    if (!title.trim()) {
       setTitle(finalTitle);
     }
 
@@ -472,39 +516,22 @@ export default function JournalStudioPage() {
       };
 
       await supabase.from('entries').upsert(payload, { onConflict: 'id' });
-
-      if (updated.status === 'published') {
-        setPublishedEntries((prev) => {
-          const idx = prev.findIndex((e) => e.slug === updated.slug || e.id === updated.id);
-          if (idx >= 0) {
-            const next = [...prev];
-            next[idx] = updated;
-            return next;
-          }
-          return [updated, ...prev];
-        });
-      } else if (updated.status === 'private') {
-        setPrivateEntries((prev) => {
-          const idx = prev.findIndex((e) => e.id === updated.id);
-          if (idx >= 0) {
-            const next = [...prev];
-            next[idx] = updated;
-            return next;
-          }
-          return [updated, ...prev];
-        });
-      } else if (updated.status === 'draft') {
-        setDraftEntries((prev) => {
-          const idx = prev.findIndex((e) => e.id === updated.id);
-          if (idx >= 0) {
-            const next = [...prev];
-            next[idx] = updated;
-            return next;
-          }
-          return [updated, ...prev];
-        });
-      }
     } catch (e) {}
+
+    // Update in-memory state lists accurately
+    if (updated.status === 'published') {
+      setPublishedEntries((prev) => [updated, ...prev.filter((e) => e.id !== updated.id && e.slug !== updated.slug)]);
+      setDraftEntries((prev) => prev.filter((e) => e.id !== updated.id));
+      setPrivateEntries((prev) => prev.filter((e) => e.id !== updated.id));
+    } else if (updated.status === 'private') {
+      setPrivateEntries((prev) => [updated, ...prev.filter((e) => e.id !== updated.id)]);
+      setDraftEntries((prev) => prev.filter((e) => e.id !== updated.id));
+      setPublishedEntries((prev) => prev.filter((e) => e.id !== updated.id));
+    } else if (updated.status === 'draft') {
+      setDraftEntries((prev) => [updated, ...prev.filter((e) => e.id !== updated.id)]);
+      setPrivateEntries((prev) => prev.filter((e) => e.id !== updated.id));
+      setPublishedEntries((prev) => prev.filter((e) => e.id !== updated.id));
+    }
 
     // Save to LocalStorage
     try {
@@ -517,9 +544,6 @@ export default function JournalStudioPage() {
         parsed = [updated, ...parsed];
       }
       localStorage.setItem('rww_local_entries', JSON.stringify(parsed));
-
-      setDraftEntries(parsed.filter((e) => e.status === 'draft'));
-      setPrivateEntries(parsed.filter((e) => e.status === 'private'));
     } catch (e) {}
 
     setTimeout(() => setSaveStatus('saved'), 350);
@@ -963,11 +987,11 @@ export default function JournalStudioPage() {
                 <span>+ New Draft</span>
               </button>
               <button
-                onClick={() => createNewDraft('thought', true)}
+                onClick={() => createNewDraft('personal_ledger', true)}
                 className="py-2 px-2.5 bg-[#B45309] hover:bg-[#92400E] text-[#FAF8F5] rounded text-[10px] font-display uppercase tracking-wider font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer"
               >
-                <Shield className="w-3 h-3" />
-                <span>+ New Private</span>
+                <BookOpen className="w-3 h-3" />
+                <span>+ Daily Ledger</span>
               </button>
             </div>
 
@@ -1050,6 +1074,8 @@ export default function JournalStudioPage() {
                     });
                     const energyVal = entry.metadata?.energy || entry.metadata?.ledger?.energy;
                     const brightSpot = entry.metadata?.triad?.bright_spot || entry.metadata?.ledger?.triad?.bright_spot;
+                    const habitsObj = entry.metadata?.habits || entry.metadata?.ledger?.habits || {};
+                    const doneHabitsCount = Object.values(habitsObj).filter(Boolean).length;
 
                     const renderEnergyBadge = (energy?: string | null) => {
                       switch (energy) {
@@ -1086,6 +1112,11 @@ export default function JournalStudioPage() {
                             {formattedDate}
                           </span>
                           <div className="flex items-center gap-1">
+                            {doneHabitsCount > 0 && (
+                              <span className="text-[8px] font-display uppercase tracking-wider text-emerald-900 bg-emerald-100/90 border border-emerald-300/80 px-1.5 py-0.5 rounded font-bold">
+                                ✓ {doneHabitsCount}/4
+                              </span>
+                            )}
                             {renderEnergyBadge(energyVal)}
                             <button
                               type="button"
@@ -1370,22 +1401,48 @@ export default function JournalStudioPage() {
             <div className="mb-6 space-y-2.5">
               <DailyPersonalLedger
                 metadata={metadata}
+                entries={[...privateEntries, ...draftEntries, ...publishedEntries]}
                 onUpdateMetadata={(newMeta) => {
                   setMetadata((prev) => ({ ...prev, ...newMeta }));
                   saveCurrentDraft(newMeta);
                 }}
                 onSelectMemory={(memoryEntry) => selectEntry(memoryEntry)}
               />
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={handleInsertLedgerIntoBody}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#FAF8F5] hover:bg-[#EAE4D7] text-[#44403C] hover:text-[#1C1917] border border-[#DDD5C7] rounded text-[11px] font-display uppercase tracking-wider font-bold transition-colors cursor-pointer shadow-2xs"
-                  title="Insert formatted ledger summary into editor body"
-                >
-                  <ArrowDownToLine className="w-3.5 h-3.5 text-[#B45309]" />
-                  <span>Insert Ledger into Body</span>
-                </button>
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                <div className="flex items-center gap-2">
+                  {ledgerFeedback ? (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded text-[11px] font-display uppercase tracking-wider font-bold shadow-2xs">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-700" />
+                      <span>{ledgerFeedback}</span>
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-serif text-[#78716C] italic">
+                      Autosaved to confidential archive
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleInsertLedgerIntoBody}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#FAF8F5] hover:bg-[#EAE4D7] text-[#44403C] hover:text-[#1C1917] border border-[#DDD5C7] rounded text-[11px] font-display uppercase tracking-wider font-bold transition-colors cursor-pointer shadow-2xs"
+                    title="Insert formatted ledger summary into editor body"
+                  >
+                    <ArrowDownToLine className="w-3.5 h-3.5 text-[#B45309]" />
+                    <span>Insert into Body</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleRecordDailyCheckIn}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#B45309] hover:bg-[#92400E] active:bg-[#78350F] text-[#FAF8F5] rounded text-[11px] font-display uppercase tracking-wider font-bold transition-colors cursor-pointer shadow-xs"
+                    title="Save habits, energy, and reflection notes to your private ledger"
+                  >
+                    <Save className="w-3.5 h-3.5 text-[#FAF8F5]" />
+                    <span>Record Daily Check-in</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}

@@ -155,6 +155,9 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
                         <img
                           src={post.metadata.coverUrl}
                           alt=""
+                          onError={(e) => {
+                            (e.currentTarget as HTMLElement).style.display = 'none';
+                          }}
                           className="w-full h-44 object-cover group-hover:scale-102 transition-transform duration-300"
                         />
                       </div>
@@ -368,6 +371,9 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
                           <img
                             src={post.metadata.coverUrl}
                             alt=""
+                            onError={(e) => {
+                              (e.currentTarget as HTMLElement).style.display = 'none';
+                            }}
                             className="w-16 h-20 object-cover border border-[#DDD5C7] shrink-0 bg-[#F2ECE1]"
                           />
                         )}
@@ -423,6 +429,9 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
                           <img
                             src={post.metadata.coverUrl}
                             alt=""
+                            onError={(e) => {
+                              (e.currentTarget as HTMLElement).style.display = 'none';
+                            }}
                             className="w-16 h-20 object-cover border border-[#DDD5C7] shrink-0 bg-[#F2ECE1]"
                           />
                         )}
@@ -489,6 +498,9 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
                           <img
                             src={post.metadata.coverUrl}
                             alt=""
+                            onError={(e) => {
+                              (e.currentTarget as HTMLElement).style.display = 'none';
+                            }}
                             className="w-16 h-20 object-cover border border-[#DDD5C7] shrink-0 bg-[#F2ECE1]"
                           />
                         )}

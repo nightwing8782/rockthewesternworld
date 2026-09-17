@@ -36,6 +36,7 @@ import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { Entry } from '@/types/database';
 import Masthead from '@/components/navigation/Masthead';
+import ArticleHeroImage from '@/components/article/ArticleHeroImage';
 import Link from 'next/link';
 import { ArrowLeft, Star, Book, BookOpen, Music, Radio, ChevronRight } from 'lucide-react';
 import type { Metadata } from 'next';
@@ -263,59 +264,17 @@ export default async function BlogPostPage({ params }: PageProps) {
 
         {/* Feature Hero Image for Essays / Thoughts */}
         {heroUrl && !isReview && (
-          <figure className="my-8">
-            <img
-              src={heroUrl}
-              alt={metadata.credit_title || metadata.imageCaption || title || ''}
-              className="w-full max-h-[460px] object-cover border border-[#DDD5C7] shadow-xs"
-            />
-            {(metadata.credit_title || metadata.credit_creator || metadata.credit_source || metadata.imageCaption || metadata.imageCredit) && (
-              <figcaption className="mt-2.5 text-[12px] text-[#57534E] font-serif text-center flex flex-wrap items-center justify-center gap-1.5 leading-relaxed">
-                {metadata.imageCaption && (
-                  <span className="italic text-[#292524] mr-1">{metadata.imageCaption}</span>
-                )}
-                {metadata.imageCaption && (metadata.credit_title || metadata.credit_creator || metadata.credit_source || metadata.imageCredit) && (
-                  <span className="text-[#A8A29E] font-sans text-[10px]">|</span>
-                )}
-                <span className="text-[#78716C] font-mono text-[11px]">
-                  Photo / Art:
-                </span>
-                {metadata.credit_title && (
-                  <span className="font-medium text-[#292524]">
-                    {metadata.credit_title}
-                  </span>
-                )}
-                {metadata.credit_creator && (
-                  <span>by <span className="text-[#292524]">{metadata.credit_creator}</span></span>
-                )}
-                {metadata.credit_source && (
-                  <span>
-                    via{' '}
-                    {metadata.credit_source_url ? (
-                      <a
-                        href={metadata.credit_source_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="underline hover:text-[#1E40AF] text-[#292524] transition-colors"
-                      >
-                        {metadata.credit_source}
-                      </a>
-                    ) : (
-                      <span className="text-[#292524]">{metadata.credit_source}</span>
-                    )}
-                  </span>
-                )}
-                {metadata.credit_license && (
-                  <span className="text-[#78716C] text-[11px] font-mono">
-                    ({metadata.credit_license})
-                  </span>
-                )}
-                {!metadata.credit_creator && !metadata.credit_source && metadata.imageCredit && (
-                  <span className="italic">— {metadata.imageCredit}</span>
-                )}
-              </figcaption>
-            )}
-          </figure>
+          <ArticleHeroImage
+            src={heroUrl}
+            alt={metadata.credit_title || metadata.imageCaption || title || ''}
+            caption={metadata.imageCaption}
+            creditTitle={metadata.credit_title}
+            creditCreator={metadata.credit_creator}
+            creditSource={metadata.credit_source}
+            creditSourceUrl={metadata.credit_source_url}
+            creditLicense={metadata.credit_license}
+            imageCredit={metadata.imageCredit}
+          />
         )}
 
         {/* Structured Cultural Review Header Box */}

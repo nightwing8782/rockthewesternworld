@@ -23,6 +23,7 @@ import {
 
 interface DailyPersonalLedgerProps {
   metadata?: Partial<DailyLedgerMetadata> & Record<string, any>;
+  entries?: Entry[];
   onUpdateMetadata: (updated: DailyLedgerMetadata) => void;
   onSelectMemory?: (memoryEntry: Entry) => void;
 }
@@ -85,6 +86,7 @@ const ENERGY_OPTIONS: {
 
 export default function DailyPersonalLedger({
   metadata,
+  entries = [],
   onUpdateMetadata,
   onSelectMemory,
 }: DailyPersonalLedgerProps) {
@@ -105,7 +107,7 @@ export default function DailyPersonalLedger({
   const [isLoadingWiki, setIsLoadingWiki] = useState(true);
   const [pastMemory, setPastMemory] = useState<PastMemory | null>(null);
 
-  // 3. Past 7 Days Rhythm Mock/Compute
+  // 3. Past 7 Days Rhythm Compute
   const [pastWeekRhythm, setPastWeekRhythm] = useState<{ dayLabel: string; dateNum: number; isCompleted: boolean; isToday: boolean }[]>([]);
 
   useEffect(() => {
@@ -116,7 +118,7 @@ export default function DailyPersonalLedger({
     });
   }, [metadata?.triad, metadata?.ledger?.triad]);
 
-  // Compute 7-day past week labels
+  // Compute 7-day past week rhythm using parent entries + localStorage + today's active habits
   useEffect(() => {
     const days = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
     const result = [];
@@ -129,31 +131,50 @@ export default function DailyPersonalLedger({
       if (raw) savedLocal = JSON.parse(raw);
     } catch (e) {}
 
+    // Combine all entries
+    const allEntriesMap = new Map<string, Entry>();
+    [...(entries || []), ...savedLocal].forEach((e) => {
+      const key = e.id || e.slug || '';
+      if (key && !allEntriesMap.has(key)) allEntriesMap.set(key, e);
+    });
+    const combinedEntries = Array.from(allEntriesMap.values());
+
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(now.getDate() - i);
       const dayLabel = days[d.getDay()];
       const dateNum = d.getDate();
-      const dateISO = d.toISOString().slice(0, 10);
 
-      // Check if any habit was completed on this date in storage
-      const hasCompleted = savedLocal.some((e) => {
-        const eDate = (e.created_at || '').slice(0, 10);
-        return eDate === dateISO && e.metadata?.habits && Object.values(e.metadata.habits).some(Boolean);
+      const targetYear = d.getFullYear();
+      const targetMonth = d.getMonth();
+      const targetDate = d.getDate();
+
+      // Check if any habit was completed on this date
+      const hasCompleted = combinedEntries.some((e) => {
+        if (!e.created_at) return false;
+        const entryDate = new Date(e.created_at);
+        const matchesDate =
+          entryDate.getFullYear() === targetYear &&
+          entryDate.getMonth() === targetMonth &&
+          entryDate.getDate() === targetDate;
+        if (!matchesDate) return false;
+
+        const h = e.metadata?.habits || e.metadata?.ledger?.habits;
+        return h && Object.values(h).some(Boolean);
       }) || (i === 0 && Object.values(habits).some(Boolean));
 
       result.push({
         dayLabel,
         dateNum,
-        isCompleted: hasCompleted,
+        isCompleted: Boolean(hasCompleted),
         isToday: i === 0,
       });
     }
 
     setPastWeekRhythm(result);
-  }, [habits]);
+  }, [habits, entries]);
 
-  // Fetch Wikipedia On This Day + Supabase Throwback Memory
+  // Fetch Wikipedia On This Day + Throwback Memory
   useEffect(() => {
     let isMounted = true;
     const today = new Date();
@@ -171,13 +192,11 @@ export default function DailyPersonalLedger({
           const data = await res.json();
           const list = data.selected || data.events || [];
           if (list.length > 0 && isMounted) {
-            // Pick a notable fact
             const chosen = list[Math.floor(Math.random() * Math.min(list.length, 5))];
             setWikiFact({ year: chosen.year, text: chosen.text });
           }
         }
       } catch (e) {
-        // Fallback to Wikipedia REST API
         try {
           const fallbackUrl = `https://en.wikipedia.org/api/rest_v1/feed/onthisday/selected/${mm}/${dd}`;
           const res = await fetch(fallbackUrl);
@@ -194,9 +213,10 @@ export default function DailyPersonalLedger({
       }
     }
 
-    // B. Query Supabase for previous year private entry on this day
+    // B. Query Throwback Memory from Supabase or loaded entries
     async function fetchPastMemories() {
       try {
+        let allPrivate: Entry[] = [];
         const supabase = createClient();
         const { data } = await supabase
           .from('entries')
@@ -204,8 +224,14 @@ export default function DailyPersonalLedger({
           .eq('status', 'private')
           .order('created_at', { ascending: false });
 
-        if (data && data.length > 0 && isMounted) {
-          const match = data.find((item: Entry) => {
+        if (data && data.length > 0) {
+          allPrivate = data;
+        } else if (entries && entries.length > 0) {
+          allPrivate = entries.filter((e) => e.status === 'private');
+        }
+
+        if (allPrivate.length > 0 && isMounted) {
+          const match = allPrivate.find((item: Entry) => {
             if (!item.created_at) return false;
             const itemDate = new Date(item.created_at);
             const itemYear = itemDate.getFullYear();
@@ -216,7 +242,7 @@ export default function DailyPersonalLedger({
 
           if (match && isMounted) {
             const itemDate = new Date(match.created_at);
-            const spot = match.metadata?.triad?.bright_spot || match.title || match.body_html?.replace(/<[^>]+>/g, '').slice(0, 75) || 'Personal entry';
+            const spot = match.metadata?.triad?.bright_spot || match.metadata?.ledger?.triad?.bright_spot || match.title || match.body_html?.replace(/<[^>]+>/g, '').slice(0, 75) || 'Personal entry';
             setPastMemory({
               year: itemDate.getFullYear(),
               dateStr: itemDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
@@ -234,7 +260,7 @@ export default function DailyPersonalLedger({
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [entries]);
 
   const emitUpdate = useCallback(
     (newEnergy: EnergyQuadrant, newHabits: HabitMap, newTriad: TriadState) => {
@@ -273,6 +299,8 @@ export default function DailyPersonalLedger({
       emitUpdate(energy, habits, updated);
     }, 200);
   };
+
+  const completedHabitsCount = Object.values(habits).filter(Boolean).length;
 
   return (
     <section className="mb-8 p-4 sm:p-5 bg-[#F2ECE1] border border-[#DDD5C7] rounded-lg shadow-xs space-y-6 text-[#1C1917] select-none touch-manipulation">
@@ -389,9 +417,16 @@ export default function DailyPersonalLedger({
       {/* 3. DAILY HABIT RAIL & 7-DAY RHYTHM */}
       <div className="space-y-2.5">
         <div className="flex items-center justify-between">
-          <label className="text-[10px] font-display font-black uppercase tracking-[0.2em] text-[#1C1917]">
-            DAILY HABIT RAIL &amp; 7-DAY RHYTHM
-          </label>
+          <div className="flex items-center gap-2">
+            <label className="text-[10px] font-display font-black uppercase tracking-[0.2em] text-[#1C1917]">
+              DAILY HABIT RAIL &amp; 7-DAY RHYTHM
+            </label>
+            {completedHabitsCount > 0 && (
+              <span className="text-[9px] font-display uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300/80">
+                {completedHabitsCount}/4 done today
+              </span>
+            )}
+          </div>
           <span className="text-[10px] font-serif text-[#66615C] italic">
             Non-punitive momentum
           </span>
