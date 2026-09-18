@@ -63,10 +63,11 @@ export default function PromoteModal({
 
     try {
       const supabase = createClient();
-      const payload = {
+      const payload: any = {
+        id: activeEntry?.id,
         title: title.trim() || 'Untitled Entry',
         slug: slug.trim(),
-        entry_type: entryType,
+        entry_type: entryType === 'personal_ledger' ? 'thought' : entryType,
         status: 'published',
         body_html: contentHtml,
         metadata: fullMetadata,
@@ -75,7 +76,7 @@ export default function PromoteModal({
       };
 
       const { error } = await supabase.from('entries').upsert(payload, {
-        onConflict: 'slug',
+        onConflict: 'id',
       });
 
       if (error) {

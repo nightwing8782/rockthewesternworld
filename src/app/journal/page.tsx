@@ -267,6 +267,7 @@ export default function JournalStudioPage() {
   }, []);
 
   // Switch Top-level Workspace Mode
+  // Switch Top-level Workspace Mode
   const switchWorkspaceMode = (mode: 'ledger' | 'editorial') => {
     setWorkspaceMode(mode);
     try {
@@ -274,13 +275,13 @@ export default function JournalStudioPage() {
     } catch (e) {}
 
     if (mode === 'ledger') {
-      // Find today's ledger or latest private ledger entry
+      // Find today's ledger entry
       const todayStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       const existingLedger = privateEntries.find((e) => {
         if (!e.created_at) return false;
         const d = new Date(e.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         return d === todayStr || (e.title && e.title.includes(todayStr));
-      }) || privateEntries[0];
+      });
 
       if (existingLedger) {
         selectEntry(existingLedger);
@@ -302,25 +303,32 @@ export default function JournalStudioPage() {
   useEffect(() => {
     if (!user) return;
 
-    // 1. Local Cache Load + Non-UUID Auto-Migration
+    // 1. Local Cache Load + Non-UUID Auto-Migration + Database Mapping
     const savedLocal = localStorage.getItem('rww_local_entries');
     let parsedLocal: Entry[] = [];
     if (savedLocal) {
       try {
-        parsedLocal = JSON.parse(savedLocal);
+        const rawLocal: any[] = JSON.parse(savedLocal);
         let hasMigrated = false;
-        parsedLocal = parsedLocal.map((item) => {
-          if (!isValidUUID(item.id)) {
+        parsedLocal = rawLocal.map((item) => {
+          const isPriv = item.status === 'private_log' || item.status === 'private' || item.metadata?.isPrivate;
+          let id = item.id;
+          if (!isValidUUID(id)) {
             hasMigrated = true;
-            const newId = generateUUID();
-            return {
-              ...item,
-              id: newId,
-              slug: item.slug || `entry-${newId.slice(0, 8)}`,
-              user_id: isValidUUID(user?.id) ? user.id : null,
-            };
+            id = generateUUID();
           }
-          return item;
+          return {
+            ...item,
+            id,
+            status: isPriv ? 'private' : (item.status || 'draft'),
+            entry_type: (isPriv || item.entry_type === 'personal_ledger') ? 'personal_ledger' : (item.entry_type || 'essay'),
+            slug: item.slug || `entry-${id.slice(0, 8)}`,
+            user_id: isValidUUID(user?.id) ? user.id : (isValidUUID(item.user_id) ? item.user_id : null),
+            metadata: {
+              ...(item.metadata || {}),
+              isPrivate: isPriv,
+            },
+          };
         });
 
         if (hasMigrated) {
@@ -332,16 +340,17 @@ export default function JournalStudioPage() {
         setDraftEntries(drafts);
         setPrivateEntries(privates);
 
-        // Upload any migrated local entries to Supabase immediately
+        // Upload any local entries to Supabase using schema-valid fields
         const supabase = createClient();
         parsedLocal.forEach(async (item) => {
           try {
+            const isPriv = item.status === 'private' || item.metadata?.isPrivate;
             const payload: any = {
               id: item.id,
               title: item.title || 'Untitled Entry',
               slug: item.slug || `entry-${item.id.slice(0, 8)}`,
-              entry_type: item.entry_type || 'essay',
-              status: item.status || 'draft',
+              entry_type: isPriv ? 'thought' : (item.entry_type || 'essay'),
+              status: isPriv ? 'private_log' : (item.status || 'draft'),
               body_html: item.body_html || '',
               metadata: item.metadata || {},
               published_at: item.status === 'published' ? (item.published_at || new Date().toISOString()) : null,
@@ -364,9 +373,22 @@ export default function JournalStudioPage() {
         .order('created_at', { ascending: false })
         .then(({ data, error }) => {
           if (!error && data) {
-            const pub = data.filter((e) => e.status === 'published') as Entry[];
-            const priv = data.filter((e) => e.status === 'private') as Entry[];
-            const drafts = data.filter((e) => e.status === 'draft') as Entry[];
+            const normalized: Entry[] = data.map((e: any) => {
+              const isPriv = e.status === 'private_log' || e.status === 'private' || e.metadata?.isPrivate;
+              return {
+                ...e,
+                status: isPriv ? 'private' : e.status,
+                entry_type: (isPriv || e.entry_type === 'personal_ledger') ? 'personal_ledger' : e.entry_type,
+                metadata: {
+                  ...e.metadata,
+                  isPrivate: isPriv,
+                },
+              };
+            });
+
+            const pub = normalized.filter((e) => e.status === 'published');
+            const priv = normalized.filter((e) => e.status === 'private');
+            const drafts = normalized.filter((e) => e.status === 'draft');
 
             if (pub.length > 0) setPublishedEntries(pub);
 
@@ -399,7 +421,7 @@ export default function JournalStudioPage() {
               const savedLocal = localStorage.getItem('rww_local_entries');
               const localList: Entry[] = savedLocal ? JSON.parse(savedLocal) : [];
               const combinedMap = new Map<string, Entry>();
-              data.forEach((e: Entry) => {
+              normalized.forEach((e: Entry) => {
                 const k = e.id || e.slug || '';
                 if (k) combinedMap.set(k, e);
               });
@@ -410,7 +432,7 @@ export default function JournalStudioPage() {
               localStorage.setItem('rww_local_entries', JSON.stringify(Array.from(combinedMap.values())));
             } catch (e) {}
 
-            // Auto-select latest entry for current workspace mode
+            // Auto-select based on active workspace mode
             const savedMode = (localStorage.getItem('rww_studio_workspace_mode') || 'ledger') as 'ledger' | 'editorial';
             if (savedMode === 'ledger') {
               const todayStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -418,27 +440,24 @@ export default function JournalStudioPage() {
                 if (!e.created_at) return false;
                 const d = new Date(e.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                 return d === todayStr || (e.title && e.title.includes(todayStr));
-              }) || priv[0];
+              });
 
               if (todayLedger) {
                 selectEntry(todayLedger);
+              } else {
+                createNewDocument('personal_ledger', true);
               }
             } else {
               const latestDraft = drafts[0] || pub[0];
               if (latestDraft) {
                 selectEntry(latestDraft);
+              } else {
+                createNewDocument('essay', false);
               }
             }
           }
         });
     } catch (e) {}
-
-    // Initialize if no entries exist yet
-    if (parsedLocal.length > 0) {
-      selectEntry(parsedLocal[0]);
-    } else {
-      createNewDocument('personal_ledger', true);
-    }
   }, [user, createNewDocument, selectEntry]);
 
   const handleDeskChange = (deskId: DeskType) => {
@@ -631,12 +650,15 @@ export default function JournalStudioPage() {
     // Save to Supabase Cloud
     try {
       const supabase = createClient();
+      const supabaseStatus = isPrivate ? 'private_log' : updated.status;
+      const supabaseEntryType = (isPrivate || updated.entry_type === 'personal_ledger') ? 'thought' : updated.entry_type;
+
       const payload: any = {
         id: updated.id,
         title: updated.title,
         slug: updated.slug,
-        entry_type: updated.entry_type,
-        status: updated.status,
+        entry_type: supabaseEntryType,
+        status: supabaseStatus,
         body_html: updated.body_html,
         metadata: updated.metadata,
         published_at: updated.status === 'published' ? (updated.published_at || new Date().toISOString()) : null,
