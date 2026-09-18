@@ -226,7 +226,7 @@ export default function JournalStudioPage() {
     setActiveTab(isPrivate ? 'private' : 'drafts');
   }, [user]);
 
-  const selectEntry = (entry: Entry) => {
+  const selectEntry = useCallback((entry: Entry) => {
     setActiveEntry(entry);
     setTitle(entry.title || '');
     setContentHtml(entry.body_html || '');
@@ -238,7 +238,10 @@ export default function JournalStudioPage() {
     setSelectedCategory(cat);
     setMetadata(entry.metadata || { desk, category: cat, isPrivate: entry.status === 'private' });
     setSaveStatus('saved');
-  };
+    if (entry.status === 'private') {
+      setActiveTab('private');
+    }
+  }, []);
 
   // Load Drafts, Published, Private, and Historical Archive
   useEffect(() => {
@@ -320,6 +323,25 @@ export default function JournalStudioPage() {
               });
               localStorage.setItem('rww_local_entries', JSON.stringify(Array.from(combinedMap.values())));
             } catch (e) {}
+
+            // Auto-select newest cloud entry if it is newer than initial local draft or if local draft was empty/stale
+            if (data.length > 0) {
+              const sortedCloud = [...data].sort((a, b) => 
+                (safeTimestamp(b.updated_at) || safeTimestamp(b.created_at)) - (safeTimestamp(a.updated_at) || safeTimestamp(a.created_at))
+              );
+              const newestCloud = sortedCloud[0];
+
+              if (newestCloud) {
+                const localTimestamp = parsedLocal.length > 0
+                  ? (safeTimestamp(parsedLocal[0].updated_at) || safeTimestamp(parsedLocal[0].created_at))
+                  : 0;
+                const cloudTimestamp = safeTimestamp(newestCloud.updated_at) || safeTimestamp(newestCloud.created_at);
+
+                if (cloudTimestamp >= localTimestamp || !parsedLocal[0]?.body_html?.trim()) {
+                  selectEntry(newestCloud);
+                }
+              }
+            }
           }
         });
     } catch (e) {}
@@ -340,7 +362,7 @@ export default function JournalStudioPage() {
     } else {
       createNewDraft();
     }
-  }, [user, createNewDraft]);
+  }, [user, createNewDraft, selectEntry]);
 
   const handleDeskChange = (deskId: DeskType) => {
     setSelectedDesk(deskId);
