@@ -152,15 +152,20 @@ export default function DailyPersonalLedger({
       // Check if any habit was completed on this date
       const hasCompleted = combinedEntries.some((e) => {
         if (!e.created_at) return false;
-        const entryDate = new Date(e.created_at);
-        const matchesDate =
-          entryDate.getFullYear() === targetYear &&
-          entryDate.getMonth() === targetMonth &&
-          entryDate.getDate() === targetDate;
-        if (!matchesDate) return false;
+        try {
+          const entryDate = new Date(e.created_at);
+          if (isNaN(entryDate.getTime())) return false;
+          const matchesDate =
+            entryDate.getFullYear() === targetYear &&
+            entryDate.getMonth() === targetMonth &&
+            entryDate.getDate() === targetDate;
+          if (!matchesDate) return false;
 
-        const h = e.metadata?.habits || e.metadata?.ledger?.habits;
-        return h && Object.values(h).some(Boolean);
+          const h = e.metadata?.habits || e.metadata?.ledger?.habits;
+          return h && Object.values(h).some(Boolean);
+        } catch {
+          return false;
+        }
       }) || (i === 0 && Object.values(habits).some(Boolean));
 
       result.push({
@@ -245,22 +250,32 @@ export default function DailyPersonalLedger({
         if (allPrivate.length > 0 && isMounted) {
           const match = allPrivate.find((item: Entry) => {
             if (!item.created_at) return false;
-            const itemDate = new Date(item.created_at);
-            const itemYear = itemDate.getFullYear();
-            const itemMM = String(itemDate.getMonth() + 1).padStart(2, '0');
-            const itemDD = String(itemDate.getDate()).padStart(2, '0');
-            return itemYear < currentYear && itemMM === mm && itemDD === dd;
+            try {
+              const itemDate = new Date(item.created_at);
+              if (isNaN(itemDate.getTime())) return false;
+              const itemYear = itemDate.getFullYear();
+              const itemMM = String(itemDate.getMonth() + 1).padStart(2, '0');
+              const itemDD = String(itemDate.getDate()).padStart(2, '0');
+              return itemYear < currentYear && itemMM === mm && itemDD === dd;
+            } catch {
+              return false;
+            }
           });
 
           if (match && isMounted) {
-            const itemDate = new Date(match.created_at);
-            const spot = match.metadata?.triad?.bright_spot || match.metadata?.ledger?.triad?.bright_spot || match.title || match.body_html?.replace(/<[^>]+>/g, '').slice(0, 75) || 'Personal entry';
-            setPastMemory({
-              year: itemDate.getFullYear(),
-              dateStr: itemDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-              brightSpot: spot,
-              entry: match,
-            });
+            try {
+              const itemDate = new Date(match.created_at!);
+              const spot = match.metadata?.triad?.bright_spot || match.metadata?.ledger?.triad?.bright_spot || match.title || match.body_html?.replace(/<[^>]+>/g, '').slice(0, 75) || 'Personal entry';
+              const dateStr = !isNaN(itemDate.getTime())
+                ? itemDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                : 'Past Entry';
+              setPastMemory({
+                year: !isNaN(itemDate.getTime()) ? itemDate.getFullYear() : currentYear,
+                dateStr,
+                brightSpot: spot,
+                entry: match,
+              });
+            } catch {}
           }
         }
       } catch (e) {}
@@ -271,7 +286,7 @@ export default function DailyPersonalLedger({
     return () => {
       isMounted = false;
     };
-  }, [entries.length]);
+  }, [entries?.length || 0]);
 
   const emitUpdate = useCallback(
     (newEnergy: EnergyQuadrant, newHabits: HabitMap, newTriad: TriadState) => {

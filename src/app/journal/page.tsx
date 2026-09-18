@@ -61,6 +61,32 @@ const ENTRY_TYPES: { type: EntryType; label: string; icon: any }[] = [
   { type: 'podcast_review', label: 'Podcast Log', icon: Radio },
 ];
 
+function formatDateSafe(
+  dateStr?: string | null,
+  fallback = 'Recent Entry',
+  options?: Intl.DateTimeFormatOptions
+): string {
+  if (!dateStr) return fallback;
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return fallback;
+    return d.toLocaleDateString('en-US', options || { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch {
+    return fallback;
+  }
+}
+
+function safeTimestamp(dateStr?: string | null): number {
+  if (!dateStr) return 0;
+  try {
+    const d = new Date(dateStr);
+    const t = d.getTime();
+    return isNaN(t) ? 0 : t;
+  } catch {
+    return 0;
+  }
+}
+
 export default function JournalStudioPage() {
   const [user, setUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -263,7 +289,7 @@ export default function JournalStudioPage() {
                 if (!map.has(key)) map.set(key, p);
               });
               return Array.from(map.values()).sort((a, b) => 
-                new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+                safeTimestamp(b.created_at) - safeTimestamp(a.created_at)
               );
             });
 
@@ -275,7 +301,7 @@ export default function JournalStudioPage() {
                 if (!map.has(key)) map.set(key, d);
               });
               return Array.from(map.values()).sort((a, b) => 
-                new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime()
+                (safeTimestamp(b.updated_at) || safeTimestamp(b.created_at)) - (safeTimestamp(a.updated_at) || safeTimestamp(a.created_at))
               );
             });
 
@@ -411,19 +437,17 @@ export default function JournalStudioPage() {
     const habits = metadata?.habits || {};
     const triad = metadata?.triad || { bright_spot: '', calibration: '', working_thought: '' };
     
-    const dateFormatted = activeEntry?.created_at
-      ? new Date(activeEntry.created_at).toLocaleDateString('en-US', {
-          weekday: 'short',
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-        })
-      : new Date().toLocaleDateString('en-US', {
-          weekday: 'short',
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-        });
+    const dateFormatted = formatDateSafe(activeEntry?.created_at, new Date().toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }), {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
 
     const ledgerHtml = `<blockquote><p><strong>Daily Ledger · ${dateFormatted}</strong><br/><em>Energy:</em> ${energyLabel}<br/><em>Practices:</em> Movement [${habits.movement ? '✓' : ' '}] · Reading [${habits.reading ? '✓' : ' '}] · Writing [${habits.writing ? '✓' : ' '}] · Unplug [${habits.unplug ? '✓' : ' '}]</p><p><strong>+ Bright Spot:</strong> ${triad.bright_spot || '—'}<br/><strong>△ Calibration:</strong> ${triad.calibration || '—'}<br/><strong>• Working Thought:</strong> ${triad.working_thought || '—'}</p></blockquote><p></p>`;
 
@@ -623,7 +647,7 @@ export default function JournalStudioPage() {
       if (key && !map.has(key)) map.set(key, e);
     });
     return Array.from(map.values()).sort((a, b) => 
-      new Date(b.created_at || b.published_at || 0).getTime() - new Date(a.created_at || a.published_at || 0).getTime()
+      (safeTimestamp(b.created_at) || safeTimestamp(b.published_at)) - (safeTimestamp(a.created_at) || safeTimestamp(a.published_at))
     );
   }, [publishedEntries, draftEntries, privateEntries, historicalEntries]);
 
@@ -1070,8 +1094,8 @@ export default function JournalStudioPage() {
                   const isActive = activeEntry?.slug === entry.slug || activeEntry?.id === entry.id;
 
                   if (activeTab === 'private' || (activeTab === 'all' && entry.status === 'private')) {
-                    const entryDate = entry.created_at || entry.published_at || new Date().toISOString();
-                    const formattedDate = new Date(entryDate).toLocaleDateString('en-US', {
+                    const entryDate = entry.created_at || entry.published_at;
+                    const formattedDate = formatDateSafe(entryDate, 'Recent Entry', {
                       month: 'short',
                       day: 'numeric',
                       year: 'numeric',
@@ -1204,7 +1228,7 @@ export default function JournalStudioPage() {
                       </h4>
 
                       <p className="text-[10px] text-[#9C9589] mt-0.5 font-sans flex items-center justify-between">
-                        <span>{entry.published_at ? new Date(entry.published_at).toLocaleDateString() : (entry.status === 'private' ? 'Private Journal' : 'Draft')}</span>
+                        <span>{entry.published_at ? formatDateSafe(entry.published_at) : (entry.status === 'private' ? 'Private Journal' : 'Draft')}</span>
                         {entry.slug && <span className="font-mono text-[9px] text-stone-400">/{entry.slug.substring(0, 15)}...</span>}
                       </p>
                     </div>
@@ -1257,7 +1281,7 @@ export default function JournalStudioPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleDeleteEntry(activeEntry)}
+                  onClick={() => activeEntry && handleDeleteEntry(activeEntry)}
                   className="inline-flex items-center gap-1 px-2 py-1 text-red-700 hover:bg-red-100 rounded text-[10px] font-display font-bold uppercase tracking-wider transition-colors cursor-pointer"
                   title="Permanently delete from database"
                 >
@@ -1275,7 +1299,7 @@ export default function JournalStudioPage() {
               </div>
               <button
                 type="button"
-                onClick={() => handleDeleteEntry(activeEntry!)}
+                onClick={() => activeEntry && handleDeleteEntry(activeEntry)}
                 className="inline-flex items-center gap-1 text-red-700 hover:underline text-[10px] font-display uppercase tracking-wider font-bold cursor-pointer"
               >
                 <Trash2 className="w-3 h-3" />
@@ -1289,7 +1313,7 @@ export default function JournalStudioPage() {
               <span className="text-[11px] italic">Editing unpublished working draft.</span>
               <button
                 type="button"
-                onClick={() => handleDeleteEntry(activeEntry)}
+                onClick={() => activeEntry && handleDeleteEntry(activeEntry)}
                 className="inline-flex items-center gap-1 text-stone-500 hover:text-red-700 text-[10px] font-display uppercase tracking-wider font-bold cursor-pointer"
                 title="Discard this draft"
               >
