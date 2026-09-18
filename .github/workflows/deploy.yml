@@ -73,19 +73,35 @@ jobs:
           chmod 600 ~/.ssh/siteground_key
           
           # Normalize credentials from Secrets with explicit SiteGround host/user fallbacks
-          REMOTE_HOST="${SSH_HOST:-ssh.rockthewesternworld.com}"
+          RAW_HOST="${SSH_HOST:-ssh.rockthewesternworld.com}"
+          # Strip protocol, paths, and whitespace
+          CLEAN_HOST=$(echo "$RAW_HOST" | sed -e 's|^https*://||' -e 's|/.*$||' | tr -d '[:space:]')
+          
           REMOTE_USER="${SSH_USER:-u694-ay7yk3nhvhuu}"
           REMOTE_PORT="${SSH_PORT:-18765}"
 
-          # If bare domain was configured in secrets, route to dedicated SiteGround SSH host
-          if [ "$REMOTE_HOST" = "rockthewesternworld.com" ]; then
-            REMOTE_HOST="ssh.rockthewesternworld.com"
-          fi
+          # Candidates to try: clean configured host -> dedicated ssh host -> direct server IP
+          CANDIDATES=("$CLEAN_HOST" "ssh.rockthewesternworld.com" "35.208.63.169")
+          CHOSEN_HOST=""
 
+          for H in "${CANDIDATES[@]}"; do
+            [ -z "$H" ] && continue
+            echo "Testing SSH connectivity to $H on port $REMOTE_PORT..."
+            if nc -z -w 5 "$H" "$REMOTE_PORT" 2>/dev/null || (echo > /dev/tcp/"$H"/"$REMOTE_PORT") 2>/dev/null; then
+              echo "✓ Successfully reached $H:$REMOTE_PORT"
+              CHOSEN_HOST="$H"
+              break
+            else
+              echo "× Could not connect to $H:$REMOTE_PORT (timed out / unreachable)"
+            fi
+          done
+
+          # Fallback to clean host if port probes were blocked
+          REMOTE_HOST="${CHOSEN_HOST:-$CLEAN_HOST}"
           echo "Connecting to SiteGround SSH at: $REMOTE_USER@$REMOTE_HOST:$REMOTE_PORT"
 
           # Define standard SSH options with fast connection timeout and keepalive
-          SSH_OPTS="-p $REMOTE_PORT -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa,rsa-sha2-512,rsa-sha2-256 -o HostkeyAlgorithms=+ssh-rsa -i /home/runner/.ssh/siteground_key"
+          SSH_OPTS="-p $REMOTE_PORT -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa,rsa-sha2-512,rsa-sha2-256 -o HostkeyAlgorithms=+ssh-rsa -i /home/runner/.ssh/siteground_key"
 
           # Determine SiteGround public_html directory path (domain-specific vs root public_html)
           TARGET_DIR="public_html"
