@@ -51,10 +51,9 @@ import {
   Sparkles,
 } from 'lucide-react';
 
-const ENTRY_TYPES: { type: EntryType; label: string; icon: any }[] = [
+const EDITORIAL_ENTRY_TYPES: { type: EntryType; label: string; icon: any }[] = [
   { type: 'essay', label: 'Essay', icon: Feather },
   { type: 'thought', label: 'Reflection / Note', icon: FileEdit },
-  { type: 'personal_ledger', label: 'Personal Ledger', icon: BookOpen },
   { type: 'book_review', label: 'Book Log', icon: Book },
   { type: 'comic_review', label: 'Comic Review', icon: BookOpen },
   { type: 'music_review', label: 'Record Log', icon: Music },
@@ -87,6 +86,22 @@ function safeTimestamp(dateStr?: string | null): number {
   }
 }
 
+function isValidUUID(str?: string | null): boolean {
+  if (!str) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
+}
+
+function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 export default function JournalStudioPage() {
   const [user, setUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -95,6 +110,9 @@ export default function JournalStudioPage() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
 
+  // Top-Level Studio Workspace: 'ledger' (Personal Private Atelier) vs 'editorial' (Broadsheet Publishing)
+  const [workspaceMode, setWorkspaceMode] = useState<'ledger' | 'editorial'>('ledger');
+
   // Drawer / Sidebar Collapse State
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
@@ -102,16 +120,15 @@ export default function JournalStudioPage() {
   const [draftEntries, setDraftEntries] = useState<Entry[]>([]);
   const [publishedEntries, setPublishedEntries] = useState<Entry[]>([]);
   const [privateEntries, setPrivateEntries] = useState<Entry[]>([]);
-  const [historicalEntries, setHistoricalEntries] = useState<Entry[]>([]);
-  const [activeTab, setActiveTab] = useState<'all' | 'published' | 'drafts' | 'private' | 'historical'>('drafts');
+  const [editorialTab, setEditorialTab] = useState<'drafts' | 'published' | 'all'>('drafts');
   const [searchFilter, setSearchFilter] = useState('');
 
   // Active Document State
   const [activeEntry, setActiveEntry] = useState<Entry | null>(null);
   const [title, setTitle] = useState('');
   const [contentHtml, setContentHtml] = useState('');
-  const [entryType, setEntryType] = useState<EntryType>('essay');
-  const [entryStatus, setEntryStatus] = useState<EntryStatus>('draft');
+  const [entryType, setEntryType] = useState<EntryType>('personal_ledger');
+  const [entryStatus, setEntryStatus] = useState<EntryStatus>('private');
   const [selectedDesk, setSelectedDesk] = useState<DeskType>('commonwealth');
   const [selectedCategory, setSelectedCategory] = useState<SubCategory>('Dan Reads the News');
   const [metadata, setMetadata] = useState<EntryMetadata>({});
@@ -123,12 +140,16 @@ export default function JournalStudioPage() {
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [ledgerFeedback, setLedgerFeedback] = useState<string | null>(null);
 
-  // Load Saved Sidebar State from LocalStorage
+  // Load Saved Sidebar State & Workspace Mode from LocalStorage
   useEffect(() => {
     try {
       const savedCollapsed = localStorage.getItem('rww_studio_sidebar_collapsed');
       if (savedCollapsed !== null) {
         setIsSidebarOpen(savedCollapsed !== 'true');
+      }
+      const savedMode = localStorage.getItem('rww_studio_workspace_mode');
+      if (savedMode === 'ledger' || savedMode === 'editorial') {
+        setWorkspaceMode(savedMode);
       }
     } catch (e) {}
   }, []);
@@ -195,13 +216,17 @@ export default function JournalStudioPage() {
     setUser(null);
   };
 
-  const createNewDraft = useCallback((type: EntryType = 'essay', isPrivate = false) => {
-    const newDraft: Entry = {
-      id: 'entry-' + Date.now(),
-      user_id: user?.id || 'master-author',
+  // Helper to create a fresh document
+  const createNewDocument = useCallback((type: EntryType = 'essay', isPrivate = false) => {
+    const formattedToday = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const defaultTitle = isPrivate || type === 'personal_ledger' ? `Daily Ledger · ${formattedToday}` : '';
+    
+    const newDoc: Entry = {
+      id: generateUUID(),
+      user_id: isValidUUID(user?.id) ? user.id : null,
       entry_type: type,
       status: isPrivate ? 'private' : 'draft',
-      title: '',
+      title: defaultTitle,
       slug: null,
       body_json: null,
       body_html: '',
@@ -214,8 +239,9 @@ export default function JournalStudioPage() {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
-    setActiveEntry(newDraft);
-    setTitle('');
+
+    setActiveEntry(newDoc);
+    setTitle(defaultTitle);
     setContentHtml('');
     setEntryType(type);
     setEntryStatus(isPrivate ? 'private' : 'draft');
@@ -223,14 +249,14 @@ export default function JournalStudioPage() {
     setSelectedCategory('Dan Reads the News');
     setMetadata({ desk: 'commonwealth', category: 'Dan Reads the News', isPrivate });
     setSaveStatus('saved');
-    setActiveTab(isPrivate ? 'private' : 'drafts');
   }, [user]);
 
+  // Select an entry from list
   const selectEntry = useCallback((entry: Entry) => {
     setActiveEntry(entry);
     setTitle(entry.title || '');
     setContentHtml(entry.body_html || '');
-    setEntryType(entry.entry_type || 'essay');
+    setEntryType(entry.entry_type || (entry.status === 'private' ? 'personal_ledger' : 'essay'));
     setEntryStatus(entry.status || 'draft');
     const desk = entry.metadata?.desk || 'commonwealth';
     const cat = (entry.metadata?.category as SubCategory) || 'Dan Reads the News';
@@ -238,38 +264,98 @@ export default function JournalStudioPage() {
     setSelectedCategory(cat);
     setMetadata(entry.metadata || { desk, category: cat, isPrivate: entry.status === 'private' });
     setSaveStatus('saved');
-    if (entry.status === 'private') {
-      setActiveTab('private');
-    }
   }, []);
 
-  // Load Drafts, Published, Private, and Historical Archive
+  // Switch Top-level Workspace Mode
+  const switchWorkspaceMode = (mode: 'ledger' | 'editorial') => {
+    setWorkspaceMode(mode);
+    try {
+      localStorage.setItem('rww_studio_workspace_mode', mode);
+    } catch (e) {}
+
+    if (mode === 'ledger') {
+      // Find today's ledger or latest private ledger entry
+      const todayStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const existingLedger = privateEntries.find((e) => {
+        if (!e.created_at) return false;
+        const d = new Date(e.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        return d === todayStr || (e.title && e.title.includes(todayStr));
+      }) || privateEntries[0];
+
+      if (existingLedger) {
+        selectEntry(existingLedger);
+      } else {
+        createNewDocument('personal_ledger', true);
+      }
+    } else {
+      // Find latest draft or published article
+      const latestEditorial = draftEntries[0] || publishedEntries[0];
+      if (latestEditorial) {
+        selectEntry(latestEditorial);
+      } else {
+        createNewDocument('essay', false);
+      }
+    }
+  };
+
+  // Load Drafts, Published, and Private entries with Cross-Device Cloud Sync
   useEffect(() => {
     if (!user) return;
 
-    // Load deleted archive slugs
-    let deletedSlugs = new Set<string>();
-    try {
-      const stored = localStorage.getItem('rww_deleted_archive_slugs');
-      if (stored) {
-        deletedSlugs = new Set(JSON.parse(stored));
-      }
-    } catch (e) {}
-
-    // 1. Local Drafts & Local Entries
+    // 1. Local Cache Load + Non-UUID Auto-Migration
     const savedLocal = localStorage.getItem('rww_local_entries');
     let parsedLocal: Entry[] = [];
     if (savedLocal) {
       try {
         parsedLocal = JSON.parse(savedLocal);
+        let hasMigrated = false;
+        parsedLocal = parsedLocal.map((item) => {
+          if (!isValidUUID(item.id)) {
+            hasMigrated = true;
+            const newId = generateUUID();
+            return {
+              ...item,
+              id: newId,
+              slug: item.slug || `entry-${newId.slice(0, 8)}`,
+              user_id: isValidUUID(user?.id) ? user.id : null,
+            };
+          }
+          return item;
+        });
+
+        if (hasMigrated) {
+          localStorage.setItem('rww_local_entries', JSON.stringify(parsedLocal));
+        }
+
         const drafts = parsedLocal.filter((e) => e.status === 'draft');
         const privates = parsedLocal.filter((e) => e.status === 'private');
         setDraftEntries(drafts);
         setPrivateEntries(privates);
+
+        // Upload any migrated local entries to Supabase immediately
+        const supabase = createClient();
+        parsedLocal.forEach(async (item) => {
+          try {
+            const payload: any = {
+              id: item.id,
+              title: item.title || 'Untitled Entry',
+              slug: item.slug || `entry-${item.id.slice(0, 8)}`,
+              entry_type: item.entry_type || 'essay',
+              status: item.status || 'draft',
+              body_html: item.body_html || '',
+              metadata: item.metadata || {},
+              published_at: item.status === 'published' ? (item.published_at || new Date().toISOString()) : null,
+              created_at: item.created_at || new Date().toISOString(),
+              updated_at: item.updated_at || new Date().toISOString(),
+            };
+            if (isValidUUID(user?.id)) payload.user_id = user.id;
+            await supabase.from('entries').upsert(payload, { onConflict: 'id' });
+          } catch (err) {}
+        });
       } catch (e) {}
     }
 
-    // 2. Fetch All Entries (Published, Private, Drafts) from Supabase
+    // 2. Fetch All Entries from Supabase
     try {
       const supabase = createClient();
       supabase
@@ -324,45 +410,36 @@ export default function JournalStudioPage() {
               localStorage.setItem('rww_local_entries', JSON.stringify(Array.from(combinedMap.values())));
             } catch (e) {}
 
-            // Auto-select newest cloud entry if it is newer than initial local draft or if local draft was empty/stale
-            if (data.length > 0) {
-              const sortedCloud = [...data].sort((a, b) => 
-                (safeTimestamp(b.updated_at) || safeTimestamp(b.created_at)) - (safeTimestamp(a.updated_at) || safeTimestamp(a.created_at))
-              );
-              const newestCloud = sortedCloud[0];
+            // Auto-select latest entry for current workspace mode
+            const savedMode = (localStorage.getItem('rww_studio_workspace_mode') || 'ledger') as 'ledger' | 'editorial';
+            if (savedMode === 'ledger') {
+              const todayStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+              const todayLedger = priv.find((e) => {
+                if (!e.created_at) return false;
+                const d = new Date(e.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                return d === todayStr || (e.title && e.title.includes(todayStr));
+              }) || priv[0];
 
-              if (newestCloud) {
-                const localTimestamp = parsedLocal.length > 0
-                  ? (safeTimestamp(parsedLocal[0].updated_at) || safeTimestamp(parsedLocal[0].created_at))
-                  : 0;
-                const cloudTimestamp = safeTimestamp(newestCloud.updated_at) || safeTimestamp(newestCloud.created_at);
-
-                if (cloudTimestamp >= localTimestamp || !parsedLocal[0]?.body_html?.trim()) {
-                  selectEntry(newestCloud);
-                }
+              if (todayLedger) {
+                selectEntry(todayLedger);
+              }
+            } else {
+              const latestDraft = drafts[0] || pub[0];
+              if (latestDraft) {
+                selectEntry(latestDraft);
               }
             }
           }
         });
     } catch (e) {}
 
-    // 3. Fetch 341 WordPress Historical Archive (filtering out deleted)
-    fetch('/archive/imported-entries.json')
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => {
-        if (Array.isArray(data)) {
-          const valid = data.filter((item) => !deletedSlugs.has(item.slug || item.id));
-          setHistoricalEntries(valid);
-        }
-      })
-      .catch(() => {});
-
+    // Initialize if no entries exist yet
     if (parsedLocal.length > 0) {
       selectEntry(parsedLocal[0]);
     } else {
-      createNewDraft();
+      createNewDocument('personal_ledger', true);
     }
-  }, [user, createNewDraft, selectEntry]);
+  }, [user, createNewDocument, selectEntry]);
 
   const handleDeskChange = (deskId: DeskType) => {
     setSelectedDesk(deskId);
@@ -378,20 +455,17 @@ export default function JournalStudioPage() {
     setSaveStatus('unsaved');
   };
 
-  // Switch Status between Draft, Private, and Live
-  const handleSetStatus = (newStatus: 'draft' | 'private' | 'published') => {
+  // Switch Status between Draft and Live in Editorial mode
+  const handleSetEditorialStatus = (newStatus: 'draft' | 'published') => {
     if (newStatus === 'published' && entryStatus !== 'published') {
       setIsPromoteOpen(true);
       return;
     }
-
     setEntryStatus(newStatus);
-    const isPriv = newStatus === 'private';
-    setMetadata((prev) => ({ ...prev, isPrivate: isPriv }));
+    setMetadata((prev) => ({ ...prev, isPrivate: false }));
     setSaveStatus('unsaved');
-
     if (activeEntry) {
-      setActiveEntry((prev) => prev ? { ...prev, status: newStatus, metadata: { ...prev.metadata, isPrivate: isPriv } } : null);
+      setActiveEntry((prev) => prev ? { ...prev, status: newStatus, metadata: { ...prev.metadata, isPrivate: false } } : null);
     }
   };
 
@@ -415,7 +489,6 @@ export default function JournalStudioPage() {
     setActiveEntry(updated);
     setEntryStatus('draft');
 
-    // Update in Supabase
     try {
       const supabase = createClient();
       await supabase
@@ -424,11 +497,9 @@ export default function JournalStudioPage() {
         .match({ id: activeEntry.id });
     } catch (e) {}
 
-    // Update lists
     setPublishedEntries((prev) => prev.filter((p) => p.id !== activeEntry.id && p.slug !== activeEntry.slug));
     setDraftEntries((prev) => [updated, ...prev.filter((d) => d.id !== activeEntry.id)]);
 
-    // Update local storage
     try {
       const savedLocal = localStorage.getItem('rww_local_entries');
       let parsed: Entry[] = savedLocal ? JSON.parse(savedLocal) : [];
@@ -436,7 +507,7 @@ export default function JournalStudioPage() {
       localStorage.setItem('rww_local_entries', JSON.stringify(parsed));
     } catch (e) {}
 
-    setActiveTab('drafts');
+    setEditorialTab('drafts');
     setSaveStatus('saved');
   };
 
@@ -477,7 +548,7 @@ export default function JournalStudioPage() {
     setSaveStatus('unsaved');
   };
 
-  // Explicitly Record / Save Daily Check-in with positive visual feedback
+  // Explicitly Record / Save Daily Check-in with feedback
   const handleRecordDailyCheckIn = async () => {
     const formattedDate = new Date().toLocaleDateString('en-US', {
       month: 'short',
@@ -511,28 +582,41 @@ export default function JournalStudioPage() {
     }
   };
 
-  // Save Current Entry (Local + Supabase)
+  // Save Current Entry to Supabase and LocalStorage
   const saveCurrentDraft = async (explicitMeta?: Partial<EntryMetadata>, explicitTitle?: string) => {
     if (!activeEntry) return;
     setSaveStatus('saving');
 
+    const isPrivate = workspaceMode === 'ledger' || entryStatus === 'private' || metadata.isPrivate;
     const mergedMeta: EntryMetadata = {
       ...metadata,
       ...(explicitMeta || {}),
       desk: selectedDesk,
       category: selectedCategory,
+      isPrivate,
     };
 
-    const defaultPrivateTitle = `Daily Ledger · ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
-    const finalTitle = (explicitTitle !== undefined ? explicitTitle : title).trim() || (mergedMeta.isPrivate || entryType === 'personal_ledger' ? defaultPrivateTitle : 'Untitled Entry');
-    const updatedStatus = mergedMeta.isPrivate ? 'private' : entryStatus;
-    mergedMeta.isPrivate = updatedStatus === 'private';
+    const formattedToday = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const defaultTitle = isPrivate ? `Daily Ledger · ${formattedToday}` : 'Untitled Entry';
+    const finalTitle = (explicitTitle !== undefined ? explicitTitle : title).trim() || defaultTitle;
+    const updatedStatus: EntryStatus = isPrivate ? 'private' : entryStatus;
+
+    const validId = isValidUUID(activeEntry.id) ? activeEntry.id : generateUUID();
+    const cleanUserId = isValidUUID(user?.id) ? user.id : (isValidUUID(activeEntry.user_id) ? activeEntry.user_id : null);
+    const entrySlug = activeEntry.slug && !activeEntry.slug.startsWith('entry-')
+      ? activeEntry.slug
+      : (finalTitle
+          ? `${finalTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')}-${validId.slice(0, 8)}`
+          : `entry-${validId.slice(0, 8)}`);
 
     const updated: Entry = {
       ...activeEntry,
+      id: validId,
+      user_id: cleanUserId,
       title: finalTitle,
+      slug: entrySlug,
       body_html: contentHtml,
-      entry_type: entryType,
+      entry_type: isPrivate ? 'personal_ledger' : entryType,
       status: updatedStatus,
       metadata: mergedMeta,
       updated_at: new Date().toISOString(),
@@ -544,14 +628,13 @@ export default function JournalStudioPage() {
       setTitle(finalTitle);
     }
 
-    // Save to Supabase
+    // Save to Supabase Cloud
     try {
       const supabase = createClient();
       const payload: any = {
         id: updated.id,
-        user_id: user?.id || updated.user_id || 'master-author',
         title: updated.title,
-        slug: updated.slug || (updated.title ? updated.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '') : ('entry-' + Date.now())),
+        slug: updated.slug,
         entry_type: updated.entry_type,
         status: updated.status,
         body_html: updated.body_html,
@@ -560,11 +643,19 @@ export default function JournalStudioPage() {
         updated_at: updated.updated_at,
         created_at: updated.created_at || new Date().toISOString(),
       };
+      if (cleanUserId) {
+        payload.user_id = cleanUserId;
+      }
 
-      await supabase.from('entries').upsert(payload, { onConflict: 'id' });
-    } catch (e) {}
+      const { error: upsertError } = await supabase.from('entries').upsert(payload, { onConflict: 'id' });
+      if (upsertError) {
+        console.error('Supabase save error:', upsertError);
+      }
+    } catch (e) {
+      console.error('Failed to sync entry to Supabase:', e);
+    }
 
-    // Update in-memory state lists accurately
+    // Update state lists
     if (updated.status === 'published') {
       setPublishedEntries((prev) => [updated, ...prev.filter((e) => e.id !== updated.id && e.slug !== updated.slug)]);
       setDraftEntries((prev) => prev.filter((e) => e.id !== updated.id));
@@ -579,7 +670,7 @@ export default function JournalStudioPage() {
       setPublishedEntries((prev) => prev.filter((e) => e.id !== updated.id));
     }
 
-    // Save to LocalStorage
+    // Save to LocalStorage cache
     try {
       const savedLocal = localStorage.getItem('rww_local_entries');
       let parsed: Entry[] = savedLocal ? JSON.parse(savedLocal) : [];
@@ -595,37 +686,24 @@ export default function JournalStudioPage() {
     setTimeout(() => setSaveStatus('saved'), 350);
   };
 
-  // Comprehensive Delete Entry (Works on Drafts, Live, Private, and Archive)
+  // Delete Entry Handler
   const handleDeleteEntry = async (entryToDelete: Entry) => {
     const isLive = entryToDelete.status === 'published';
-    const isHistorical = activeTab === 'historical';
-    const itemTitle = entryToDelete.title || 'Untitled Entry';
+    const isLedger = entryToDelete.status === 'private';
+    const itemTitle = entryToDelete.title || (isLedger ? 'Daily Ledger' : 'Untitled Draft');
 
     const promptMessage = isLive
       ? `Permanently delete live published piece "${itemTitle}"?\n\nThis will remove it from the live broadsheet and database.`
-      : isHistorical
-      ? `Remove "${itemTitle}" from your historical archive view?`
-      : `Permanently delete "${itemTitle}"? This cannot be undone.`;
+      : isLedger
+      ? `Delete this daily ledger entry from your private archive?`
+      : `Permanently delete draft "${itemTitle}"? This cannot be undone.`;
 
     const confirmed = window.confirm(promptMessage);
     if (!confirmed) return;
 
-    // 1. If in historical archive, add to deleted slugs
-    if (isHistorical || entryToDelete.slug?.startsWith('wp-')) {
-      const slugKey = entryToDelete.slug || entryToDelete.id;
-      try {
-        const stored = localStorage.getItem('rww_deleted_archive_slugs');
-        let list: string[] = stored ? JSON.parse(stored) : [];
-        list.push(slugKey);
-        localStorage.setItem('rww_deleted_archive_slugs', JSON.stringify(list));
-      } catch (e) {}
-      setHistoricalEntries((prev) => prev.filter((h) => (h.slug || h.id) !== slugKey));
-    }
-
-    // 2. Delete from Supabase
     try {
       const supabase = createClient();
-      if (entryToDelete.id) {
+      if (entryToDelete.id && isValidUUID(entryToDelete.id)) {
         await supabase.from('entries').delete().eq('id', entryToDelete.id);
       }
       if (entryToDelete.slug) {
@@ -633,7 +711,6 @@ export default function JournalStudioPage() {
       }
     } catch (e) {}
 
-    // 3. Delete from LocalStorage
     try {
       const savedLocal = localStorage.getItem('rww_local_entries');
       if (savedLocal) {
@@ -645,62 +722,50 @@ export default function JournalStudioPage() {
       }
     } catch (e) {}
 
-    // 4. Update state lists
     setDraftEntries((prev) => prev.filter((d) => d.id !== entryToDelete.id && d.slug !== entryToDelete.slug));
     setPublishedEntries((prev) => prev.filter((p) => p.id !== entryToDelete.id && p.slug !== entryToDelete.slug));
     setPrivateEntries((prev) => prev.filter((p) => p.id !== entryToDelete.id && p.slug !== entryToDelete.slug));
 
-    // 5. If active entry was deleted, select another or create new
     if (activeEntry?.id === entryToDelete.id || activeEntry?.slug === entryToDelete.slug) {
-      const currentList = getVisibleList().filter((e) => e.id !== entryToDelete.id && e.slug !== entryToDelete.slug);
-      if (currentList.length > 0) {
-        selectEntry(currentList[0]);
+      if (workspaceMode === 'ledger') {
+        const remaining = privateEntries.filter((e) => e.id !== entryToDelete.id && e.slug !== entryToDelete.slug);
+        if (remaining.length > 0) selectEntry(remaining[0]);
+        else createNewDocument('personal_ledger', true);
       } else {
-        createNewDraft();
+        const remaining = draftEntries.filter((e) => e.id !== entryToDelete.id && e.slug !== entryToDelete.slug);
+        if (remaining.length > 0) selectEntry(remaining[0]);
+        else createNewDocument('essay', false);
       }
     }
   };
-
-  // Helper to compile master combined entries
-  const getAllEntriesList = useCallback(() => {
-    const map = new Map<string, Entry>();
-    [...publishedEntries, ...draftEntries, ...privateEntries, ...historicalEntries].forEach((e) => {
-      const key = e.id || e.slug || '';
-      if (key && !map.has(key)) map.set(key, e);
-    });
-    return Array.from(map.values()).sort((a, b) => 
-      (safeTimestamp(b.created_at) || safeTimestamp(b.published_at)) - (safeTimestamp(a.created_at) || safeTimestamp(a.published_at))
-    );
-  }, [publishedEntries, draftEntries, privateEntries, historicalEntries]);
 
   const allStudioEntries = useMemo(() => {
     return [...privateEntries, ...draftEntries, ...publishedEntries];
   }, [privateEntries, draftEntries, publishedEntries]);
 
-  // Filter items based on active tab and search query (including Triad semantic search)
-  const getVisibleList = () => {
+  // Mode-Specific Filtered Sidebar List
+  const visibleSidebarList = useMemo(() => {
     let list: Entry[] = [];
-    if (activeTab === 'all') list = getAllEntriesList();
-    else if (activeTab === 'published') list = publishedEntries;
-    else if (activeTab === 'drafts') list = draftEntries;
-    else if (activeTab === 'private') list = privateEntries;
+    if (workspaceMode === 'ledger') {
+      list = privateEntries;
+    } else {
+      if (editorialTab === 'drafts') list = draftEntries;
+      else if (editorialTab === 'published') list = publishedEntries;
+      else list = [...draftEntries, ...publishedEntries];
+    }
 
     if (!searchFilter.trim()) return list;
     const q = searchFilter.toLowerCase();
     return list.filter((item) => {
       const titleMatch = (item.title || '').toLowerCase().includes(q);
-      const slugMatch = (item.slug || '').toLowerCase().includes(q);
       const catMatch = (item.metadata?.category || '').toLowerCase().includes(q);
       const bodyMatch = (item.body_html || '').toLowerCase().includes(q);
-      
-      // Triad search matches for private ledger entries
       const brightMatch = (item.metadata?.triad?.bright_spot || item.metadata?.ledger?.triad?.bright_spot || '').toLowerCase().includes(q);
       const calibMatch = (item.metadata?.triad?.calibration || item.metadata?.ledger?.triad?.calibration || '').toLowerCase().includes(q);
       const thoughtMatch = (item.metadata?.triad?.working_thought || item.metadata?.ledger?.triad?.working_thought || '').toLowerCase().includes(q);
-
-      return titleMatch || slugMatch || catMatch || bodyMatch || brightMatch || calibMatch || thoughtMatch;
+      return titleMatch || catMatch || bodyMatch || brightMatch || calibMatch || thoughtMatch;
     });
-  };
+  }, [workspaceMode, editorialTab, privateEntries, draftEntries, publishedEntries, searchFilter]);
 
   if (authLoading) {
     return (
@@ -787,17 +852,15 @@ export default function JournalStudioPage() {
     );
   }
 
-  const isPrivateActive = entryStatus === 'private' || metadata.isPrivate;
-  const isLiveActive = entryStatus === 'published' && !metadata.isPrivate;
-  const visibleList = getVisibleList();
+  const isLiveActive = workspaceMode === 'editorial' && entryStatus === 'published';
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-[#242120] flex flex-col font-reading selection:bg-[#1E40AF] selection:text-white relative">
-      {/* Studio Header */}
+      {/* Studio Top Header */}
       <header className="border-b border-[#E5DFC5] bg-[#FAF8F5]/95 backdrop-blur-sm sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-3 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-2.5 flex flex-wrap items-center justify-between gap-3">
+          {/* Left: Navigation & Workspace Switcher */}
           <div className="flex items-center gap-2.5 sm:gap-3.5">
-            {/* Drawer Toggle Button [◧] */}
             {!isFocusMode && (
               <button
                 type="button"
@@ -818,94 +881,122 @@ export default function JournalStudioPage() {
               className="flex items-center gap-1.5 text-xs font-display font-bold uppercase tracking-[0.2em] text-[#66615C] hover:text-[#1E40AF] transition-colors group"
             >
               <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
-              <span className="hidden sm:inline">Public Broadsheet</span>
+              <span className="hidden md:inline">Broadsheet</span>
             </Link>
 
-            <span className="text-[#B45309] text-xs">◆</span>
+            <span className="text-[#DDD5C7] text-xs">|</span>
 
-            <div className="flex items-center gap-1.5 text-xs font-display tracking-widest text-[#1C1917] uppercase font-bold">
-              <Lock className="w-3 h-3 text-[#B45309]" />
-              <span>DRAFTING ATELIER</span>
+            {/* Top Workspace Mode Switcher */}
+            <div className="flex items-center bg-[#EAE4D7] p-0.5 rounded text-[10px] sm:text-xs font-display uppercase tracking-wider font-bold">
+              <button
+                type="button"
+                onClick={() => switchWorkspaceMode('ledger')}
+                className={`px-2.5 sm:px-3 py-1 rounded flex items-center gap-1.5 transition-all cursor-pointer ${
+                  workspaceMode === 'ledger'
+                    ? 'bg-[#B45309] text-white shadow-2xs'
+                    : 'text-[#66615C] hover:text-[#1C1917]'
+                }`}
+                title="Personal Private Atelier (Habits, Reflections, Daily Ledger)"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Daily Ledger</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => switchWorkspaceMode('editorial')}
+                className={`px-2.5 sm:px-3 py-1 rounded flex items-center gap-1.5 transition-all cursor-pointer ${
+                  workspaceMode === 'editorial'
+                    ? 'bg-[#1E40AF] text-white shadow-2xs'
+                    : 'text-[#66615C] hover:text-[#1C1917]'
+                }`}
+                title="Broadsheet Publishing Suite (Essays, Reviews, Photography, Dispatches)"
+              >
+                <Feather className="w-3.5 h-3.5" />
+                <span>Editorial CMS</span>
+              </button>
             </div>
           </div>
 
-          {/* Interactive Status & Action Controls */}
+          {/* Right: Mode-Specific Actions */}
           <div className="flex items-center gap-2 sm:gap-2.5">
-            {/* Clear Status Segmented Switcher */}
-            <div className="flex items-center bg-[#EAE4D7] p-0.5 rounded text-[10px] sm:text-[11px] font-display uppercase tracking-wider font-bold shrink-0">
-              <button
-                type="button"
-                onClick={() => handleSetStatus('draft')}
-                className={`px-2 sm:px-2.5 py-1 rounded transition-colors cursor-pointer ${
-                  !isPrivateActive && !isLiveActive
-                    ? 'bg-[#FAF8F5] text-[#1C1917] shadow-xs'
-                    : 'text-[#66615C] hover:text-[#1C1917]'
-                }`}
-                title="Mark as in-progress working draft"
-              >
-                Draft
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSetStatus('private')}
-                className={`px-2 sm:px-2.5 py-1 rounded transition-colors cursor-pointer flex items-center gap-1 ${
-                  isPrivateActive
-                    ? 'bg-amber-100 text-amber-900 shadow-xs'
-                    : 'text-[#66615C] hover:text-[#1C1917]'
-                }`}
-                title="Mark as private journal entry (shielded from public broadsheet)"
-              >
-                <Shield className="w-3 h-3" />
-                <span>Private</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSetStatus('published')}
-                className={`px-2 sm:px-2.5 py-1 rounded transition-colors cursor-pointer flex items-center gap-1 ${
-                  isLiveActive
-                    ? 'bg-emerald-100 text-emerald-900 shadow-xs'
-                    : 'text-[#66615C] hover:text-[#1C1917]'
-                }`}
-                title="Publish to public broadsheet"
-              >
-                <Globe className="w-3 h-3" />
-                <span>Live</span>
-              </button>
-            </div>
+            {workspaceMode === 'ledger' ? (
+              <>
+                <span className="hidden lg:inline-flex items-center gap-1 text-[11px] font-serif text-[#78716C] italic mr-1">
+                  <Shield className="w-3.5 h-3.5 text-[#B45309]" />
+                  <span>Confidential Cloud Notebook</span>
+                </span>
 
-            {/* Primary Save Button */}
-            <button
-              onClick={() => saveCurrentDraft()}
-              className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 bg-[#1C1917] hover:bg-[#1E40AF] text-[#FAF8F5] rounded text-[11px] sm:text-xs font-display uppercase tracking-widest font-bold transition-colors cursor-pointer shadow-xs shrink-0"
-            >
-              <Save className="w-3.5 h-3.5 text-[#E5DFC5]" />
-              <span className="hidden sm:inline">{isPrivateActive ? 'Save Private' : isLiveActive ? 'Update Live' : 'Save Draft'}</span>
-              <span className="sm:hidden">Save</span>
-            </button>
+                <button
+                  onClick={() => saveCurrentDraft()}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#B45309] hover:bg-[#92400E] text-[#FAF8F5] rounded text-[11px] sm:text-xs font-display uppercase tracking-widest font-bold transition-colors cursor-pointer shadow-xs"
+                >
+                  <Save className="w-3.5 h-3.5 text-[#FAF8F5]" />
+                  <span>{saveStatus === 'saving' ? 'Saving...' : 'Save Ledger'}</span>
+                </button>
+              </>
+            ) : (
+              <>
+                {/* Editorial Status Switcher: Draft vs Live */}
+                <div className="flex items-center bg-[#EAE4D7] p-0.5 rounded text-[10px] sm:text-[11px] font-display uppercase tracking-wider font-bold shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleSetEditorialStatus('draft')}
+                    className={`px-2 sm:px-2.5 py-1 rounded transition-colors cursor-pointer ${
+                      !isLiveActive
+                        ? 'bg-[#FAF8F5] text-[#1C1917] shadow-xs'
+                        : 'text-[#66615C] hover:text-[#1C1917]'
+                    }`}
+                  >
+                    Draft
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSetEditorialStatus('published')}
+                    className={`px-2 sm:px-2.5 py-1 rounded transition-colors cursor-pointer flex items-center gap-1 ${
+                      isLiveActive
+                        ? 'bg-emerald-100 text-emerald-900 shadow-xs'
+                        : 'text-[#66615C] hover:text-[#1C1917]'
+                    }`}
+                  >
+                    <Globe className="w-3 h-3" />
+                    <span>Live</span>
+                  </button>
+                </div>
 
-            {/* Promote Button (When in draft mode) */}
-            {!isPrivateActive && !isLiveActive && (
-              <button
-                onClick={() => setIsPromoteOpen(true)}
-                className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 bg-[#1E40AF] hover:bg-[#1D4ED8] text-white rounded text-[11px] sm:text-xs font-display uppercase tracking-widest font-bold transition-colors shadow-xs cursor-pointer shrink-0"
-              >
-                <Globe className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Promote Live</span>
-                <span className="sm:hidden">Promote</span>
-              </button>
+                {/* Primary Save Button */}
+                <button
+                  onClick={() => saveCurrentDraft()}
+                  className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 bg-[#1C1917] hover:bg-[#1E40AF] text-[#FAF8F5] rounded text-[11px] sm:text-xs font-display uppercase tracking-widest font-bold transition-colors cursor-pointer shadow-xs shrink-0"
+                >
+                  <Save className="w-3.5 h-3.5 text-[#E5DFC5]" />
+                  <span>{isLiveActive ? 'Update Live' : 'Save Draft'}</span>
+                </button>
+
+                {/* Promote Button */}
+                {!isLiveActive && (
+                  <button
+                    onClick={() => setIsPromoteOpen(true)}
+                    className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 bg-[#1E40AF] hover:bg-[#1D4ED8] text-white rounded text-[11px] sm:text-xs font-display uppercase tracking-widest font-bold transition-colors shadow-xs cursor-pointer shrink-0"
+                  >
+                    <Globe className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Promote Live</span>
+                    <span className="sm:hidden">Promote</span>
+                  </button>
+                )}
+
+                {/* Dispatch Broadcast */}
+                <button
+                  onClick={() => setIsDispatchOpen(true)}
+                  className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[#44403C] hover:text-[#1E40AF] hover:bg-[#F2ECE1] transition-colors text-xs font-display uppercase tracking-wider font-bold cursor-pointer shrink-0"
+                  title="Broadcast Newsletter to Subscribers"
+                >
+                  <Mail className="w-3.5 h-3.5 text-[#B45309]" />
+                  <span>The Dispatch</span>
+                </button>
+              </>
             )}
 
-            {/* Direct Dispatch Button (Visible on desktop) */}
-            <button
-              onClick={() => setIsDispatchOpen(true)}
-              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[#44403C] hover:text-[#1E40AF] hover:bg-[#F2ECE1] transition-colors text-xs font-display uppercase tracking-wider font-bold cursor-pointer shrink-0"
-              title="The Dispatch • Broadcast Newsletter to Subscribers"
-            >
-              <Mail className="w-3.5 h-3.5 text-[#B45309]" />
-              <span>The Dispatch</span>
-            </button>
-
-            {/* Secondary Actions [•••] Overflow Dropdown Menu */}
+            {/* Overflow Dropdown */}
             <div className="relative">
               <button
                 type="button"
@@ -1008,9 +1099,9 @@ export default function JournalStudioPage() {
         </div>
       </header>
 
-      {/* Main Studio Area (Responsive Slide-over Drawer + Touch-Optimized Canvas) */}
+      {/* Main Studio Area */}
       <div className="max-w-7xl mx-auto px-3 sm:px-8 py-4 sm:py-6 w-full flex-1 flex gap-6 lg:gap-8">
-        {/* Off-Canvas Backdrop for < 1180px */}
+        {/* Off-Canvas Backdrop for Mobile */}
         {!isFocusMode && isSidebarOpen && (
           <div
             className="fixed inset-0 bg-black/30 backdrop-blur-xs z-40 xl:hidden"
@@ -1018,7 +1109,7 @@ export default function JournalStudioPage() {
           />
         )}
 
-        {/* Left Sidebar Drawer (< 1180px Slide-Over Drawer; >= 1180px Inline Sticky Sidebar) */}
+        {/* Dedicated Workspace Sidebar */}
         {!isFocusMode && (
           <aside
             className={`shrink-0 flex flex-col gap-3.5 transition-all duration-200 bg-[#FAF8F5] ${
@@ -1027,71 +1118,77 @@ export default function JournalStudioPage() {
                 : 'w-0 opacity-0 pointer-events-none pr-0 -translate-x-full xl:translate-x-0'
             }`}
           >
-            {/* New Entry Action Buttons */}
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => createNewDraft('essay', false)}
-                className="py-2 px-2.5 bg-[#1C1917] hover:bg-[#1E40AF] text-[#FAF8F5] rounded text-[10px] font-display uppercase tracking-wider font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer"
-              >
-                <Plus className="w-3 h-3" />
-                <span>+ New Draft</span>
-              </button>
-              <button
-                onClick={() => createNewDraft('personal_ledger', true)}
-                className="py-2 px-2.5 bg-[#B45309] hover:bg-[#92400E] text-[#FAF8F5] rounded text-[10px] font-display uppercase tracking-wider font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer"
-              >
-                <BookOpen className="w-3 h-3" />
-                <span>+ Daily Ledger</span>
-              </button>
-            </div>
+            {/* Action Buttons based on Active Mode */}
+            {workspaceMode === 'ledger' ? (
+              <div>
+                <button
+                  onClick={() => createNewDocument('personal_ledger', true)}
+                  className="w-full py-2.5 px-3 bg-[#B45309] hover:bg-[#92400E] text-[#FAF8F5] rounded text-xs font-display uppercase tracking-wider font-bold flex items-center justify-center gap-2 transition-colors shadow-xs cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ New Daily Ledger</span>
+                </button>
+              </div>
+            ) : (
+              <div>
+                <button
+                  onClick={() => createNewDocument('essay', false)}
+                  className="w-full py-2.5 px-3 bg-[#1C1917] hover:bg-[#1E40AF] text-[#FAF8F5] rounded text-xs font-display uppercase tracking-wider font-bold flex items-center justify-center gap-2 transition-colors shadow-xs cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ New Broadsheet Draft</span>
+                </button>
+              </div>
+            )}
 
-            {/* Sidebar 4-Tab Navigation: All | Published | Drafts | Private / Ledger */}
-            <div className="grid grid-cols-4 bg-[#EAE4D7] p-0.5 rounded text-[9px] font-display uppercase tracking-wider font-bold">
-              <button
-                onClick={() => setActiveTab('all')}
-                className={`py-1.5 rounded transition-colors text-center cursor-pointer ${
-                  activeTab === 'all'
-                    ? 'bg-[#FAF8F5] text-[#1C1917] shadow-xs'
-                    : 'text-[#66615C] hover:text-[#1C1917]'
-                }`}
-                title="All Working & Archival Entries"
-              >
-                All
-              </button>
-              <button
-                onClick={() => setActiveTab('published')}
-                className={`py-1.5 rounded transition-colors text-center cursor-pointer ${
-                  activeTab === 'published'
-                    ? 'bg-[#FAF8F5] text-[#1E40AF] shadow-xs'
-                    : 'text-[#66615C] hover:text-[#1C1917]'
-                }`}
-                title="Live Published Pieces"
-              >
-                Published ({publishedEntries.length})
-              </button>
-              <button
-                onClick={() => setActiveTab('drafts')}
-                className={`py-1.5 rounded transition-colors text-center cursor-pointer ${
-                  activeTab === 'drafts'
-                    ? 'bg-[#FAF8F5] text-stone-900 shadow-xs'
-                    : 'text-[#66615C] hover:text-[#1C1917]'
-                }`}
-                title="Working Drafts"
-              >
-                Drafts ({draftEntries.length})
-              </button>
-              <button
-                onClick={() => setActiveTab('private')}
-                className={`py-1.5 rounded transition-colors text-center cursor-pointer ${
-                  activeTab === 'private'
-                    ? 'bg-[#FAF8F5] text-[#B45309] shadow-xs'
-                    : 'text-[#66615C] hover:text-[#1C1917]'
-                }`}
-                title="Private Entries & Daily Personal Ledgers"
-              >
-                Private ({privateEntries.length})
-              </button>
-            </div>
+            {/* Sidebar Navigation Tabs (Editorial mode only) */}
+            {workspaceMode === 'editorial' && (
+              <div className="grid grid-cols-3 bg-[#EAE4D7] p-0.5 rounded text-[9px] font-display uppercase tracking-wider font-bold">
+                <button
+                  onClick={() => setEditorialTab('drafts')}
+                  className={`py-1.5 rounded transition-colors text-center cursor-pointer ${
+                    editorialTab === 'drafts'
+                      ? 'bg-[#FAF8F5] text-stone-900 shadow-xs'
+                      : 'text-[#66615C] hover:text-[#1C1917]'
+                  }`}
+                >
+                  Drafts ({draftEntries.length})
+                </button>
+                <button
+                  onClick={() => setEditorialTab('published')}
+                  className={`py-1.5 rounded transition-colors text-center cursor-pointer ${
+                    editorialTab === 'published'
+                      ? 'bg-[#FAF8F5] text-[#1E40AF] shadow-xs'
+                      : 'text-[#66615C] hover:text-[#1C1917]'
+                  }`}
+                >
+                  Live ({publishedEntries.length})
+                </button>
+                <button
+                  onClick={() => setEditorialTab('all')}
+                  className={`py-1.5 rounded transition-colors text-center cursor-pointer ${
+                    editorialTab === 'all'
+                      ? 'bg-[#FAF8F5] text-[#1C1917] shadow-xs'
+                      : 'text-[#66615C] hover:text-[#1C1917]'
+                  }`}
+                >
+                  All ({draftEntries.length + publishedEntries.length})
+                </button>
+              </div>
+            )}
+
+            {/* Sidebar Title (Daily Ledger mode) */}
+            {workspaceMode === 'ledger' && (
+              <div className="flex items-center justify-between px-1 border-b border-[#E5DFC5] pb-2">
+                <div className="flex items-center gap-1.5 text-[10px] font-display uppercase tracking-[0.2em] text-[#B45309] font-bold">
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>Ledger Archive</span>
+                </div>
+                <span className="text-[10px] font-serif text-[#78716C] italic font-semibold">
+                  {privateEntries.length} {privateEntries.length === 1 ? 'entry' : 'entries'}
+                </span>
+              </div>
+            )}
 
             {/* Search Box */}
             <div className="relative">
@@ -1101,21 +1198,21 @@ export default function JournalStudioPage() {
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
                 placeholder={
-                  activeTab === 'private'
-                    ? 'Search reflections, bright spots, thoughts...'
-                    : `Search ${activeTab}...`
+                  workspaceMode === 'ledger'
+                    ? 'Search thoughts, bright spots, habits...'
+                    : 'Search drafts, titles, desks...'
                 }
                 className="w-full pl-8 pr-2.5 py-1.5 bg-[#FAF8F5] border border-[#E5DFC5] rounded text-xs font-serif text-[#1C1917] placeholder:text-[#9C9589] focus:outline-[#1E40AF]"
               />
             </div>
 
-            {/* Document List with Direct Trash Action */}
+            {/* Document List */}
             <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 max-h-[calc(100vh-280px)]">
-              {visibleList.length > 0 ? (
-                visibleList.map((entry, idx) => {
+              {visibleSidebarList.length > 0 ? (
+                visibleSidebarList.map((entry, idx) => {
                   const isActive = activeEntry?.slug === entry.slug || activeEntry?.id === entry.id;
 
-                  if (activeTab === 'private' || (activeTab === 'all' && entry.status === 'private')) {
+                  if (workspaceMode === 'ledger') {
                     const entryDate = entry.created_at || entry.published_at;
                     const formattedDate = formatDateSafe(entryDate, 'Recent Entry', {
                       month: 'short',
@@ -1140,8 +1237,8 @@ export default function JournalStudioPage() {
                         default:
                           return (
                             <span className="text-[8px] font-display uppercase tracking-wider text-amber-800 bg-amber-100/90 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5">
-                              <Lock className="w-2.5 h-2.5" />
-                              <span>Private</span>
+                              <Shield className="w-2.5 h-2.5" />
+                              <span>Ledger</span>
                             </span>
                           );
                       }
@@ -1199,6 +1296,7 @@ export default function JournalStudioPage() {
                     );
                   }
 
+                  // Editorial mode card
                   return (
                     <div
                       key={entry.id || entry.slug || `entry-${idx}`}
@@ -1211,16 +1309,11 @@ export default function JournalStudioPage() {
                     >
                       <div className="flex items-center justify-between mb-0.5">
                         <span className="text-[9px] font-display uppercase tracking-widest text-[#B45309] font-bold">
-                          {entry.metadata?.category || entry.entry_type?.replace('_', ' ') || 'DISPATCH'}
+                          {entry.metadata?.category || entry.entry_type?.replace('_', ' ') || 'ESSAY'}
                         </span>
                         
                         <div className="flex items-center gap-1">
-                          {entry.status === 'private' ? (
-                            <span className="text-[8px] font-display uppercase tracking-wider text-amber-800 bg-amber-100/90 px-1 py-0.2 rounded font-bold flex items-center gap-0.5">
-                              <Lock className="w-2.5 h-2.5" />
-                              <span>Private</span>
-                            </span>
-                          ) : entry.status === 'published' ? (
+                          {entry.status === 'published' ? (
                             <span className="text-[8px] font-display uppercase tracking-wider text-emerald-700 bg-emerald-100/80 px-1 py-0.2 rounded font-bold">
                               Live
                             </span>
@@ -1230,7 +1323,6 @@ export default function JournalStudioPage() {
                             </span>
                           )}
 
-                          {/* Direct Trash Icon */}
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1238,7 +1330,7 @@ export default function JournalStudioPage() {
                               handleDeleteEntry(entry);
                             }}
                             className="p-1 text-stone-400 hover:text-red-700 active:text-red-800 transition-colors cursor-pointer"
-                            title="Delete this entry"
+                            title="Delete this draft"
                           >
                             <Trash2 className="w-3 h-3" />
                           </button>
@@ -1246,11 +1338,11 @@ export default function JournalStudioPage() {
                       </div>
 
                       <h4 className="font-display font-semibold text-xs text-[#1C1917] line-clamp-1 pr-4">
-                        {entry.title || 'Untitled Entry'}
+                        {entry.title || 'Untitled Draft'}
                       </h4>
 
                       <p className="text-[10px] text-[#9C9589] mt-0.5 font-sans flex items-center justify-between">
-                        <span>{entry.published_at ? formatDateSafe(entry.published_at) : (entry.status === 'private' ? 'Private Journal' : 'Draft')}</span>
+                        <span>{entry.published_at ? formatDateSafe(entry.published_at) : 'Draft'}</span>
                         {entry.slug && <span className="font-mono text-[9px] text-stone-400">/{entry.slug.substring(0, 15)}...</span>}
                       </p>
                     </div>
@@ -1258,289 +1350,272 @@ export default function JournalStudioPage() {
                 })
               ) : (
                 <div className="text-center py-8 text-xs font-serif text-[#9C9589] italic">
-                  {searchFilter ? 'No matching entries found.' : `No ${activeTab} available.`}
+                  {searchFilter ? 'No matching entries found.' : `No entries available.`}
                 </div>
               )}
             </div>
           </aside>
         )}
 
-        {/* Center Editorial Writing Canvas (Hard-capped to max-w-[680px], Touch-friendly pb-48) */}
+        {/* Center Canvas */}
         <main className="flex-1 max-w-[680px] mx-auto w-full pb-48 px-1 sm:px-0">
-          {/* Active Status Banner & Quick Action Buttons */}
-          {isLiveActive && activeEntry?.slug && (
-            <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 font-serif rounded">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>Live on Public Broadsheet.</span>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Link
-                  href={`/${activeEntry.slug}`}
-                  target="_blank"
-                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded text-[10px] font-display font-bold uppercase tracking-wider transition-colors"
-                >
-                  <span>View Live</span>
-                  <ExternalLink className="w-3 h-3" />
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => setIsDispatchOpen(true)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#1C1917] hover:bg-[#1E40AF] text-[#FAF8F5] rounded text-[10px] font-display font-bold uppercase tracking-wider transition-colors cursor-pointer shadow-xs"
-                  title="Broadcast this article to subscribers via The Dispatch"
-                >
-                  <Mail className="w-3 h-3 text-[#D4AF37]" />
-                  <span>Dispatch Email</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleUnpublishToDraft}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#FAF8F5] hover:bg-amber-100 text-amber-800 border border-amber-300 rounded text-[10px] font-display font-bold uppercase tracking-wider transition-colors cursor-pointer"
-                  title="Unpublish this article and return it to Drafts"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  <span>Unpublish</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => activeEntry && handleDeleteEntry(activeEntry)}
-                  className="inline-flex items-center gap-1 px-2 py-1 text-red-700 hover:bg-red-100 rounded text-[10px] font-display font-bold uppercase tracking-wider transition-colors cursor-pointer"
-                  title="Permanently delete from database"
-                >
-                  <Trash2 className="w-3 h-3" />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {isPrivateActive && (
-            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between font-serif rounded">
-              <div className="flex items-center gap-2">
-                <Shield className="w-4 h-4 text-amber-700 shrink-0" />
-                <span>Private Journal Entry (Shielded from public broadsheet).</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => activeEntry && handleDeleteEntry(activeEntry)}
-                className="inline-flex items-center gap-1 text-red-700 hover:underline text-[10px] font-display uppercase tracking-wider font-bold cursor-pointer"
-              >
-                <Trash2 className="w-3 h-3" />
-                <span>Delete</span>
-              </button>
-            </div>
-          )}
-
-          {!isPrivateActive && !isLiveActive && activeEntry && (
-            <div className="mb-4 p-2 bg-[#F2ECE1] border border-[#DDD5C7] text-[#44403C] text-xs flex items-center justify-between font-serif rounded">
-              <span className="text-[11px] italic">Editing unpublished working draft.</span>
-              <button
-                type="button"
-                onClick={() => activeEntry && handleDeleteEntry(activeEntry)}
-                className="inline-flex items-center gap-1 text-stone-500 hover:text-red-700 text-[10px] font-display uppercase tracking-wider font-bold cursor-pointer"
-                title="Discard this draft"
-              >
-                <Trash2 className="w-3 h-3" />
-                <span>Discard Draft</span>
-              </button>
-            </div>
-          )}
-
-          {/* Reflection Prompts Bar (Shown when in Private mode or reflection note) */}
-          {isPrivateActive && (
-            <ReflectionPromptBar
-              onInsertPrompt={handleInsertReflectionPrompt}
-            />
-          )}
-
-          {/* Format & Desk Taxonomy Ribbon */}
-          <div className="mb-6 p-4 bg-[#F3EFEA] border border-[#E5DFC5] space-y-3 rounded">
-            {/* Entry Format Selector Buttons */}
-            <div>
-              <label className="block text-[10px] font-display font-bold uppercase tracking-widest text-[#1C1917] mb-1.5">
-                ENTRY FORMAT &amp; LENS
-              </label>
-              <div className="flex flex-wrap gap-1.5">
-                {ENTRY_TYPES.map((fmt) => {
-                  const Icon = fmt.icon;
-                  const isSelected = entryType === fmt.type;
-                  return (
-                    <button
-                      key={fmt.type}
-                      type="button"
-                      onClick={() => handleTypeChange(fmt.type)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-display uppercase tracking-wider font-bold transition-all cursor-pointer ${
-                        isSelected
-                          ? 'bg-[#1E40AF] text-white shadow-2xs'
-                          : 'bg-[#FAF8F5] text-[#66615C] hover:text-[#1C1917] hover:bg-[#EAE4D7] border border-[#E5DFC5]'
-                      }`}
-                    >
-                      <Icon className="w-3.5 h-3.5" />
-                      <span>{fmt.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Taxonomy Dropdowns */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#E5DFC5]">
-              <div>
-                <label className="block text-[10px] font-display font-bold uppercase tracking-widest text-[#B45309] mb-1">
-                  EDITORIAL DESK
-                </label>
-                <select
-                  value={selectedDesk}
-                  onChange={(e) => handleDeskChange(e.target.value as DeskType)}
-                  className="w-full text-xs font-serif bg-[#FAF8F5] border border-[#E5DFC5] rounded px-2.5 py-1.5 text-[#1C1917] focus:outline-[#1E40AF]"
-                >
-                  {EDITORIAL_DESKS.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-display font-bold uppercase tracking-widest text-[#1E40AF] mb-1">
-                  SUB-CATEGORY
-                </label>
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => {
-                    const cat = e.target.value as SubCategory;
-                    setSelectedCategory(cat);
-                    setMetadata((prev) => ({ ...prev, category: cat }));
-                    setSaveStatus('unsaved');
+          {/* ========================================================= */}
+          {/* WORKSPACE MODE 1: DAILY PERSONAL LEDGER */}
+          {/* ========================================================= */}
+          {workspaceMode === 'ledger' && (
+            <div className="space-y-6">
+              {/* Daily Personal Ledger Interactive Module */}
+              <div className="space-y-2.5">
+                <DailyPersonalLedger
+                  metadata={metadata}
+                  entries={allStudioEntries}
+                  onUpdateMetadata={(newMeta) => {
+                    setMetadata((prev) => ({ ...prev, ...newMeta }));
+                    saveCurrentDraft(newMeta);
                   }}
-                  className="w-full text-xs font-serif bg-[#FAF8F5] border border-[#E5DFC5] rounded px-2.5 py-1.5 text-[#1C1917] focus:outline-[#1E40AF]"
-                >
-                  {EDITORIAL_DESKS.find((d) => d.id === selectedDesk)?.categories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
+                  onSelectMemory={(memoryEntry) => selectEntry(memoryEntry)}
+                />
+
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                  <div className="flex items-center gap-2">
+                    {ledgerFeedback ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded text-[11px] font-display uppercase tracking-wider font-bold shadow-2xs">
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-700" />
+                        <span>{ledgerFeedback}</span>
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-serif text-[#78716C] italic">
+                        Autosaved to confidential cloud archive
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleInsertLedgerIntoBody}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#FAF8F5] hover:bg-[#EAE4D7] text-[#44403C] hover:text-[#1C1917] border border-[#DDD5C7] rounded text-[11px] font-display uppercase tracking-wider font-bold transition-colors cursor-pointer shadow-2xs"
+                      title="Insert formatted ledger summary into journal body"
+                    >
+                      <ArrowDownToLine className="w-3.5 h-3.5 text-[#B45309]" />
+                      <span>Insert into Journal</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleRecordDailyCheckIn}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#B45309] hover:bg-[#92400E] active:bg-[#78350F] text-[#FAF8F5] rounded text-[11px] font-display uppercase tracking-wider font-bold transition-colors cursor-pointer shadow-xs"
+                      title="Save habits, energy, and reflection notes to your private ledger"
+                    >
+                      <Save className="w-3.5 h-3.5 text-[#FAF8F5]" />
+                      <span>Record Daily Check-in</span>
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* Structured Cultural Review Craft Panel (Comics, Books, Records, Podcasts) */}
-          <ReviewCraftPanel
-            entryType={entryType}
-            metadata={metadata}
-            onMetadataChange={(newMeta, shouldAutoSave) => {
-              setMetadata((prev) => ({ ...prev, ...newMeta }));
-              if (shouldAutoSave) {
-                saveCurrentDraft(newMeta);
-              } else {
-                setSaveStatus('unsaved');
-              }
-            }}
-            onApplyTemplate={handleApplyTemplate}
-            onAutoTitle={(suggested) => {
-              if (!title.trim()) {
-                setTitle(suggested);
-                setSaveStatus('unsaved');
-              }
-            }}
-          />
-
-          {/* Daily Personal Ledger (Active for Private entries or personal_ledger format) */}
-          {(isPrivateActive || entryType === 'personal_ledger') && (
-            <div className="mb-6 space-y-2.5">
-              <DailyPersonalLedger
-                metadata={metadata}
-                entries={allStudioEntries}
-                onUpdateMetadata={(newMeta) => {
-                  setMetadata((prev) => ({ ...prev, ...newMeta }));
-                  saveCurrentDraft(newMeta);
-                }}
-                onSelectMemory={(memoryEntry) => selectEntry(memoryEntry)}
+              {/* Reflection Prompts Bar */}
+              <ReflectionPromptBar
+                onInsertPrompt={handleInsertReflectionPrompt}
               />
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                <div className="flex items-center gap-2">
-                  {ledgerFeedback ? (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded text-[11px] font-display uppercase tracking-wider font-bold shadow-2xs">
-                      <CheckCircle className="w-3.5 h-3.5 text-emerald-700" />
-                      <span>{ledgerFeedback}</span>
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-serif text-[#78716C] italic">
-                      Autosaved to confidential archive
-                    </span>
-                  )}
-                </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleInsertLedgerIntoBody}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#FAF8F5] hover:bg-[#EAE4D7] text-[#44403C] hover:text-[#1C1917] border border-[#DDD5C7] rounded text-[11px] font-display uppercase tracking-wider font-bold transition-colors cursor-pointer shadow-2xs"
-                    title="Insert formatted ledger summary into editor body"
-                  >
-                    <ArrowDownToLine className="w-3.5 h-3.5 text-[#B45309]" />
-                    <span>Insert into Body</span>
-                  </button>
+              {/* Journal Headline */}
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  setSaveStatus('unsaved');
+                }}
+                placeholder="Daily Ledger Title / Date..."
+                className="w-full font-display font-black text-2xl sm:text-3xl text-[#1C1917] placeholder:text-[#9C9589] bg-transparent border-none outline-none py-2 tracking-tight"
+              />
 
-                  <button
-                    type="button"
-                    onClick={handleRecordDailyCheckIn}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#B45309] hover:bg-[#92400E] active:bg-[#78350F] text-[#FAF8F5] rounded text-[11px] font-display uppercase tracking-wider font-bold transition-colors cursor-pointer shadow-xs"
-                    title="Save habits, energy, and reflection notes to your private ledger"
-                  >
-                    <Save className="w-3.5 h-3.5 text-[#FAF8F5]" />
-                    <span>Record Daily Check-in</span>
-                  </button>
-                </div>
-              </div>
+              {/* Private Reading/Writing Canvas */}
+              <TipTapEditor
+                initialContent={contentHtml}
+                placeholder="Private, confidential notes, working thoughts, and observations..."
+                onChange={({ html }) => {
+                  setContentHtml(html);
+                  setSaveStatus('unsaved');
+                }}
+              />
             </div>
           )}
 
-          {/* Headline Input */}
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => {
-              setTitle(e.target.value);
-              setSaveStatus('unsaved');
-            }}
-            placeholder={
-              isPrivateActive
-                ? "Private Journal Title / Date..."
-                : entryType.includes('review')
-                ? "Review Headline..."
-                : "Headline of the Entry..."
-            }
-            className="w-full font-display font-black text-2xl sm:text-4xl text-[#1C1917] placeholder:text-[#9C9589] bg-transparent border-none outline-none py-3 mb-2 tracking-tight"
-          />
+          {/* ========================================================= */}
+          {/* WORKSPACE MODE 2: EDITORIAL BROADSHEET CMS */}
+          {/* ========================================================= */}
+          {workspaceMode === 'editorial' && (
+            <div className="space-y-6">
+              {/* Live Status Banner */}
+              {isLiveActive && activeEntry?.slug && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 font-serif rounded">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Live on Public Broadsheet.</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Link
+                      href={`/${activeEntry.slug}`}
+                      target="_blank"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded text-[10px] font-display font-bold uppercase tracking-wider transition-colors"
+                    >
+                      <span>View Live</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => setIsDispatchOpen(true)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#1C1917] hover:bg-[#1E40AF] text-[#FAF8F5] rounded text-[10px] font-display font-bold uppercase tracking-wider transition-colors cursor-pointer shadow-xs"
+                    >
+                      <Mail className="w-3 h-3 text-[#D4AF37]" />
+                      <span>Dispatch Email</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleUnpublishToDraft}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#FAF8F5] hover:bg-amber-100 text-amber-800 border border-amber-300 rounded text-[10px] font-display font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Unpublish</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
-          {/* TipTap Rich Text Reading Canvas */}
-          <TipTapEditor
-            initialContent={contentHtml}
-            placeholder={
-              isPrivateActive
-                ? "Private, confidential notes and observations..."
-                : "Write without restraint for the broadsheet..."
-            }
-            onChange={({ html }) => {
-              setContentHtml(html);
-              setSaveStatus('unsaved');
-            }}
-          />
+              {/* Format & Desk Taxonomy Ribbon */}
+              <div className="p-4 bg-[#F3EFEA] border border-[#E5DFC5] space-y-3 rounded">
+                <div>
+                  <label className="block text-[10px] font-display font-bold uppercase tracking-widest text-[#1C1917] mb-1.5">
+                    ENTRY FORMAT &amp; LENS
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {EDITORIAL_ENTRY_TYPES.map((fmt) => {
+                      const Icon = fmt.icon;
+                      const isSelected = entryType === fmt.type;
+                      return (
+                        <button
+                          key={fmt.type}
+                          type="button"
+                          onClick={() => handleTypeChange(fmt.type)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-display uppercase tracking-wider font-bold transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#1E40AF] text-white shadow-2xs'
+                              : 'bg-[#FAF8F5] text-[#66615C] hover:text-[#1C1917] hover:bg-[#EAE4D7] border border-[#E5DFC5]'
+                          }`}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                          <span>{fmt.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
-          {/* Relocated Editorial Photography & Cover Art Accordion (BELOW Canvas) */}
-          <EditorialPhotographyAccordion
-            metadata={metadata}
-            onMetadataChange={(newMeta) => {
-              setMetadata((prev) => ({ ...prev, ...newMeta }));
-              setSaveStatus('unsaved');
-            }}
-          />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#E5DFC5]">
+                  <div>
+                    <label className="block text-[10px] font-display font-bold uppercase tracking-widest text-[#B45309] mb-1">
+                      EDITORIAL DESK
+                    </label>
+                    <select
+                      value={selectedDesk}
+                      onChange={(e) => handleDeskChange(e.target.value as DeskType)}
+                      className="w-full text-xs font-serif bg-[#FAF8F5] border border-[#E5DFC5] rounded px-2.5 py-1.5 text-[#1C1917] focus:outline-[#1E40AF]"
+                    >
+                      {EDITORIAL_DESKS.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-display font-bold uppercase tracking-widest text-[#1E40AF] mb-1">
+                      SUB-CATEGORY
+                    </label>
+                    <select
+                      value={selectedCategory}
+                      onChange={(e) => {
+                        const cat = e.target.value as SubCategory;
+                        setSelectedCategory(cat);
+                        setMetadata((prev) => ({ ...prev, category: cat }));
+                        setSaveStatus('unsaved');
+                      }}
+                      className="w-full text-xs font-serif bg-[#FAF8F5] border border-[#E5DFC5] rounded px-2.5 py-1.5 text-[#1C1917] focus:outline-[#1E40AF]"
+                    >
+                      {EDITORIAL_DESKS.find((d) => d.id === selectedDesk)?.categories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cultural Review Craft Panel (Books, Comics, Records, Podcasts) */}
+              <ReviewCraftPanel
+                entryType={entryType}
+                metadata={metadata}
+                onMetadataChange={(newMeta, shouldAutoSave) => {
+                  setMetadata((prev) => ({ ...prev, ...newMeta }));
+                  if (shouldAutoSave) {
+                    saveCurrentDraft(newMeta);
+                  } else {
+                    setSaveStatus('unsaved');
+                  }
+                }}
+                onApplyTemplate={handleApplyTemplate}
+                onAutoTitle={(suggested) => {
+                  if (!title.trim()) {
+                    setTitle(suggested);
+                    setSaveStatus('unsaved');
+                  }
+                }}
+              />
+
+              {/* Headline Input */}
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  setSaveStatus('unsaved');
+                }}
+                placeholder={
+                  entryType.includes('review')
+                    ? 'Review Headline...'
+                    : 'Headline of the Entry...'
+                }
+                className="w-full font-display font-black text-2xl sm:text-4xl text-[#1C1917] placeholder:text-[#9C9589] bg-transparent border-none outline-none py-3 mb-2 tracking-tight"
+              />
+
+              {/* Broadsheet Reading Canvas */}
+              <TipTapEditor
+                initialContent={contentHtml}
+                placeholder="Write without restraint for the broadsheet..."
+                onChange={({ html }) => {
+                  setContentHtml(html);
+                  setSaveStatus('unsaved');
+                }}
+              />
+
+              {/* Editorial Photography Accordion */}
+              <EditorialPhotographyAccordion
+                metadata={metadata}
+                onMetadataChange={(newMeta) => {
+                  setMetadata((prev) => ({ ...prev, ...newMeta }));
+                  setSaveStatus('unsaved');
+                }}
+              />
+            </div>
+          )}
         </main>
       </div>
 
-      {/* Promote to Public Modal */}
+      {/* Promote to Public Broadsheet Modal */}
       {isPromoteOpen && (
         <PromoteModal
           isOpen={isPromoteOpen}
@@ -1557,7 +1632,7 @@ export default function JournalStudioPage() {
             }
             const publishedItem: Entry = {
               ...(activeEntry || {}),
-              id: activeEntry?.id || ('entry-' + Date.now()),
+              id: activeEntry?.id || generateUUID(),
               title: title.trim() || 'Untitled Entry',
               body_html: contentHtml,
               entry_type: entryType,
@@ -1571,12 +1646,12 @@ export default function JournalStudioPage() {
             setEntryStatus('published');
             setPublishedEntries((prev) => [publishedItem, ...prev.filter((p) => p.slug !== publishedItem.slug)]);
             setDraftEntries((prev) => prev.filter((d) => d.id !== activeEntry?.id));
-            setActiveTab('published');
+            setEditorialTab('published');
           }}
         />
       )}
 
-            {/* The Dispatch Modal */}
+      {/* The Dispatch Broadcast Modal */}
       {isDispatchOpen && (
         <DispatchModal
           isOpen={isDispatchOpen}
