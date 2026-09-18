@@ -651,6 +651,10 @@ export default function JournalStudioPage() {
     );
   }, [publishedEntries, draftEntries, privateEntries, historicalEntries]);
 
+  const allStudioEntries = useMemo(() => {
+    return [...privateEntries, ...draftEntries, ...publishedEntries];
+  }, [privateEntries, draftEntries, publishedEntries]);
+
   // Filter items based on active tab and search query (including Triad semantic search)
   const getVisibleList = () => {
     let list: Entry[] = [];
@@ -764,10 +768,6 @@ export default function JournalStudioPage() {
   const isPrivateActive = entryStatus === 'private' || metadata.isPrivate;
   const isLiveActive = entryStatus === 'published' && !metadata.isPrivate;
   const visibleList = getVisibleList();
-
-  const allStudioEntries = useMemo(() => {
-    return [...privateEntries, ...draftEntries, ...publishedEntries];
-  }, [privateEntries, draftEntries, publishedEntries]);
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-[#242120] flex flex-col font-reading selection:bg-[#1E40AF] selection:text-white relative">
