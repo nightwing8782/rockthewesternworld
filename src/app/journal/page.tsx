@@ -289,10 +289,10 @@ export default function JournalStudioPage() {
         createNewDocument('personal_ledger', true);
       }
     } else {
-      // Find latest draft or published article
-      const latestEditorial = draftEntries[0] || publishedEntries[0];
-      if (latestEditorial) {
-        selectEntry(latestEditorial);
+      // Find latest working draft only (do not auto-open published broadsheet pieces)
+      const latestDraft = draftEntries[0];
+      if (latestDraft) {
+        selectEntry(latestDraft);
       } else {
         createNewDocument('essay', false);
       }
@@ -448,7 +448,8 @@ export default function JournalStudioPage() {
                 createNewDocument('personal_ledger', true);
               }
             } else {
-              const latestDraft = drafts[0] || pub[0];
+              // In Editorial mode: select latest working draft if one exists, otherwise start with a fresh blank piece
+              const latestDraft = drafts[0];
               if (latestDraft) {
                 selectEntry(latestDraft);
               } else {
