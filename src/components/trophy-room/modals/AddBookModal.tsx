@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { X, UploadCloud, FileUp, Sparkles, Loader2, CheckCircle } from 'lucide-react';
+import { X, Upload, FileUp, Sparkles, Loader2, BookOpen } from 'lucide-react';
 import { IngestionProgressState } from '@/types/trophy';
 
 interface AddBookModalProps {
@@ -48,46 +48,48 @@ export default function AddBookModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-stone-900 border border-stone-800 rounded-xl shadow-2xl max-w-lg w-full overflow-hidden text-stone-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="bg-white border-4 border-[#111827] rounded-3xl shadow-[8px_8px_0_#111827] max-w-lg w-full overflow-hidden text-[#111827]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-stone-800 bg-stone-950">
-          <h2 className="font-serif text-lg font-bold tracking-wide text-amber-400 flex items-center gap-2">
-            <UploadCloud className="w-5 h-5" />
-            Add Books & Comics to Trophy Room
+        <div className="flex items-center justify-between px-6 py-4 border-b-4 border-[#111827] bg-[#2ED573]">
+          <h2 className="text-xl font-black uppercase tracking-wide text-[#111827] flex items-center gap-2">
+            <Upload className="w-6 h-6 stroke-[2.5]" />
+            Import Comics & Books
           </h2>
           {!progress?.isIngesting && (
             <button
               onClick={onClose}
-              className="text-stone-400 hover:text-stone-100 p-1 rounded-lg hover:bg-stone-800 transition-colors"
+              className="p-1.5 rounded-xl bg-white border-2 border-[#111827] text-[#111827] hover:bg-[#FF4757] hover:text-white shadow-[2px_2px_0_#111827] transition-colors"
             >
-              <X className="w-5 h-5" />
+              <X className="w-5 h-5 stroke-[2.5]" />
             </button>
           )}
         </div>
 
         {/* Body */}
-        <div className="p-6">
+        <div className="p-6 bg-paper-texture">
           {progress?.isIngesting ? (
             /* Ingestion in Progress */
             <div className="py-8 flex flex-col items-center justify-center text-center space-y-4">
-              <Loader2 className="w-12 h-12 animate-spin text-amber-500" />
+              <div className="w-16 h-16 rounded-2xl bg-[#FFDE59] border-3 border-[#111827] flex items-center justify-center shadow-[4px_4px_0_#111827] transform -rotate-3">
+                <Loader2 className="w-9 h-9 animate-spin text-[#111827]" />
+              </div>
               <div>
-                <h3 className="font-serif text-base font-bold text-stone-100 mb-1">
+                <h3 className="text-lg font-black text-[#111827] mb-1 uppercase">
                   Ingesting File {progress.currentFileIndex} of {progress.totalFiles}
                 </h3>
-                <p className="text-xs font-mono text-amber-400/90 truncate max-w-sm mx-auto">
+                <p className="text-xs font-mono font-bold text-slate-800 truncate max-w-sm mx-auto bg-amber-100 px-3 py-1 rounded-lg border border-[#111827]">
                   {progress.currentFileName}
                 </p>
-                <p className="text-xs font-sans text-stone-400 mt-2">
+                <p className="text-xs font-bold text-slate-600 mt-2">
                   {progress.statusMessage}
                 </p>
               </div>
 
               {/* Progress Bar */}
-              <div className="w-full bg-stone-950 rounded-full h-2 overflow-hidden border border-stone-800">
+              <div className="w-full bg-white rounded-full h-3.5 overflow-hidden border-2 border-[#111827] shadow-[2px_2px_0_#111827]">
                 <div
-                  className="bg-amber-500 h-full transition-all duration-300"
+                  className="bg-[#2ED573] h-full transition-all duration-300"
                   style={{
                     width: `${Math.round((progress.currentFileIndex / progress.totalFiles) * 100)}%`,
                   }}
@@ -102,10 +104,10 @@ export default function AddBookModal({
               onDragOver={handleDrag}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className={`border-2 border-dashed rounded-xl p-8 sm:p-10 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 ${
+              className={`border-4 border-dashed rounded-2xl p-8 sm:p-10 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-150 ${
                 dragActive
-                  ? 'border-amber-500 bg-amber-950/20 scale-[1.01]'
-                  : 'border-stone-700/80 bg-stone-950/40 hover:border-amber-500/60 hover:bg-stone-950/80'
+                  ? 'border-[#FF4757] bg-rose-50 scale-[1.01]'
+                  : 'border-[#111827] bg-white hover:bg-amber-50/50 shadow-[4px_4px_0_#111827]'
               }`}
             >
               <input
@@ -117,22 +119,28 @@ export default function AddBookModal({
                 className="hidden"
               />
 
-              <div className="w-16 h-16 rounded-full bg-amber-950/40 border border-amber-600/30 flex items-center justify-center text-amber-400 mb-4 shadow-inner">
-                <FileUp className="w-8 h-8" />
+              <div className="w-16 h-16 rounded-2xl bg-[#FFDE59] border-3 border-[#111827] flex items-center justify-center text-[#111827] mb-4 shadow-[3px_3px_0_#111827] transform -rotate-3">
+                <FileUp className="w-8 h-8 stroke-[2.5]" />
               </div>
 
-              <h3 className="font-serif text-base font-bold text-stone-100 mb-1">
+              <h3 className="text-lg font-black text-[#111827] mb-1 uppercase tracking-wide">
                 Drop CBZ, EPUB, or PDF files here
               </h3>
-              <p className="text-xs font-sans text-stone-400 max-w-xs mb-4">
-                Or click to browse from your device. Direct stream ingestion into Cloudflare R2 vault.
+              <p className="text-xs font-bold text-slate-600 max-w-xs mb-4">
+                Or click to browse from device. Direct stream ingestion into Cloudflare R2 vault with OPFS cache.
               </p>
 
               {/* Format pills */}
-              <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-stone-400">
-                <span className="px-2 py-0.5 rounded bg-stone-800 border border-stone-700">CBZ / CBR</span>
-                <span className="px-2 py-0.5 rounded bg-stone-800 border border-stone-700">EPUB</span>
-                <span className="px-2 py-0.5 rounded bg-stone-800 border border-stone-700">PDF</span>
+              <div className="flex items-center gap-2">
+                <span className="comic-stamp text-[10px] px-2 py-0.5 rounded bg-[#FFDE59] text-[#111827]">
+                  CBZ / CBR
+                </span>
+                <span className="comic-stamp text-[10px] px-2 py-0.5 rounded bg-[#00D2D3] text-[#111827]">
+                  EPUB
+                </span>
+                <span className="comic-stamp text-[10px] px-2 py-0.5 rounded bg-[#FF4757] text-white">
+                  PDF
+                </span>
               </div>
             </div>
           )}
@@ -140,11 +148,11 @@ export default function AddBookModal({
 
         {/* Footer */}
         {!progress?.isIngesting && (
-          <div className="px-6 py-3 border-t border-stone-800 bg-stone-950/80 flex justify-between items-center text-xs text-stone-500">
+          <div className="px-6 py-3 border-t-3 border-[#111827] bg-white flex justify-between items-center text-xs font-bold text-slate-600">
             <span className="font-mono">Zero Egress Cloud Vault</span>
             <button
               onClick={onClose}
-              className="px-4 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded-md transition-colors font-mono text-xs uppercase"
+              className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-[#111827] rounded-xl border-2 border-[#111827] shadow-[2px_2px_0_#111827] transition-colors uppercase font-black text-xs"
             >
               Cancel
             </button>

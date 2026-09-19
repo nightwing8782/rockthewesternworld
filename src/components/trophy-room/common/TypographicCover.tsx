@@ -1,75 +1,107 @@
 'use client';
 
 import React from 'react';
+import { BookOpen, FileText, Bookmark, Sparkles } from 'lucide-react';
 import { BookFormat } from '@/types/trophy';
-import { BookOpen, FileText, Sparkles } from 'lucide-react';
 
 interface TypographicCoverProps {
   title: string;
   series?: string;
   issueNumber?: number;
-  author?: string | null;
   format: BookFormat;
+  author?: string | null;
   className?: string;
 }
 
 export default function TypographicCover({
   title,
   series,
-  issueNumber,
-  author,
+  issueNumber = 1,
   format,
+  author,
   className = '',
 }: TypographicCoverProps) {
-  // Select stylized gradient palette based on format
-  const palette =
-    format === 'cbz'
-      ? 'from-amber-950 via-stone-900 to-stone-950 border-amber-600/40 text-amber-200'
-      : format === 'epub'
-      ? 'from-emerald-950 via-stone-900 to-stone-950 border-emerald-600/40 text-emerald-200'
-      : 'from-sky-950 via-stone-900 to-stone-950 border-sky-600/40 text-sky-200';
+  // Determine color theme based on format
+  const theme = {
+    cbz: {
+      bg: 'bg-[#FF4757]',
+      accentBg: 'bg-[#FFDE59]',
+      accentText: 'text-[#111827]',
+      badge: 'CBZ COMIC',
+      icon: <BookOpen className="w-3.5 h-3.5 text-[#111827]" />,
+    },
+    epub: {
+      bg: 'bg-[#2ED573]',
+      accentBg: 'bg-[#111827]',
+      accentText: 'text-[#2ED573]',
+      badge: 'EPUB EBOOK',
+      icon: <FileText className="w-3.5 h-3.5 text-[#2ED573]" />,
+    },
+    pdf: {
+      bg: 'bg-[#3742fa]',
+      accentBg: 'bg-[#FFDE59]',
+      accentText: 'text-[#111827]',
+      badge: 'PDF DOCUMENT',
+      icon: <Bookmark className="w-3.5 h-3.5 text-[#111827]" />,
+    },
+  }[format];
 
   return (
     <div
-      className={`relative aspect-[2/3] w-full bg-gradient-to-b ${palette} border-2 rounded p-4 flex flex-col justify-between shadow-xl overflow-hidden select-none ${className}`}
+      className={`relative w-full h-full ${theme.bg} p-4 flex flex-col justify-between select-none overflow-hidden ${className}`}
     >
-      {/* Decorative Art Deco Corner Accents */}
-      <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-amber-400/50" />
-      <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-amber-400/50" />
-      <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-amber-400/50" />
-      <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-amber-400/50" />
+      {/* Halftone / Ben-Day Dot Pattern */}
+      <div className="absolute inset-0 bg-halftone opacity-25 pointer-events-none" />
 
-      {/* Subtle Grain Overlay */}
-      <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:8px_8px] pointer-events-none" />
+      {/* Decorative vintage comic border inset */}
+      <div className="absolute inset-2 border-2 border-black/30 rounded-lg pointer-events-none" />
 
-      {/* Top Header: Series / Format */}
-      <div className="relative z-10 space-y-1">
-        <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-widest opacity-80">
-          <span>{format.toUpperCase()}</span>
-          {issueNumber ? <span>#{issueNumber}</span> : <Sparkles className="w-3 h-3" />}
+      {/* Top Banner: Series & Format Pill */}
+      <div className="relative z-10 flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <span className="comic-stamp text-[9px] px-1.5 py-0.5 rounded bg-black/80 text-white font-sans uppercase tracking-widest block truncate">
+            {series || 'STANDALONE'}
+          </span>
         </div>
-        {series && series !== 'Standalone' && (
-          <p className="font-sans text-[11px] font-semibold tracking-wider uppercase text-amber-400/90 line-clamp-1">
-            {series}
+
+        <div className="flex items-center gap-1">
+          <span
+            className={`comic-stamp text-[9px] px-1.5 py-0.5 rounded ${theme.accentBg} ${theme.accentText} flex items-center gap-1 shadow-[1px_1px_0_#000]`}
+          >
+            {theme.icon}
+            <span>#{issueNumber}</span>
+          </span>
+        </div>
+      </div>
+
+      {/* Center: Hero Typography */}
+      <div className="relative z-10 my-auto py-2 text-center">
+        <div className="inline-block p-1.5 bg-black/15 rounded-lg transform -rotate-1 max-w-full">
+          <h2
+            className="text-base sm:text-lg font-black font-sans tracking-wider text-white uppercase line-clamp-3 leading-tight drop-shadow-[2px_2px_0_#000]"
+            title={title}
+          >
+            {title}
+          </h2>
+        </div>
+
+        {author && (
+          <p className="text-[10px] font-sans font-bold text-white/90 mt-1.5 truncate">
+            BY {author.toUpperCase()}
           </p>
         )}
       </div>
 
-      {/* Middle: Title */}
-      <div className="relative z-10 my-auto text-center px-1">
-        <h3 className="font-serif text-sm sm:text-base font-bold leading-tight tracking-wide line-clamp-4 drop-shadow-md">
-          {title}
-        </h3>
-        <div className="w-8 h-[1px] bg-amber-500/50 mx-auto my-2" />
-      </div>
+      {/* Bottom: Format Stamp & Graphic Accent */}
+      <div className="relative z-10 flex items-center justify-between pt-2 border-t-2 border-black/20">
+        <span className="text-[9px] font-black font-sans uppercase tracking-wider text-black/70 flex items-center gap-1">
+          <Sparkles className="w-3 h-3" />
+          TROPHY ROOM
+        </span>
 
-      {/* Bottom: Author / Footer */}
-      <div className="relative z-10 text-center">
-        {author ? (
-          <p className="font-serif italic text-[11px] opacity-75 line-clamp-1">by {author}</p>
-        ) : (
-          <p className="font-mono text-[9px] uppercase tracking-widest opacity-50">Private Vault Edition</p>
-        )}
+        <span className="comic-stamp text-[9px] px-1.5 py-0.2 rounded bg-white text-[#111827] shadow-[1px_1px_0_#000]">
+          {theme.badge}
+        </span>
       </div>
     </div>
   );

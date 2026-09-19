@@ -61,33 +61,33 @@ export default function MetadataModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-stone-900 border border-stone-800 rounded-xl shadow-2xl max-w-lg w-full overflow-hidden text-stone-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="bg-white border-4 border-[#111827] rounded-3xl shadow-[8px_8px_0_#111827] max-w-lg w-full overflow-hidden text-[#111827]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-stone-800 bg-stone-950">
-          <h2 className="font-serif text-lg font-bold tracking-wide text-amber-400 flex items-center gap-2">
-            <Edit3 className="w-5 h-5" />
+        <div className="flex items-center justify-between px-6 py-4 border-b-4 border-[#111827] bg-[#FFDE59]">
+          <h2 className="text-xl font-black uppercase tracking-wide text-[#111827] flex items-center gap-2">
+            <Edit3 className="w-5 h-5 stroke-[2.5]" />
             Edit Book Metadata
           </h2>
           <button
             onClick={onClose}
-            className="text-stone-400 hover:text-stone-100 p-1 rounded-lg hover:bg-stone-800 transition-colors"
+            className="p-1.5 rounded-xl bg-white border-2 border-[#111827] text-[#111827] hover:bg-[#FF4757] hover:text-white shadow-[2px_2px_0_#111827] transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5 stroke-[2.5]" />
           </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSave} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+        <form onSubmit={handleSave} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto bg-paper-texture">
           {error && (
-            <div className="p-3 rounded bg-rose-950/50 border border-rose-800 text-rose-300 text-xs">
+            <div className="p-3 rounded-xl bg-rose-100 border-2 border-[#FF4757] text-[#FF4757] font-bold text-xs">
               {error}
             </div>
           )}
 
           {/* Title */}
           <div className="space-y-1.5">
-            <label className="text-xs font-mono uppercase tracking-widest text-stone-400">
+            <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
               Title
             </label>
             <input
@@ -95,14 +95,14 @@ export default function MetadataModal({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               required
-              className="w-full px-3 py-2 bg-stone-950 border border-stone-800 rounded-lg text-sm text-stone-200 focus:outline-none focus:border-amber-500"
+              className="w-full px-3.5 py-2.5 bg-white border-3 border-[#111827] rounded-xl text-sm font-semibold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
             />
           </div>
 
           {/* Series & Issue */}
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2 space-y-1.5">
-              <label className="text-xs font-mono uppercase tracking-widest text-stone-400">
+              <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
                 Series / Collection
               </label>
               <input
@@ -110,12 +110,12 @@ export default function MetadataModal({
                 value={series}
                 onChange={(e) => setSeries(e.target.value)}
                 placeholder="e.g. Batman (2016)"
-                className="w-full px-3 py-2 bg-stone-950 border border-stone-800 rounded-lg text-sm text-stone-200 focus:outline-none focus:border-amber-500"
+                className="w-full px-3.5 py-2.5 bg-white border-3 border-[#111827] rounded-xl text-sm font-semibold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-mono uppercase tracking-widest text-stone-400">
+              <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
                 Issue #
               </label>
               <input
@@ -123,38 +123,38 @@ export default function MetadataModal({
                 step="any"
                 value={issueNumber}
                 onChange={(e) => setIssueNumber(parseFloat(e.target.value))}
-                className="w-full px-3 py-2 bg-stone-950 border border-stone-800 rounded-lg text-sm text-stone-200 focus:outline-none focus:border-amber-500"
+                className="w-full px-3.5 py-2.5 bg-white border-3 border-[#111827] rounded-xl text-sm font-semibold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
               />
             </div>
           </div>
 
-          {/* Author / Creator */}
+          {/* Author */}
           <div className="space-y-1.5">
-            <label className="text-xs font-mono uppercase tracking-widest text-stone-400">
-              Author / Writer / Artist
+            <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
+              Author / Creator
             </label>
             <input
               type="text"
               value={author}
               onChange={(e) => setAuthor(e.target.value)}
               placeholder="e.g. Neil Gaiman, Frank Miller"
-              className="w-full px-3 py-2 bg-stone-950 border border-stone-800 rounded-lg text-sm text-stone-200 focus:outline-none focus:border-amber-500"
+              className="w-full px-3.5 py-2.5 bg-white border-3 border-[#111827] rounded-xl text-sm font-semibold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
             />
           </div>
 
           {/* Reading Direction */}
           <div className="space-y-1.5">
-            <label className="text-xs font-mono uppercase tracking-widest text-stone-400">
+            <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
               Reading Direction
             </label>
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => setReadingDirection('ltr')}
-                className={`py-2 px-3 rounded-lg border text-xs font-mono uppercase tracking-wider transition-colors ${
+                className={`py-2 px-3 rounded-xl border-2 border-[#111827] text-xs font-black uppercase tracking-wider transition-all ${
                   readingDirection === 'ltr'
-                    ? 'border-amber-600 bg-amber-950/40 text-amber-300 font-bold'
-                    : 'border-stone-800 bg-stone-950 text-stone-400'
+                    ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757]'
+                    : 'bg-white text-slate-700 hover:bg-slate-100 shadow-[2px_2px_0_#111827]'
                 }`}
               >
                 LTR (Western)
@@ -162,10 +162,10 @@ export default function MetadataModal({
               <button
                 type="button"
                 onClick={() => setReadingDirection('rtl')}
-                className={`py-2 px-3 rounded-lg border text-xs font-mono uppercase tracking-wider transition-colors ${
+                className={`py-2 px-3 rounded-xl border-2 border-[#111827] text-xs font-black uppercase tracking-wider transition-all ${
                   readingDirection === 'rtl'
-                    ? 'border-amber-600 bg-amber-950/40 text-amber-300 font-bold'
-                    : 'border-stone-800 bg-stone-950 text-stone-400'
+                    ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757]'
+                    : 'bg-white text-slate-700 hover:bg-slate-100 shadow-[2px_2px_0_#111827]'
                 }`}
               >
                 RTL (Manga)
@@ -175,32 +175,32 @@ export default function MetadataModal({
 
           {/* Description */}
           <div className="space-y-1.5">
-            <label className="text-xs font-mono uppercase tracking-widest text-stone-400">
+            <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
               Synopsis / Notes
             </label>
             <textarea
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-3 py-2 bg-stone-950 border border-stone-800 rounded-lg text-sm text-stone-200 focus:outline-none focus:border-amber-500"
+              className="w-full px-3.5 py-2.5 bg-white border-3 border-[#111827] rounded-xl text-sm font-semibold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
             />
           </div>
 
           {/* Footer Actions */}
-          <div className="pt-4 border-t border-stone-800 flex justify-end space-x-3">
+          <div className="pt-4 border-t-2 border-slate-200 flex justify-end space-x-3">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-mono uppercase rounded-lg transition-colors"
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-[#111827] text-xs font-black uppercase tracking-wider rounded-xl border-2 border-[#111827] shadow-[2px_2px_0_#111827] transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="px-5 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-stone-950 font-bold text-xs uppercase tracking-widest rounded-lg transition-colors flex items-center gap-2"
+              className="px-6 py-2.5 bg-[#2ED573] hover:bg-[#26af5f] disabled:opacity-50 text-[#111827] font-black text-xs uppercase tracking-wider rounded-xl border-3 border-[#111827] shadow-[3px_3px_0_#111827] transition-all flex items-center gap-2"
             >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 stroke-[2.5]" />}
               Save Changes
             </button>
           </div>

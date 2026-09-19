@@ -2,29 +2,35 @@
 
 import React from 'react';
 import {
-  Search,
-  Plus,
-  Settings,
-  Layers,
-  Grid,
-  List,
-  Filter,
-  X,
   Trophy,
+  Search,
+  X,
+  SlidersHorizontal,
+  FilePlus,
+  Layers,
+  LayoutGrid,
+  List,
   Sparkles,
+  BookOpen,
+  Filter,
 } from 'lucide-react';
-import { ShelfViewMode, FilterCategory } from '@/types/trophy';
+import { ShelfViewMode, FilterCategory, SortOption, IngestionProgressState } from '@/types/trophy';
 
 interface TrophyHeaderProps {
   viewMode: ShelfViewMode;
   onViewModeChange: (mode: ShelfViewMode) => void;
   filter: FilterCategory;
   onFilterChange: (filter: FilterCategory) => void;
+  sortOption: SortOption;
+  onSortChange: (sort: SortOption) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onOpenAddModal: () => void;
   onOpenSettingsModal: () => void;
   totalBooks: number;
+  offlineCount?: number;
+  inProgressCount?: number;
+  ingestionProgress?: IngestionProgressState | null;
 }
 
 export default function TrophyHeader({
@@ -32,140 +38,238 @@ export default function TrophyHeader({
   onViewModeChange,
   filter,
   onFilterChange,
+  sortOption,
+  onSortChange,
   searchQuery,
   onSearchChange,
   onOpenAddModal,
   onOpenSettingsModal,
   totalBooks,
+  offlineCount = 0,
+  inProgressCount = 0,
+  ingestionProgress,
 }: TrophyHeaderProps) {
-  const filterTabs: { id: FilterCategory; label: string }[] = [
-    { id: 'all', label: 'All Vault' },
-    { id: 'cbz', label: 'Comics (CBZ)' },
-    { id: 'epub', label: 'Books (EPUB)' },
-    { id: 'pdf', label: 'Documents (PDF)' },
-    { id: 'in-progress', label: 'In Progress' },
-    { id: 'completed', label: 'Finished' },
-    { id: 'offline', label: 'Offline Saved' },
-  ];
+  const percentProgress = ingestionProgress
+    ? Math.round((ingestionProgress.currentFileIndex / Math.max(1, ingestionProgress.totalFiles)) * 100)
+    : 0;
+
+  // Determine current format and status values from filter
+  const formatValue = ['cbz', 'epub', 'pdf'].includes(filter) ? filter : 'all';
+  const statusValue = ['in-progress', 'completed', 'offline'].includes(filter) ? filter : 'all';
 
   return (
-    <div className="space-y-6 pt-4 pb-6">
-      {/* Title Broadsheet Section */}
-      <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-4 pb-6 border-b border-stone-800/80">
-        <div>
-          <div className="flex items-center space-x-2 text-amber-500 font-mono text-xs uppercase tracking-widest mb-1.5">
-            <Trophy className="w-4 h-4" />
-            <span>Curated Sanctuary & Digital Archive</span>
+    <header className="sticky top-0 z-40 bg-[#F8F9FA] border-b-4 border-[#111827] shadow-[0_4px_0_#111827] pt-safe -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 pb-3.5 mb-6">
+      <div className="max-w-7xl mx-auto space-y-3">
+        {/* Row 1: Brand + Stats + Action Buttons */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          {/* Logo & Title */}
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="w-12 h-12 rounded-2xl bg-[#FFDE59] border-3 border-[#111827] flex items-center justify-center shadow-[3px_3px_0_#111827] transform -rotate-2 hover:rotate-0 transition-transform">
+                <Trophy className="w-7 h-7 text-[#111827] fill-[#FF4757]" />
+              </div>
+              {offlineCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-[#2ED573] text-[#111827] border-2 border-[#111827] text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-[1px_1px_0_#111827]">
+                  {offlineCount}
+                </span>
+              )}
+            </div>
+
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-3xl sm:text-4xl font-hero tracking-wider text-[#111827] drop-shadow-[2px_2px_0_#FFDE59] uppercase leading-none">
+                  TROPHY ROOM
+                </h1>
+                <span className="bg-[#FF4757] text-white border-2 border-[#111827] text-[11px] font-comic font-black px-2 py-0.5 rounded-lg shadow-[2px_2px_0_#111827] uppercase tracking-wider -rotate-3">
+                  IPAD EDITION
+                </span>
+              </div>
+              <p className="text-xs font-bold font-comic text-slate-600 tracking-wide mt-0.5">
+                The Stacks • Offline Comic & eBook Library
+              </p>
+            </div>
           </div>
-          <h1 className="font-serif text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-stone-100 uppercase drop-shadow-sm">
-            The Trophy Room
-          </h1>
-          <p className="text-stone-400 font-sans text-xs sm:text-sm mt-1 max-w-xl">
-            Zero-egress cloud vault and dedicated reader for illustrated comics, longform literature, and archival manuscripts.
-          </p>
+
+          {/* Right Action Icons & View Switcher */}
+          <div className="flex items-center gap-2.5">
+            {/* View Mode Switcher */}
+            <div className="flex items-center bg-white p-1 rounded-2xl border-3 border-[#111827] shadow-[3px_3px_0_#111827]">
+              <button
+                onClick={() => onViewModeChange('stacked')}
+                className={`p-1.5 rounded-xl transition-all ${
+                  viewMode === 'stacked'
+                    ? 'bg-[#111827] text-[#FFDE59]'
+                    : 'text-slate-600 hover:text-black'
+                }`}
+                title="Bundled Stacks View"
+              >
+                <Layers className="w-4 h-4 stroke-[2.5]" />
+              </button>
+              <button
+                onClick={() => onViewModeChange('grid')}
+                className={`p-1.5 rounded-xl transition-all ${
+                  viewMode === 'grid'
+                    ? 'bg-[#111827] text-[#FFDE59]'
+                    : 'text-slate-600 hover:text-black'
+                }`}
+                title="All Covers Grid"
+              >
+                <LayoutGrid className="w-4 h-4 stroke-[2.5]" />
+              </button>
+              <button
+                onClick={() => onViewModeChange('list')}
+                className={`p-1.5 rounded-xl transition-all ${
+                  viewMode === 'list'
+                    ? 'bg-[#111827] text-[#FFDE59]'
+                    : 'text-slate-600 hover:text-black'
+                }`}
+                title="Detailed List View"
+              >
+                <List className="w-4 h-4 stroke-[2.5]" />
+              </button>
+            </div>
+
+            {/* Add Files Button */}
+            <button
+              onClick={onOpenAddModal}
+              className="flex items-center gap-2 bg-[#2ED573] hover:bg-[#26af5f] text-[#111827] font-black text-sm tracking-wide px-4 py-2.5 rounded-2xl border-3 border-[#111827] shadow-[3px_3px_0_#111827] active:translate-x-0.5 active:translate-y-0.5 transition-all"
+              title="Add or ingest files to Cloudflare R2"
+            >
+              <FilePlus className="w-4 h-4 stroke-[2.5]" />
+              <span>Add Files</span>
+            </button>
+
+            {/* Settings Button */}
+            <button
+              onClick={onOpenSettingsModal}
+              className="flex items-center gap-2 bg-[#FFDE59] hover:bg-[#f3cb30] text-[#111827] font-black text-sm tracking-wide px-4 py-2.5 rounded-2xl border-3 border-[#111827] shadow-[3px_3px_0_#111827] active:translate-x-0.5 active:translate-y-0.5 transition-all"
+              title="Reader settings & display preferences"
+            >
+              <SlidersHorizontal className="w-4 h-4 stroke-[2.5]" />
+              <span>Settings</span>
+            </button>
+          </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center space-x-2.5 shrink-0 w-full md:w-auto">
-          <button
-            onClick={onOpenAddModal}
-            className="flex-1 md:flex-none px-4 py-2.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-stone-950 font-bold text-xs font-mono uppercase tracking-wider rounded-lg shadow-lg hover:shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
-          >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>Ingest Files</span>
-          </button>
+        {/* Global Live Ingestion Progress Banner */}
+        {ingestionProgress && ingestionProgress.isIngesting && (
+          <div className="p-3 bg-gradient-to-r from-amber-100 to-emerald-100 rounded-xl border-2 border-[#111827] shadow-[3px_3px_0_#111827] animate-in fade-in duration-200">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-600 animate-spin" />
+                <span className="font-black text-xs uppercase tracking-wider text-[#111827]">
+                  Indexing File {ingestionProgress.currentFileIndex} of {ingestionProgress.totalFiles}:
+                </span>
+                <span className="font-bold text-xs text-slate-800 truncate max-w-xs sm:max-w-md">
+                  {ingestionProgress.currentFileName}
+                </span>
+              </div>
+              <span className="font-mono font-black text-xs text-[#111827]">
+                {percentProgress}%
+              </span>
+            </div>
 
-          <button
-            onClick={onOpenSettingsModal}
-            className="p-2.5 bg-stone-900 border border-stone-800 hover:border-amber-500/50 rounded-lg text-stone-400 hover:text-amber-400 transition-colors"
-            title="Global Reader Preferences"
-          >
-            <Settings className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
+            <div className="w-full bg-white h-2 rounded-full border border-[#111827] overflow-hidden">
+              <div
+                className="h-full bg-[#2ED573] transition-all duration-300"
+                style={{ width: `${percentProgress}%` }}
+              />
+            </div>
+          </div>
+        )}
 
-      {/* Filter, Search & View Mode Controls Bar */}
-      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
-        {/* Search Input */}
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-500" />
+        {/* Row 2: Full-Width Search Bar */}
+        <div className="relative w-full">
+          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+            <Search className="w-4 h-4 text-[#111827] stroke-[2.5]" />
+          </div>
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search series, titles, or authors..."
-            className="w-full pl-10 pr-9 py-2 bg-stone-900/90 border border-stone-800 rounded-lg text-xs font-sans text-stone-200 placeholder-stone-500 focus:outline-none focus:border-amber-500 transition-colors"
+            placeholder="Search comics, series, manga, or tags..."
+            className="w-full pl-10 pr-9 py-2.5 bg-white text-[#111827] placeholder:text-slate-400 font-sans text-sm font-semibold rounded-2xl border-3 border-[#111827] shadow-[3px_3px_0_#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59]"
           />
           {searchQuery && (
             <button
               onClick={() => onSearchChange('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-500 hover:text-stone-300"
+              className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-500 hover:text-black"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-4 h-4 stroke-[2.5]" />
             </button>
           )}
         </div>
 
-        {/* View Mode Switcher (Stacks vs Grid vs List) */}
-        <div className="flex items-center space-x-1 p-1 bg-stone-900/90 border border-stone-800 rounded-lg shrink-0 self-start lg:self-auto">
+        {/* Row 3: Filter Dropdowns & All Pill */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {/* All Items Pill Button */}
           <button
-            onClick={() => onViewModeChange('stacked')}
-            className={`px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors ${
-              viewMode === 'stacked'
-                ? 'bg-amber-950/60 border border-amber-600/40 text-amber-300 font-bold shadow-sm'
-                : 'text-stone-400 hover:text-stone-200'
+            onClick={() => onFilterChange('all')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border-2 border-[#111827] font-black text-xs uppercase tracking-wider whitespace-nowrap transition-all ${
+              filter === 'all'
+                ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757]'
+                : 'bg-white text-[#111827] hover:bg-amber-50 shadow-[2px_2px_0_#111827]'
             }`}
-            title="Series Stacks View"
           >
-            <Layers className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Stacks</span>
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>ALL ({totalBooks})</span>
           </button>
 
-          <button
-            onClick={() => onViewModeChange('grid')}
-            className={`px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors ${
-              viewMode === 'grid'
-                ? 'bg-amber-950/60 border border-amber-600/40 text-amber-300 font-bold shadow-sm'
-                : 'text-stone-400 hover:text-stone-200'
-            }`}
-            title="Individual Grid View"
-          >
-            <Grid className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Grid</span>
-          </button>
+          {/* Format Dropdown */}
+          <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border-2 border-[#111827] shadow-[2px_2px_0_#111827]">
+            <BookOpen className="w-3.5 h-3.5 text-[#FF4757] stroke-[2.5]" />
+            <label className="text-[11px] font-black uppercase text-slate-700 whitespace-nowrap">
+              FORMAT:
+            </label>
+            <select
+              value={formatValue}
+              onChange={(e) => onFilterChange(e.target.value as FilterCategory)}
+              className="bg-transparent text-[#111827] text-xs font-black tracking-wide focus:outline-none cursor-pointer pl-1 uppercase"
+            >
+              <option value="all">All Formats</option>
+              <option value="cbz">CBZ Comics</option>
+              <option value="epub">EPUB eBooks</option>
+              <option value="pdf">PDF Documents</option>
+            </select>
+          </div>
 
-          <button
-            onClick={() => onViewModeChange('list')}
-            className={`px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors ${
-              viewMode === 'list'
-                ? 'bg-amber-950/60 border border-amber-600/40 text-amber-300 font-bold shadow-sm'
-                : 'text-stone-400 hover:text-stone-200'
-            }`}
-            title="Table List View"
-          >
-            <List className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">List</span>
-          </button>
+          {/* Status Dropdown */}
+          <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border-2 border-[#111827] shadow-[2px_2px_0_#111827]">
+            <Filter className="w-3.5 h-3.5 text-[#2ED573] stroke-[2.5]" />
+            <label className="text-[11px] font-black uppercase text-slate-700 whitespace-nowrap">
+              STATUS:
+            </label>
+            <select
+              value={statusValue}
+              onChange={(e) => onFilterChange(e.target.value as FilterCategory)}
+              className="bg-transparent text-[#111827] text-xs font-black tracking-wide focus:outline-none cursor-pointer pl-1 uppercase"
+            >
+              <option value="all">All Statuses</option>
+              <option value="in-progress">In Progress ({inProgressCount})</option>
+              <option value="completed">Completed</option>
+              <option value="offline">Downloaded / OPFS ({offlineCount})</option>
+            </select>
+          </div>
+
+          {/* Sort Dropdown */}
+          <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border-2 border-[#111827] shadow-[2px_2px_0_#111827]">
+            <label className="text-[11px] font-black uppercase text-slate-700 whitespace-nowrap">
+              SORT:
+            </label>
+            <select
+              value={sortOption}
+              onChange={(e) => onSortChange(e.target.value as SortOption)}
+              className="bg-transparent text-[#111827] text-xs font-black tracking-wide focus:outline-none cursor-pointer pl-1 uppercase"
+            >
+              <option value="series-asc">Series & Issue</option>
+              <option value="title-asc">Title (A-Z)</option>
+              <option value="recently-read">Recently Read</option>
+              <option value="progress-desc">Highest Progress</option>
+              <option value="issue-asc">Issue #</option>
+            </select>
+          </div>
         </div>
       </div>
-
-      {/* Category Pills Bar */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar text-xs font-mono">
-        {filterTabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => onFilterChange(tab.id)}
-            className={`px-3 py-1.5 rounded-full border whitespace-nowrap uppercase tracking-wider transition-colors ${
-              filter === tab.id
-                ? 'border-amber-500 bg-amber-950/40 text-amber-300 font-bold shadow-sm'
-                : 'border-stone-800 bg-stone-900/50 text-stone-400 hover:border-stone-700 hover:text-stone-300'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-    </div>
+    </header>
   );
 }

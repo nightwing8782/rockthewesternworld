@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { X, Sun, Moon, Type, Layout, Eye } from 'lucide-react';
+import { X, Sun, Moon, Type, Layout, Eye, SlidersHorizontal } from 'lucide-react';
 import { ReaderSettings, BookFormat } from '@/types/trophy';
 
 interface SettingsModalProps {
@@ -22,60 +22,63 @@ export default function SettingsModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-stone-900 border border-stone-800 rounded-xl shadow-2xl max-w-md w-full overflow-hidden text-stone-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="bg-white border-4 border-[#111827] rounded-3xl shadow-[8px_8px_0_#111827] max-w-lg w-full overflow-hidden text-[#111827]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-stone-800 bg-stone-950">
-          <h2 className="font-serif text-lg font-bold tracking-wide text-amber-400">
-            Reader Settings & Preferences
+        <div className="flex items-center justify-between px-6 py-4 border-b-4 border-[#111827] bg-[#FFDE59]">
+          <h2 className="text-xl font-black uppercase tracking-wide text-[#111827] flex items-center gap-2">
+            <SlidersHorizontal className="w-5 h-5 stroke-[2.5]" />
+            Reader Display Settings
           </h2>
           <button
             onClick={onClose}
-            className="text-stone-400 hover:text-stone-100 p-1 rounded-lg hover:bg-stone-800 transition-colors"
+            className="p-1.5 rounded-xl bg-white border-2 border-[#111827] text-[#111827] hover:bg-[#FF4757] hover:text-white shadow-[2px_2px_0_#111827] transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5 stroke-[2.5]" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+        <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto bg-paper-texture">
           {/* Amber Night Filter */}
-          <div className="space-y-2">
+          <div className="space-y-2 bg-white p-4 rounded-2xl border-2 border-[#111827] shadow-[3px_3px_0_#111827]">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-mono uppercase tracking-widest text-stone-400 flex items-center gap-1.5">
-                <Eye className="w-4 h-4 text-amber-500" />
-                Amber Night Filter
+              <label className="text-xs font-black uppercase tracking-wider text-[#111827] flex items-center gap-1.5">
+                <Eye className="w-4 h-4 text-[#FF4757]" />
+                Amber Night Filter (Blue Light)
               </label>
-              <span className="font-mono text-xs text-amber-400">{settings.amberFilterPercent}%</span>
+              <span className="comic-stamp text-[10px] px-2 py-0.5 rounded bg-[#FFDE59] text-[#111827]">
+                {settings.amberFilterPercent}%
+              </span>
             </div>
-            <div className="flex items-center space-x-3">
-              <Sun className="w-4 h-4 text-stone-500" />
+            <div className="flex items-center space-x-3 pt-1">
+              <Sun className="w-4 h-4 text-slate-500" />
               <input
                 type="range"
                 min="0"
                 max="75"
                 value={settings.amberFilterPercent}
                 onChange={(e) => onUpdateSettings({ amberFilterPercent: parseInt(e.target.value, 10) })}
-                className="w-full h-2 bg-stone-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                className="w-full h-2.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#FF4757] border border-[#111827]"
               />
-              <Moon className="w-4 h-4 text-amber-500" />
+              <Moon className="w-4 h-4 text-[#FF4757]" />
             </div>
           </div>
 
           {/* Reading Direction */}
-          <div className="space-y-2">
-            <label className="text-xs font-mono uppercase tracking-widest text-stone-400 flex items-center gap-1.5">
-              <Layout className="w-4 h-4 text-amber-500" />
-              Reading Direction
+          <div className="space-y-2 bg-white p-4 rounded-2xl border-2 border-[#111827] shadow-[3px_3px_0_#111827]">
+            <label className="text-xs font-black uppercase tracking-wider text-[#111827] flex items-center gap-1.5">
+              <Layout className="w-4 h-4 text-[#2ED573]" />
+              Default Reading Direction
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 pt-1">
               <button
                 type="button"
                 onClick={() => onUpdateSettings({ readingDirection: 'ltr' })}
-                className={`py-2 px-3 rounded-lg border text-xs font-mono tracking-wider uppercase transition-colors ${
+                className={`py-2 px-3 rounded-xl border-2 border-[#111827] text-xs font-black uppercase tracking-wider transition-all ${
                   settings.readingDirection === 'ltr'
-                    ? 'border-amber-600 bg-amber-950/40 text-amber-300 font-bold'
-                    : 'border-stone-800 bg-stone-950 text-stone-400 hover:border-stone-700'
+                    ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757]'
+                    : 'bg-white text-slate-700 hover:bg-slate-100 shadow-[2px_2px_0_#111827]'
                 }`}
               >
                 Left to Right (Western)
@@ -83,10 +86,10 @@ export default function SettingsModal({
               <button
                 type="button"
                 onClick={() => onUpdateSettings({ readingDirection: 'rtl' })}
-                className={`py-2 px-3 rounded-lg border text-xs font-mono tracking-wider uppercase transition-colors ${
+                className={`py-2 px-3 rounded-xl border-2 border-[#111827] text-xs font-black uppercase tracking-wider transition-all ${
                   settings.readingDirection === 'rtl'
-                    ? 'border-amber-600 bg-amber-950/40 text-amber-300 font-bold'
-                    : 'border-stone-800 bg-stone-950 text-stone-400 hover:border-stone-700'
+                    ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757]'
+                    : 'bg-white text-slate-700 hover:bg-slate-100 shadow-[2px_2px_0_#111827]'
                 }`}
               >
                 Right to Left (Manga)
@@ -96,18 +99,18 @@ export default function SettingsModal({
 
           {/* Dual Page Mode (Comics / PDFs) */}
           {format !== 'epub' && (
-            <div className="space-y-2">
-              <label className="text-xs font-mono uppercase tracking-widest text-stone-400">
+            <div className="space-y-2 bg-white p-4 rounded-2xl border-2 border-[#111827] shadow-[3px_3px_0_#111827]">
+              <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
                 Landscape Display Spread
               </label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 pt-1">
                 <button
                   type="button"
                   onClick={() => onUpdateSettings({ dualPageLandscape: false })}
-                  className={`py-2 px-3 rounded-lg border text-xs font-mono tracking-wider uppercase transition-colors ${
+                  className={`py-2 px-3 rounded-xl border-2 border-[#111827] text-xs font-black uppercase tracking-wider transition-all ${
                     !settings.dualPageLandscape
-                      ? 'border-amber-600 bg-amber-950/40 text-amber-300 font-bold'
-                      : 'border-stone-800 bg-stone-950 text-stone-400 hover:border-stone-700'
+                      ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757]'
+                      : 'bg-white text-slate-700 hover:bg-slate-100 shadow-[2px_2px_0_#111827]'
                   }`}
                 >
                   Single Page
@@ -115,10 +118,10 @@ export default function SettingsModal({
                 <button
                   type="button"
                   onClick={() => onUpdateSettings({ dualPageLandscape: true })}
-                  className={`py-2 px-3 rounded-lg border text-xs font-mono tracking-wider uppercase transition-colors ${
+                  className={`py-2 px-3 rounded-xl border-2 border-[#111827] text-xs font-black uppercase tracking-wider transition-all ${
                     settings.dualPageLandscape
-                      ? 'border-amber-600 bg-amber-950/40 text-amber-300 font-bold'
-                      : 'border-stone-800 bg-stone-950 text-stone-400 hover:border-stone-700'
+                      ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757]'
+                      : 'bg-white text-slate-700 hover:bg-slate-100 shadow-[2px_2px_0_#111827]'
                   }`}
                 >
                   2-Page Spread
@@ -127,22 +130,22 @@ export default function SettingsModal({
             </div>
           )}
 
-          {/* Fit Mode (Comics / PDFs) */}
+          {/* Fit Mode */}
           {format !== 'epub' && (
-            <div className="space-y-2">
-              <label className="text-xs font-mono uppercase tracking-widest text-stone-400">
-                Scaling & Fit Mode
+            <div className="space-y-2 bg-white p-4 rounded-2xl border-2 border-[#111827] shadow-[3px_3px_0_#111827]">
+              <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
+                Image Fit Mode
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-2 pt-1">
                 {(['contain', 'width', 'height'] as const).map((fit) => (
                   <button
                     key={fit}
                     type="button"
                     onClick={() => onUpdateSettings({ fitMode: fit })}
-                    className={`py-2 px-2 rounded-lg border text-xs font-mono tracking-wider uppercase transition-colors ${
+                    className={`py-2 px-2 rounded-xl border-2 border-[#111827] text-xs font-black uppercase tracking-wider transition-all ${
                       settings.fitMode === fit
-                        ? 'border-amber-600 bg-amber-950/40 text-amber-300 font-bold'
-                        : 'border-stone-800 bg-stone-950 text-stone-400 hover:border-stone-700'
+                        ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757]'
+                        : 'bg-white text-slate-700 hover:bg-slate-100 shadow-[2px_2px_0_#111827]'
                     }`}
                   >
                     {fit}
@@ -152,24 +155,23 @@ export default function SettingsModal({
             </div>
           )}
 
-          {/* EPUB Specific Preferences */}
+          {/* EPUB Typography */}
           {format === 'epub' && (
             <>
-              {/* EPUB Theme */}
-              <div className="space-y-2">
-                <label className="text-xs font-mono uppercase tracking-widest text-stone-400">
-                  Typography Theme
+              <div className="space-y-2 bg-white p-4 rounded-2xl border-2 border-[#111827] shadow-[3px_3px_0_#111827]">
+                <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
+                  EPUB Reading Theme
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-2 pt-1">
                   {(['sepia', 'light', 'dark'] as const).map((t) => (
                     <button
                       key={t}
                       type="button"
                       onClick={() => onUpdateSettings({ epubTheme: t })}
-                      className={`py-2 px-2 rounded-lg border text-xs font-mono tracking-wider uppercase transition-colors ${
+                      className={`py-2 px-2 rounded-xl border-2 border-[#111827] text-xs font-black uppercase tracking-wider transition-all ${
                         settings.epubTheme === t
-                          ? 'border-amber-600 bg-amber-950/40 text-amber-300 font-bold'
-                          : 'border-stone-800 bg-stone-950 text-stone-400 hover:border-stone-700'
+                          ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757]'
+                          : 'bg-white text-slate-700 hover:bg-slate-100 shadow-[2px_2px_0_#111827]'
                       }`}
                     >
                       {t}
@@ -178,37 +180,14 @@ export default function SettingsModal({
                 </div>
               </div>
 
-              {/* Font Family */}
-              <div className="space-y-2">
-                <label className="text-xs font-mono uppercase tracking-widest text-stone-400 flex items-center gap-1.5">
-                  <Type className="w-4 h-4 text-amber-500" />
-                  Typeface
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['serif', 'sans', 'comic'] as const).map((font) => (
-                    <button
-                      key={font}
-                      type="button"
-                      onClick={() => onUpdateSettings({ fontFamily: font })}
-                      className={`py-2 px-2 rounded-lg border text-xs font-mono tracking-wider uppercase transition-colors ${
-                        settings.fontFamily === font
-                          ? 'border-amber-600 bg-amber-950/40 text-amber-300 font-bold'
-                          : 'border-stone-800 bg-stone-950 text-stone-400 hover:border-stone-700'
-                      }`}
-                    >
-                      {font}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Font Size */}
-              <div className="space-y-2">
+              <div className="space-y-2 bg-white p-4 rounded-2xl border-2 border-[#111827] shadow-[3px_3px_0_#111827]">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-mono uppercase tracking-widest text-stone-400">
+                  <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
                     Font Scale
                   </label>
-                  <span className="font-mono text-xs text-amber-400">{settings.fontSize}%</span>
+                  <span className="comic-stamp text-[10px] px-2 py-0.5 rounded bg-[#FFDE59] text-[#111827]">
+                    {settings.fontSize}%
+                  </span>
                 </div>
                 <input
                   type="range"
@@ -217,7 +196,7 @@ export default function SettingsModal({
                   step="5"
                   value={settings.fontSize}
                   onChange={(e) => onUpdateSettings({ fontSize: parseInt(e.target.value, 10) })}
-                  className="w-full h-2 bg-stone-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                  className="w-full h-2.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#FF4757] border border-[#111827]"
                 />
               </div>
             </>
@@ -225,10 +204,10 @@ export default function SettingsModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-stone-800 bg-stone-950 flex justify-end">
+        <div className="px-6 py-4 border-t-3 border-[#111827] bg-white flex justify-end">
           <button
             onClick={onClose}
-            className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold text-xs uppercase tracking-widest rounded-lg transition-colors shadow-md"
+            className="px-6 py-2.5 bg-[#2ED573] hover:bg-[#26af5f] text-[#111827] font-black text-xs uppercase tracking-wider rounded-xl border-3 border-[#111827] shadow-[3px_3px_0_#111827] active:scale-95 transition-all"
           >
             Apply & Close
           </button>
