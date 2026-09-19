@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BookOpen,
   Download,
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { TrophyBook } from '@/types/trophy';
 import TypographicCover from '../common/TypographicCover';
+import { resolveCoverUrl } from '@/lib/trophy/coverResolver';
 
 interface BookCardProps {
   book: TrophyBook;
@@ -29,8 +30,26 @@ export default function BookCard({
   onToggleOffline,
   onDelete,
 }: BookCardProps) {
+  const [coverSrc, setCoverSrc] = useState<string | null>(book.cover_url || null);
   const [imageError, setImageError] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+
+  useEffect(() => {
+    let isCancelled = false;
+    async function loadCover() {
+      if (book.cover_key || book.cover_url) {
+        const resolved = await resolveCoverUrl(book);
+        if (!isCancelled && resolved) {
+          setCoverSrc(resolved);
+          setImageError(false);
+        }
+      }
+    }
+    loadCover();
+    return () => {
+      isCancelled = true;
+    };
+  }, [book.cover_key, book.cover_url]);
 
   // Format badge colors
   const formatBadgeBg = {
@@ -51,10 +70,10 @@ export default function BookCard({
         className="relative aspect-[3/4] bg-slate-900 overflow-hidden cursor-pointer select-none"
         onClick={() => onOpen(book)}
       >
-        {book.cover_url && !imageError ? (
+        {coverSrc && !imageError ? (
           <>
             <img
-              src={book.cover_url}
+              src={coverSrc}
               alt={book.title}
               onError={() => setImageError(true)}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"

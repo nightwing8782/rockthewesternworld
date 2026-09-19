@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layers, HardDriveDownload, BookOpen, Sparkles } from 'lucide-react';
 import { SeriesGroup, TrophyBook } from '@/types/trophy';
 import BookCard from './BookCard';
 import TypographicCover from '../common/TypographicCover';
+import { resolveCoverUrl } from '@/lib/trophy/coverResolver';
 
 interface SeriesStackCardProps {
   series: SeriesGroup;
@@ -23,6 +24,7 @@ export default function SeriesStackCard({
   onToggleOffline,
   onDelete,
 }: SeriesStackCardProps) {
+  const [coverSrc, setCoverSrc] = useState<string | null>(series.coverUrl || null);
   const [imageError, setImageError] = useState(false);
 
   // If only 1 issue in standalone, render as single BookCard
@@ -39,7 +41,25 @@ export default function SeriesStackCard({
   }
 
   const leadBook = series.books[0];
-  const coverUrl = series.coverUrl || leadBook?.cover_url;
+
+  useEffect(() => {
+    let isCancelled = false;
+    async function loadLeadCover() {
+      const bookWithCover = series.books.find((b) => b.cover_key || b.cover_url) || leadBook;
+      if (bookWithCover) {
+        const resolved = await resolveCoverUrl(bookWithCover);
+        if (!isCancelled && resolved) {
+          setCoverSrc(resolved);
+          setImageError(false);
+        }
+      }
+    }
+    loadLeadCover();
+    return () => {
+      isCancelled = true;
+    };
+  }, [series.books, leadBook]);
+
   const offlineCount = series.books.filter((b) => b.isOffline).length;
   const progressPercent = Math.round(
     (series.completedIssues / Math.max(1, series.totalIssues)) * 100
@@ -64,10 +84,10 @@ export default function SeriesStackCard({
 
           {/* Front Cover Image */}
           <div className="relative w-full h-full rounded-xl border-2 border-[#111827] overflow-hidden shadow-[3px_3px_0_#000]">
-            {coverUrl && !imageError ? (
+            {coverSrc && !imageError ? (
               <>
                 <img
-                  src={coverUrl}
+                  src={coverSrc}
                   alt={series.seriesName}
                   onError={() => setImageError(true)}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
