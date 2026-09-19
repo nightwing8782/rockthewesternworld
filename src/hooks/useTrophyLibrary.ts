@@ -1,0 +1,425 @@
+'use client';
+
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { trophyDb } from '@/lib/trophy/db';
+import { saveBookToOpfs, getBookFromOpfs, isBookInOpfs, deleteBookFromOpfs } from '@/lib/trophy/opfs';
+import { extractBookInfo, detectFormat } from '@/lib/trophy/metadataExtractor';
+import {
+  TrophyBook,
+  TrophyProgress,
+  SeriesGroup,
+  FilterCategory,
+  SortOption,
+  IngestionProgressState,
+  ReaderSettings,
+} from '@/types/trophy';
+
+export function useTrophyLibrary(user: any) {
+  const [books, setBooks] = useState<TrophyBook[]>([]);
+  const [progressMap, setProgressMap] = useState<Map<string, TrophyProgress>>(new Map());
+  const [isLoading, setIsLoading] = useState(true);
+  const [filter, setFilter] = useState<FilterCategory>('all');
+  const [sortOption, setSortOption] = useState<SortOption>('recently-read');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [ingestionProgress, setIngestionProgress] = useState<IngestionProgressState | null>(null);
+
+  // Reader Settings State
+  const [settings, setSettings] = useState<ReaderSettings>({
+    readingDirection: 'ltr',
+    dualPageLandscape: false,
+    fitMode: 'contain',
+    amberFilterPercent: 0,
+    fontSize: 100,
+    fontFamily: 'serif',
+    epubTheme: 'sepia',
+    zoomLevel: 100,
+  });
+
+  // Load Settings from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('rww_trophy_settings');
+      if (saved) {
+        setSettings((prev) => ({ ...prev, ...JSON.parse(saved) }));
+      }
+    } catch (e) {}
+  }, []);
+
+  const updateSettings = useCallback((newSettings: Partial<ReaderSettings>) => {
+    setSettings((prev) => {
+      const updated = { ...prev, ...newSettings };
+      try {
+        localStorage.setItem('rww_trophy_settings', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  }, []);
+
+  // 1. Fetch Books and Reading Progress from Supabase
+  const loadLibrary = useCallback(async () => {
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const supabase = createClient();
+
+      // Fetch Books
+      const { data: booksData, error: booksError } = await supabase
+        .from('trophy_books')
+        .select('*')
+        .order('updated_at', { ascending: false });
+
+      // Fetch Progress
+      const { data: progressData } = await supabase
+        .from('trophy_progress')
+        .select('*');
+
+      const progMap = new Map<string, TrophyProgress>();
+      if (progressData) {
+        progressData.forEach((p: TrophyProgress) => {
+          progMap.set(p.book_id, p);
+        });
+      }
+      setProgressMap(progMap);
+
+      if (!booksError && booksData) {
+        // Check offline status for each book
+        const hydrated: TrophyBook[] = await Promise.all(
+          booksData.map(async (book: any) => {
+            const isOffline = await isBookInOpfs(book.id);
+            const prog = progMap.get(book.id) || null;
+            return {
+              ...book,
+              isOffline,
+              progress: prog,
+            };
+          })
+        );
+        setBooks(hydrated);
+      }
+    } catch (err) {
+      console.error('[Trophy Library] Error loading library:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    loadLibrary();
+  }, [loadLibrary]);
+
+  // 2. Ingest New Book / Comic into Cloudflare R2 + Supabase + OPFS
+  const ingestFiles = async (files: FileList | File[]) => {
+    if (!user) return;
+    const fileArray = Array.from(files);
+    if (fileArray.length === 0) return;
+
+    for (let i = 0; i < fileArray.length; i++) {
+      const file = fileArray[i];
+      const format = detectFormat(file.name);
+
+      setIngestionProgress({
+        isIngesting: true,
+        currentFileIndex: i + 1,
+        totalFiles: fileArray.length,
+        currentFileName: file.name,
+        statusMessage: `Extracting cover and metadata (${i + 1}/${fileArray.length})...`,
+      });
+
+      try {
+        // Step A: Extract cover & metadata in browser
+        const extracted = await extractBookInfo(file);
+
+        // Step B: Get presigned upload URL for the main file
+        setIngestionProgress((prev) => prev ? { ...prev, statusMessage: `Uploading ${file.name} to Cloudflare R2...` } : null);
+        const uploadRes = await fetch('/api/trophy/upload-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileType: file.type || 'application/octet-stream',
+            format,
+            isCover: false,
+          }),
+        });
+        const { uploadUrl, fileKey } = await uploadRes.json();
+
+        // Step C: Upload directly to Cloudflare R2
+        await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': file.type || 'application/octet-stream' },
+          body: file,
+        });
+
+        // Step D: If cover was extracted, upload cover to R2
+        let coverKey: string | null = null;
+        let coverUrl: string | null = null;
+        if (extracted.coverBlob) {
+          try {
+            const coverRes = await fetch('/api/trophy/upload-url', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                fileName: `cover-${file.name}.jpg`,
+                fileType: 'image/jpeg',
+                format: 'covers',
+                isCover: true,
+              }),
+            });
+            const { uploadUrl: coverUploadUrl, fileKey: uploadedCoverKey } = await coverRes.json();
+            await fetch(coverUploadUrl, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'image/jpeg' },
+              body: extracted.coverBlob,
+            });
+            coverKey = uploadedCoverKey;
+
+            // Generate direct stream URL for cover
+            const coverStreamRes = await fetch('/api/trophy/stream-url', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ fileKey: coverKey }),
+            });
+            const coverStreamData = await coverStreamRes.json();
+            coverUrl = coverStreamData.streamUrl;
+          } catch (e) {
+            console.warn('Cover upload to R2 warning:', e);
+          }
+        }
+
+        // Step E: Insert into Supabase trophy_books
+        setIngestionProgress((prev) => prev ? { ...prev, statusMessage: `Indexing in Supabase catalog...` } : null);
+        const supabase = createClient();
+        const newBookRecord = {
+          user_id: user.id,
+          title: extracted.title,
+          series: extracted.series,
+          issue_number: extracted.issueNumber,
+          format,
+          file_key: fileKey,
+          file_size: file.size,
+          cover_key: coverKey,
+          cover_url: coverUrl,
+          author: extracted.author || null,
+          description: extracted.description || null,
+          reading_direction: extracted.readingDirection || 'ltr',
+          page_count: extracted.pageCount || 1,
+          tags: [format.toUpperCase(), extracted.series !== 'Standalone' ? 'Series' : 'Single'],
+        };
+
+        const { data: inserted, error: insertError } = await supabase
+          .from('trophy_books')
+          .insert(newBookRecord)
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+
+        // Step F: Save copy into local OPFS for offline reading
+        if (inserted?.id) {
+          await saveBookToOpfs(inserted.id, file);
+        }
+      } catch (err: any) {
+        console.error(`Error ingesting ${file.name}:`, err);
+      }
+    }
+
+    setIngestionProgress(null);
+    await loadLibrary();
+  };
+
+  // 3. Update Reading Progress (Bookmarks & Last Read)
+  const updateProgress = useCallback(async (
+    bookId: string,
+    lastPage: number,
+    totalPages: number,
+    currentCfi?: string | null
+  ) => {
+    if (!user) return;
+    const percentRead = totalPages > 0 ? Math.min(100, Math.round((lastPage / totalPages) * 100)) : 0;
+    const isCompleted = percentRead >= 98;
+    const nowIso = new Date().toISOString();
+
+    const progData: TrophyProgress = {
+      book_id: bookId,
+      user_id: user.id,
+      last_page: lastPage,
+      total_pages: totalPages,
+      percent_read: percentRead,
+      current_cfi: currentCfi || null,
+      completed: isCompleted,
+      last_read_at: nowIso,
+    };
+
+    // Optimistic UI update
+    setProgressMap((prev) => {
+      const next = new Map(prev);
+      next.set(bookId, progData);
+      return next;
+    });
+    setBooks((prev) =>
+      prev.map((b) => (b.id === bookId ? { ...b, progress: progData } : b))
+    );
+
+    // Save to Supabase
+    try {
+      const supabase = createClient();
+      await supabase.from('trophy_progress').upsert(progData, {
+        onConflict: 'book_id,user_id',
+      });
+    } catch (err) {
+      console.warn('Error saving reading progress to cloud:', err);
+    }
+  }, [user]);
+
+  // 4. Toggle Offline Download in OPFS
+  const toggleOffline = async (book: TrophyBook): Promise<boolean> => {
+    const isCurrentlyOffline = await isBookInOpfs(book.id);
+
+    if (isCurrentlyOffline) {
+      await deleteBookFromOpfs(book.id);
+      setBooks((prev) =>
+        prev.map((b) => (b.id === book.id ? { ...b, isOffline: false } : b))
+      );
+      return false;
+    } else {
+      // Stream from R2 to store in OPFS
+      try {
+        const streamRes = await fetch('/api/trophy/stream-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileKey: book.file_key }),
+        });
+        const { streamUrl } = await streamRes.json();
+        const fileRes = await fetch(streamUrl);
+        const blob = await fileRes.blob();
+        await saveBookToOpfs(book.id, blob);
+
+        setBooks((prev) =>
+          prev.map((b) => (b.id === book.id ? { ...b, isOffline: true } : b))
+        );
+        return true;
+      } catch (err) {
+        console.error('Failed to download book for offline:', err);
+        return false;
+      }
+    }
+  };
+
+  // 5. Delete Book
+  const deleteBook = async (book: TrophyBook) => {
+    if (!user) return;
+    const confirm = window.confirm(`Delete "${book.title}" from The Trophy Room?`);
+    if (!confirm) return;
+
+    try {
+      const supabase = createClient();
+      await supabase.from('trophy_books').delete().eq('id', book.id);
+      await deleteBookFromOpfs(book.id);
+      setBooks((prev) => prev.filter((b) => b.id !== book.id));
+    } catch (err) {
+      console.error('Error deleting book:', err);
+    }
+  };
+
+  // 6. Group into Series Stacks
+  const seriesGroups = useMemo<SeriesGroup[]>(() => {
+    const groupMap = new Map<string, TrophyBook[]>();
+
+    books.forEach((book) => {
+      const sName = book.series?.trim() || 'Standalone';
+      if (!groupMap.has(sName)) {
+        groupMap.set(sName, []);
+      }
+      groupMap.get(sName)!.push(book);
+    });
+
+    const groups: SeriesGroup[] = [];
+
+    groupMap.forEach((sBooks, seriesName) => {
+      // Sort issues ascending
+      sBooks.sort((a, b) => a.issue_number - b.issue_number);
+      const totalIssues = sBooks.length;
+      const completedIssues = sBooks.filter((b) => b.progress?.completed).length;
+
+      // Primary cover from issue 1 or first available
+      const primaryBook = sBooks[0];
+      const formats = Array.from(new Set(sBooks.map((b) => b.format)));
+
+      // Find latest read time
+      let lastReadAt = 0;
+      sBooks.forEach((b) => {
+        if (b.progress?.last_read_at) {
+          const t = new Date(b.progress.last_read_at).getTime();
+          if (t > lastReadAt) lastReadAt = t;
+        }
+      });
+
+      groups.push({
+        seriesName,
+        books: sBooks,
+        totalIssues,
+        completedIssues,
+        coverUrl: primaryBook.cover_url,
+        formats,
+        lastReadAt,
+      });
+    });
+
+    // Sort series groups
+    return groups.sort((a, b) => {
+      if (sortOption === 'recently-read') return b.lastReadAt - a.lastReadAt;
+      if (sortOption === 'series-asc') return a.seriesName.localeCompare(b.seriesName);
+      return a.seriesName.localeCompare(b.seriesName);
+    });
+  }, [books, sortOption]);
+
+  // 7. Filtered Books
+  const filteredBooks = useMemo(() => {
+    return books.filter((book) => {
+      // Format Filter
+      if (filter === 'cbz' && book.format !== 'cbz') return false;
+      if (filter === 'epub' && book.format !== 'epub') return false;
+      if (filter === 'pdf' && book.format !== 'pdf') return false;
+      if (filter === 'offline' && !book.isOffline) return false;
+      if (filter === 'in-progress' && (!book.progress || book.progress.completed || book.progress.percent_read === 0)) return false;
+      if (filter === 'completed' && !book.progress?.completed) return false;
+
+      // Search Filter
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchTitle = book.title.toLowerCase().includes(q);
+        const matchSeries = book.series.toLowerCase().includes(q);
+        const matchAuthor = (book.author || '').toLowerCase().includes(q);
+        return matchTitle || matchSeries || matchAuthor;
+      }
+
+      return true;
+    });
+  }, [books, filter, searchQuery]);
+
+  return {
+    books,
+    filteredBooks,
+    seriesGroups,
+    isLoading,
+    filter,
+    setFilter,
+    sortOption,
+    setSortOption,
+    searchQuery,
+    setSearchQuery,
+    ingestionProgress,
+    settings,
+    updateSettings,
+    ingestFiles,
+    updateProgress,
+    toggleOffline,
+    deleteBook,
+    loadLibrary,
+  };
+}

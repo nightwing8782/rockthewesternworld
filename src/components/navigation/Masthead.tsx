@@ -25,14 +25,24 @@ export default function Masthead({ currentCategory, activeDesk }: MastheadProps)
             Rock The Western World
           </Link>
 
-          <Link
-            href="/journal"
-            className="flex items-center gap-1.5 text-[#44403C] hover:text-[#1E40AF] transition-colors tracking-[0.15em] uppercase text-xs font-bold"
-            title="Private Studio"
-          >
-            <Lock className="w-3.5 h-3.5 text-[#B45309]" />
-            <span>Studio</span>
-          </Link>
+          <div className="flex items-center space-x-5">
+            <Link
+              href="/trophy-room"
+              className="flex items-center gap-1.5 text-[#44403C] hover:text-[#B45309] transition-colors tracking-[0.15em] uppercase text-xs font-bold"
+              title="The Trophy Room (Reading Suite)"
+            >
+              <span>🏆 Trophy Room</span>
+            </Link>
+
+            <Link
+              href="/journal"
+              className="flex items-center gap-1.5 text-[#44403C] hover:text-[#1E40AF] transition-colors tracking-[0.15em] uppercase text-xs font-bold"
+              title="Private Studio"
+            >
+              <Lock className="w-3.5 h-3.5 text-[#B45309]" />
+              <span>Studio</span>
+            </Link>
+          </div>
         </div>
 
         {/* Title Block */}

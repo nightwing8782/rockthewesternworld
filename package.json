@@ -10,6 +10,8 @@
     "import:wp": "npx tsx scripts/import-wp.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1136.0",
+    "@aws-sdk/s3-request-presigner": "^3.1136.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.116.0",
     "@tailwindcss/typography": "^0.5.20",
@@ -17,15 +19,20 @@
     "@tiptap/extension-placeholder": "^3.31.3",
     "@tiptap/react": "^3.31.3",
     "@tiptap/starter-kit": "^3.31.3",
+    "dexie": "^4.4.6",
     "dotenv": "^17.4.2",
+    "epubjs": "^0.3.93",
     "fast-xml-parser": "^5.11.1",
+    "jszip": "^3.10.2",
     "lucide-react": "^1.45.0",
     "next": "16.3.5",
+    "pdfjs-dist": "^6.3.289",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/jszip": "^3.4.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
