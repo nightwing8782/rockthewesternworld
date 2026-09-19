@@ -3,9 +3,24 @@ require('dotenv').config({ path: '.env.local' });
 const fs = require('fs');
 const path = require('path');
 const JSZip = require('jszip');
-const { createClient } = require('@supabase/supabase-js');
+const readline = require('readline');
 
 const SOURCE_DIR = process.argv[2] || 'C:\\Users\\danbi\\OneDrive\\Documents\\Ebooks';
+const CLI_EMAIL = process.argv[3] || process.env.SUPABASE_AUTH_EMAIL;
+const CLI_PASSWORD = process.argv[4] || process.env.SUPABASE_AUTH_PASSWORD;
+
+function promptInput(question) {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -87,15 +102,30 @@ async function main() {
   console.log(' 📄 TROPHY ROOM: Page Count Synchronization Engine');
   console.log('====================================================');
 
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    const email = process.env.SUPABASE_AUTH_EMAIL || 'danbillingsster@gmail.com';
-    const password = process.env.SUPABASE_AUTH_PASSWORD || 'Nightwing8782!';
-    const { error: authErr } = await supabase.auth.signInWithPassword({ email, password });
-    if (authErr) {
-      console.error('Supabase Auth error:', authErr.message);
-    } else {
-      console.log('✓ Authenticated with Supabase as', email);
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.log('Using Supabase Service Role Key for admin bypass.');
+  } else {
+    let email = CLI_EMAIL;
+    let password = CLI_PASSWORD;
+
+    if (!email) {
+      email = await promptInput('Enter your Studio Email: ');
     }
+    if (!password) {
+      password = await promptInput('Enter your Studio Password: ');
+    }
+
+    console.log(`Authenticating as ${email}...`);
+    const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (authErr) {
+      console.error('Authentication failed:', authErr.message);
+      process.exit(1);
+    }
+    console.log(`✓ Authenticated successfully as user ID: ${authData.user.id}`);
   }
 
   console.log('1. Scanning local Ebooks files...');
