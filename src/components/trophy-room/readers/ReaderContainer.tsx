@@ -84,12 +84,23 @@ export default function ReaderContainer({
           body: JSON.stringify({ fileKey: book.file_key }),
         });
 
-        if (!res.ok) {
-          throw new Error(`Failed to obtain stream URL: ${res.statusText}`);
+        const resText = await res.text();
+        let data: any = {};
+        try {
+          data = JSON.parse(resText);
+        } catch (e) {
+          throw new Error(
+            res.status === 500
+              ? 'R2 credentials may not be configured in your server environment variables.'
+              : `Server returned unexpected response (${res.status}): ${resText.slice(0, 100)}`
+          );
         }
 
-        const { streamUrl } = await res.json();
-        const fileResponse = await fetch(streamUrl);
+        if (!res.ok || !data.streamUrl) {
+          throw new Error(data?.error || `Failed to generate stream URL (Status ${res.status})`);
+        }
+
+        const fileResponse = await fetch(data.streamUrl);
         if (!fileResponse.ok) {
           throw new Error(`Failed to download stream from storage (${fileResponse.status})`);
         }

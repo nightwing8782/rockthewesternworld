@@ -67,16 +67,19 @@ export function useTrophyLibrary(user: any) {
     try {
       const supabase = createClient();
 
-      // Fetch Books
+      // Fetch Books (Increase limit to handle full library)
       const { data: booksData, error: booksError } = await supabase
         .from('trophy_books')
         .select('*')
-        .order('updated_at', { ascending: false });
+        .limit(10000)
+        .order('series', { ascending: true })
+        .order('issue_number', { ascending: true });
 
       // Fetch Progress
       const { data: progressData } = await supabase
         .from('trophy_progress')
-        .select('*');
+        .select('*')
+        .limit(10000);
 
       const progMap = new Map<string, TrophyProgress>();
       if (progressData) {
@@ -326,11 +329,55 @@ export function useTrophyLibrary(user: any) {
     }
   };
 
-  // 6. Group into Series Stacks
+  // 6. Filtered and Sorted Books
+  const filteredBooks = useMemo(() => {
+    return books
+      .filter((book) => {
+        // Format Filter
+        if (filter === 'cbz' && book.format !== 'cbz') return false;
+        if (filter === 'epub' && book.format !== 'epub') return false;
+        if (filter === 'pdf' && book.format !== 'pdf') return false;
+        if (filter === 'offline' && !book.isOffline) return false;
+        if (filter === 'in-progress' && (!book.progress || book.progress.completed || book.progress.percent_read === 0)) return false;
+        if (filter === 'completed' && !book.progress?.completed) return false;
+
+        // Search Filter
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase();
+          const matchTitle = (book.title || '').toLowerCase().includes(q);
+          const matchSeries = (book.series || '').toLowerCase().includes(q);
+          const matchAuthor = (book.author || '').toLowerCase().includes(q);
+          const matchTags = (book.tags || []).some((t) => t.toLowerCase().includes(q));
+          return matchTitle || matchSeries || matchAuthor || matchTags;
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortOption === 'recently-read') {
+          const aTime = a.progress?.last_read_at ? new Date(a.progress.last_read_at).getTime() : 0;
+          const bTime = b.progress?.last_read_at ? new Date(b.progress.last_read_at).getTime() : 0;
+          return bTime - aTime;
+        }
+        if (sortOption === 'title-asc') return (a.title || '').localeCompare(b.title || '');
+        if (sortOption === 'progress-desc') {
+          const aP = a.progress?.percent_read || 0;
+          const bP = b.progress?.percent_read || 0;
+          return bP - aP;
+        }
+        if (sortOption === 'issue-asc') return (a.issue_number || 1) - (b.issue_number || 1);
+        // default: series-asc
+        const seriesCompare = (a.series || '').localeCompare(b.series || '');
+        if (seriesCompare !== 0) return seriesCompare;
+        return (a.issue_number || 1) - (b.issue_number || 1);
+      });
+  }, [books, filter, searchQuery, sortOption]);
+
+  // 7. Group Filtered Books into Series Stacks
   const seriesGroups = useMemo<SeriesGroup[]>(() => {
     const groupMap = new Map<string, TrophyBook[]>();
 
-    books.forEach((book) => {
+    filteredBooks.forEach((book) => {
       const sName = book.series?.trim() || 'Standalone';
       if (!groupMap.has(sName)) {
         groupMap.set(sName, []);
@@ -342,12 +389,12 @@ export function useTrophyLibrary(user: any) {
 
     groupMap.forEach((sBooks, seriesName) => {
       // Sort issues ascending
-      sBooks.sort((a, b) => a.issue_number - b.issue_number);
+      sBooks.sort((a, b) => (a.issue_number || 1) - (b.issue_number || 1));
       const totalIssues = sBooks.length;
       const completedIssues = sBooks.filter((b) => b.progress?.completed).length;
 
-      // Primary cover from issue 1 or first available
-      const primaryBook = sBooks[0];
+      // Primary cover from issue 1 or first available that has cover_url
+      const coverBook = sBooks.find((b) => b.cover_url) || sBooks[0];
       const formats = Array.from(new Set(sBooks.map((b) => b.format)));
 
       // Find latest read time
@@ -364,7 +411,7 @@ export function useTrophyLibrary(user: any) {
         books: sBooks,
         totalIssues,
         completedIssues,
-        coverUrl: primaryBook.cover_url,
+        coverUrl: coverBook?.cover_url || null,
         formats,
         lastReadAt,
       });
@@ -374,33 +421,10 @@ export function useTrophyLibrary(user: any) {
     return groups.sort((a, b) => {
       if (sortOption === 'recently-read') return b.lastReadAt - a.lastReadAt;
       if (sortOption === 'series-asc') return a.seriesName.localeCompare(b.seriesName);
+      if (sortOption === 'title-asc') return a.seriesName.localeCompare(b.seriesName);
       return a.seriesName.localeCompare(b.seriesName);
     });
-  }, [books, sortOption]);
-
-  // 7. Filtered Books
-  const filteredBooks = useMemo(() => {
-    return books.filter((book) => {
-      // Format Filter
-      if (filter === 'cbz' && book.format !== 'cbz') return false;
-      if (filter === 'epub' && book.format !== 'epub') return false;
-      if (filter === 'pdf' && book.format !== 'pdf') return false;
-      if (filter === 'offline' && !book.isOffline) return false;
-      if (filter === 'in-progress' && (!book.progress || book.progress.completed || book.progress.percent_read === 0)) return false;
-      if (filter === 'completed' && !book.progress?.completed) return false;
-
-      // Search Filter
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchTitle = book.title.toLowerCase().includes(q);
-        const matchSeries = book.series.toLowerCase().includes(q);
-        const matchAuthor = (book.author || '').toLowerCase().includes(q);
-        return matchTitle || matchSeries || matchAuthor;
-      }
-
-      return true;
-    });
-  }, [books, filter, searchQuery]);
+  }, [filteredBooks, sortOption]);
 
   return {
     books,
