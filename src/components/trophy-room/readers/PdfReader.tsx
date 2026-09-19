@@ -67,6 +67,7 @@ export default function PdfReader({
           cMapUrl: '/pdfjs/cmaps/',
           cMapPacked: true,
           standardFontDataUrl: '/pdfjs/standard_fonts/',
+          wasmUrl: '/pdfjs/wasm/',
           enableXfa: true,
           useSystemFonts: true,
         }).promise;
