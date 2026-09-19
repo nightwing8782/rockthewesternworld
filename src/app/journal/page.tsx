@@ -364,16 +364,25 @@ export default function JournalStudioPage() {
       } catch (e) {}
     }
 
-    // 2. Fetch All Entries from Supabase
-    try {
-      const supabase = createClient();
-      supabase
-        .from('entries')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .then(({ data, error }) => {
-          if (!error && data) {
-            const normalized: Entry[] = data.map((e: any) => {
+    // 2. Fetch WordPress Historical Archive + Supabase Cloud Entries
+    const loadAllStudioEntries = async () => {
+      let historical: Entry[] = [];
+      try {
+        const res = await fetch('/archive/imported-entries.json');
+        if (res.ok) {
+          historical = await res.json();
+        }
+      } catch (e) {}
+
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from('entries')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        const normalizedCloud: Entry[] = (!error && data)
+          ? data.map((e: any) => {
               const isPriv = e.status === 'private_log' || e.status === 'private' || e.metadata?.isPrivate;
               return {
                 ...e,
@@ -384,81 +393,111 @@ export default function JournalStudioPage() {
                   isPrivate: isPriv,
                 },
               };
+            })
+          : [];
+
+        // Combine published entries (Supabase cloud records override static JSON)
+        const publishedMap = new Map<string, Entry>();
+
+        // 1. Add historical archive posts first
+        historical.forEach((item, idx) => {
+          const key = item.slug || item.id || `wp-${idx}`;
+          const isPublished = item.status ? item.status === 'published' : true;
+          if (isPublished) {
+            publishedMap.set(key, {
+              ...item,
+              id: item.id || key,
+              status: 'published',
             });
-
-            const pub = normalized.filter((e) => e.status === 'published');
-            const priv = normalized.filter((e) => e.status === 'private');
-            const drafts = normalized.filter((e) => e.status === 'draft');
-
-            if (pub.length > 0) setPublishedEntries(pub);
-
-            setPrivateEntries((prev) => {
-              const map = new Map<string, Entry>();
-              priv.forEach((p) => map.set(p.id || p.slug || '', p));
-              prev.forEach((p) => {
-                const key = p.id || p.slug || '';
-                if (!map.has(key)) map.set(key, p);
-              });
-              return Array.from(map.values()).sort((a, b) => 
-                safeTimestamp(b.created_at) - safeTimestamp(a.created_at)
-              );
-            });
-
-            setDraftEntries((prev) => {
-              const map = new Map<string, Entry>();
-              drafts.forEach((d) => map.set(d.id || d.slug || '', d));
-              prev.forEach((d) => {
-                const key = d.id || d.slug || '';
-                if (!map.has(key)) map.set(key, d);
-              });
-              return Array.from(map.values()).sort((a, b) => 
-                (safeTimestamp(b.updated_at) || safeTimestamp(b.created_at)) - (safeTimestamp(a.updated_at) || safeTimestamp(a.created_at))
-              );
-            });
-
-            // Update local storage cache with unified list
-            try {
-              const savedLocal = localStorage.getItem('rww_local_entries');
-              const localList: Entry[] = savedLocal ? JSON.parse(savedLocal) : [];
-              const combinedMap = new Map<string, Entry>();
-              normalized.forEach((e: Entry) => {
-                const k = e.id || e.slug || '';
-                if (k) combinedMap.set(k, e);
-              });
-              localList.forEach((e: Entry) => {
-                const k = e.id || e.slug || '';
-                if (k && !combinedMap.has(k)) combinedMap.set(k, e);
-              });
-              localStorage.setItem('rww_local_entries', JSON.stringify(Array.from(combinedMap.values())));
-            } catch (e) {}
-
-            // Auto-select based on active workspace mode
-            const savedMode = (localStorage.getItem('rww_studio_workspace_mode') || 'ledger') as 'ledger' | 'editorial';
-            if (savedMode === 'ledger') {
-              const todayStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-              const todayLedger = priv.find((e) => {
-                if (!e.created_at) return false;
-                const d = new Date(e.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                return d === todayStr || (e.title && e.title.includes(todayStr));
-              });
-
-              if (todayLedger) {
-                selectEntry(todayLedger);
-              } else {
-                createNewDocument('personal_ledger', true);
-              }
-            } else {
-              // In Editorial mode: select latest working draft if one exists, otherwise start with a fresh blank piece
-              const latestDraft = drafts[0];
-              if (latestDraft) {
-                selectEntry(latestDraft);
-              } else {
-                createNewDocument('essay', false);
-              }
-            }
           }
         });
-    } catch (e) {}
+
+        // 2. Override with published posts from Supabase cloud
+        const pubFromCloud = normalizedCloud.filter((e) => e.status === 'published');
+        pubFromCloud.forEach((item) => {
+          const key = item.slug || item.id;
+          if (key) {
+            publishedMap.set(key, item);
+          }
+        });
+
+        const mergedPublished = Array.from(publishedMap.values()).sort((a, b) =>
+          (safeTimestamp(b.published_at) || safeTimestamp(b.created_at)) - (safeTimestamp(a.published_at) || safeTimestamp(a.created_at))
+        );
+
+        const priv = normalizedCloud.filter((e) => e.status === 'private');
+        const drafts = normalizedCloud.filter((e) => e.status === 'draft');
+
+        setPublishedEntries(mergedPublished);
+
+        setPrivateEntries((prev) => {
+          const map = new Map<string, Entry>();
+          priv.forEach((p) => map.set(p.id || p.slug || '', p));
+          prev.forEach((p) => {
+            const key = p.id || p.slug || '';
+            if (!map.has(key)) map.set(key, p);
+          });
+          return Array.from(map.values()).sort((a, b) => 
+            safeTimestamp(b.created_at) - safeTimestamp(a.created_at)
+          );
+        });
+
+        setDraftEntries((prev) => {
+          const map = new Map<string, Entry>();
+          drafts.forEach((d) => map.set(d.id || d.slug || '', d));
+          prev.forEach((d) => {
+            const key = d.id || d.slug || '';
+            if (!map.has(key)) map.set(key, d);
+          });
+          return Array.from(map.values()).sort((a, b) => 
+            (safeTimestamp(b.updated_at) || safeTimestamp(b.created_at)) - (safeTimestamp(a.updated_at) || safeTimestamp(a.created_at))
+          );
+        });
+
+        // Update local storage cache with unified list
+        try {
+          const savedLocal = localStorage.getItem('rww_local_entries');
+          const localList: Entry[] = savedLocal ? JSON.parse(savedLocal) : [];
+          const combinedMap = new Map<string, Entry>();
+          normalizedCloud.forEach((e: Entry) => {
+            const k = e.id || e.slug || '';
+            if (k) combinedMap.set(k, e);
+          });
+          localList.forEach((e: Entry) => {
+            const k = e.id || e.slug || '';
+            if (k && !combinedMap.has(k)) combinedMap.set(k, e);
+          });
+          localStorage.setItem('rww_local_entries', JSON.stringify(Array.from(combinedMap.values())));
+        } catch (e) {}
+
+        // Auto-select based on active workspace mode
+        const savedMode = (localStorage.getItem('rww_studio_workspace_mode') || 'ledger') as 'ledger' | 'editorial';
+        if (savedMode === 'ledger') {
+          const todayStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          const todayLedger = priv.find((e) => {
+            if (!e.created_at) return false;
+            const d = new Date(e.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            return d === todayStr || (e.title && e.title.includes(todayStr));
+          });
+
+          if (todayLedger) {
+            selectEntry(todayLedger);
+          } else {
+            createNewDocument('personal_ledger', true);
+          }
+        } else {
+          // In Editorial mode: select latest working draft if one exists, otherwise start with a fresh blank piece
+          const latestDraft = drafts[0];
+          if (latestDraft) {
+            selectEntry(latestDraft);
+          } else {
+            createNewDocument('essay', false);
+          }
+        }
+      } catch (e) {}
+    };
+
+    loadAllStudioEntries();
   }, [user, createNewDocument, selectEntry]);
 
   const handleDeskChange = (deskId: DeskType) => {
@@ -1185,7 +1224,7 @@ export default function JournalStudioPage() {
                       : 'text-[#66615C] hover:text-[#1C1917]'
                   }`}
                 >
-                  Live ({publishedEntries.length})
+                  Published ({publishedEntries.length})
                 </button>
                 <button
                   onClick={() => setEditorialTab('all')}
