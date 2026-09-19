@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Save, Edit3, Loader2 } from 'lucide-react';
+import { X, Save, Edit3, Loader2, Sparkles, CheckCircle2 } from 'lucide-react';
 import { TrophyBook, ReadingDirection } from '@/types/trophy';
 import { createClient } from '@/lib/supabase/client';
 
@@ -24,10 +24,42 @@ export default function MetadataModal({
   const [readingDirection, setReadingDirection] = useState<ReadingDirection>(
     book?.reading_direction || 'ltr'
   );
+  const [searchingCloud, setSearchingCloud] = useState(false);
+  const [cloudMatchFound, setCloudMatchFound] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!book) return null;
+
+  const handleAutoFetchCloud = async () => {
+    const searchTerm = series && series !== 'Standalone' ? `${series} ${title}` : title;
+    setSearchingCloud(true);
+    setError(null);
+    setCloudMatchFound(false);
+
+    try {
+      const cleanQ = encodeURIComponent(searchTerm.replace(/[^a-zA-Z0-9\s]/g, ' ').trim());
+      const res = await fetch(`https://openlibrary.org/search.json?q=${cleanQ}&limit=1`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.docs && data.docs.length > 0) {
+          const doc = data.docs[0];
+          if (doc.title) setTitle(doc.title);
+          if (doc.author_name && doc.author_name.length > 0) setAuthor(doc.author_name.join(', '));
+          if (doc.first_sentence && doc.first_sentence.length > 0) {
+            setDescription(doc.first_sentence[0]);
+          }
+          setCloudMatchFound(true);
+        } else {
+          setError('No cloud matches found for this title. You can still enter details manually.');
+        }
+      }
+    } catch (e: any) {
+      setError('Could not connect to book metadata service.');
+    } finally {
+      setSearchingCloud(false);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,6 +111,41 @@ export default function MetadataModal({
 
         {/* Form */}
         <form onSubmit={handleSave} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto bg-paper-texture">
+          {/* Quick Auto-Fetch Cloud Banner */}
+          <div className="flex items-center justify-between p-3 bg-amber-100 rounded-2xl border-2 border-[#111827] shadow-[2px_2px_0_#111827]">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#FF4757]" />
+              <span className="text-xs font-black uppercase tracking-wide text-[#111827]">
+                Online Metadata Lookup:
+              </span>
+            </div>
+            <button
+              type="button"
+              disabled={searchingCloud}
+              onClick={handleAutoFetchCloud}
+              className="px-3 py-1.5 bg-[#FFDE59] hover:bg-[#f3cb30] disabled:opacity-50 text-[#111827] font-black text-xs uppercase tracking-wider rounded-xl border-2 border-[#111827] shadow-[2px_2px_0_#111827] flex items-center gap-1.5 transition-all"
+            >
+              {searchingCloud ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Searching...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Auto-Fetch</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {cloudMatchFound && (
+            <div className="p-2.5 rounded-xl bg-emerald-100 border-2 border-[#2ED573] text-emerald-900 font-bold text-xs flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-[#2ED573] shrink-0" />
+              <span>Matching book metadata found & applied! Review and click Save.</span>
+            </div>
+          )}
+
           {error && (
             <div className="p-3 rounded-xl bg-rose-100 border-2 border-[#FF4757] text-[#FF4757] font-bold text-xs">
               {error}
