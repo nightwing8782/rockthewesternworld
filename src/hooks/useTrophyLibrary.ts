@@ -68,19 +68,38 @@ export function useTrophyLibrary(user: any) {
     try {
       const supabase = createClient();
 
-      // Fetch Books (Increase limit to handle full library)
-      const { data: booksData, error: booksError } = await supabase
-        .from('trophy_books')
-        .select('*')
-        .limit(10000)
-        .order('series', { ascending: true })
-        .order('issue_number', { ascending: true });
+      // Fetch All Books via Pagination
+      let booksData: any[] = [];
+      let bookFrom = 0;
+      const pageSize = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from('trophy_books')
+          .select('*')
+          .range(bookFrom, bookFrom + pageSize - 1)
+          .order('series', { ascending: true })
+          .order('issue_number', { ascending: true });
 
-      // Fetch Progress
-      const { data: progressData } = await supabase
-        .from('trophy_progress')
-        .select('*')
-        .limit(10000);
+        if (error || !data || data.length === 0) break;
+        booksData = booksData.concat(data);
+        if (data.length < pageSize) break;
+        bookFrom += pageSize;
+      }
+
+      // Fetch All Progress via Pagination
+      let progressData: any[] = [];
+      let progFrom = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from('trophy_progress')
+          .select('*')
+          .range(progFrom, progFrom + pageSize - 1);
+
+        if (error || !data || data.length === 0) break;
+        progressData = progressData.concat(data);
+        if (data.length < pageSize) break;
+        progFrom += pageSize;
+      }
 
       const progMap = new Map<string, TrophyProgress>();
       if (progressData) {
@@ -90,7 +109,7 @@ export function useTrophyLibrary(user: any) {
       }
       setProgressMap(progMap);
 
-      if (!booksError && booksData) {
+      if (booksData && booksData.length > 0) {
         // Check offline status for each book
         const hydrated: TrophyBook[] = await Promise.all(
           booksData.map(async (book: any) => {

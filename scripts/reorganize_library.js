@@ -78,14 +78,24 @@ async function main() {
   console.log('Fetching books from Supabase...');
 
   // Fetch all books
-  const { data: books, error } = await supabase
-    .from('trophy_books')
-    .select('id, title, series, issue_number, file_key')
-    .limit(10000);
+  let books = [];
+  let from = 0;
+  const pageSize = 1000;
 
-  if (error || !books) {
-    console.error('Error querying books:', error);
-    return;
+  while (true) {
+    const { data, error } = await supabase
+      .from('trophy_books')
+      .select('id, title, series, issue_number, file_key')
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      console.error('Error querying books:', error);
+      break;
+    }
+    if (!data || data.length === 0) break;
+    books = books.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
   }
 
   console.log(`Found ${books.length} books. Analyzing and reorganizing...`);

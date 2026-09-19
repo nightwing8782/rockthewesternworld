@@ -249,14 +249,24 @@ async function main() {
   console.log(`✓ Indexed ${localFileMap.size} local files.`);
 
   console.log('2. Fetching database catalog from Supabase...');
-  const { data: dbBooks, error: fetchErr } = await supabase
-    .from('trophy_books')
-    .select('*')
-    .limit(10000);
+  let dbBooks = [];
+  let from = 0;
+  const pageSize = 1000;
 
-  if (fetchErr || !dbBooks) {
-    console.error('Failed to query Supabase:', fetchErr);
-    return;
+  while (true) {
+    const { data, error: fetchErr } = await supabase
+      .from('trophy_books')
+      .select('*')
+      .range(from, from + pageSize - 1);
+
+    if (fetchErr) {
+      console.error('Failed to query Supabase:', fetchErr);
+      break;
+    }
+    if (!data || data.length === 0) break;
+    dbBooks = dbBooks.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
   }
 
   console.log(`✓ Retrieved ${dbBooks.length} books from Supabase catalog.`);

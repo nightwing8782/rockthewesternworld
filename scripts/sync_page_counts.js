@@ -133,18 +133,28 @@ async function main() {
   const localMap = scanLocalDirectory(SOURCE_DIR);
   console.log(`✓ Indexed ${localMap.size} local files.`);
 
-  console.log('2. Fetching database records from Supabase...');
-  const { data: dbBooks, error: fetchErr } = await supabase
-    .from('trophy_books')
-    .select('id, title, series, file_key, page_count')
-    .limit(10000);
+  console.log('2. Fetching all database records from Supabase...');
+  let dbBooks = [];
+  let from = 0;
+  const pageSize = 1000;
 
-  if (fetchErr || !dbBooks) {
-    console.error('Failed to query Supabase:', fetchErr);
-    return;
+  while (true) {
+    const { data, error: fetchErr } = await supabase
+      .from('trophy_books')
+      .select('id, title, series, file_key, page_count')
+      .range(from, from + pageSize - 1);
+
+    if (fetchErr) {
+      console.error('Failed to query Supabase:', fetchErr);
+      break;
+    }
+    if (!data || data.length === 0) break;
+    dbBooks = dbBooks.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
   }
 
-  console.log(`✓ Retrieved ${dbBooks.length} books. Calculating exact page counts...`);
+  console.log(`✓ Retrieved all ${dbBooks.length} books. Calculating exact page counts...`);
 
   let updatedCount = 0;
   for (let i = 0; i < dbBooks.length; i++) {

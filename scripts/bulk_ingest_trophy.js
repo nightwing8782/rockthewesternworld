@@ -178,12 +178,24 @@ async function main() {
   console.log(`Found ${files.length} items (${totalGB} GB).`);
 
   console.log('2. Fetching existing database catalog for deduplication...');
-  const { data: existingBooks, error: dbErr } = await supabase
-    .from('trophy_books')
-    .select('file_key, title, series, issue_number');
+  let existingBooks = [];
+  let from = 0;
+  const pageSize = 1000;
 
-  if (dbErr) {
-    console.error('Warning: could not query existing books:', dbErr.message);
+  while (true) {
+    const { data, error: dbErr } = await supabase
+      .from('trophy_books')
+      .select('file_key, title, series, issue_number')
+      .range(from, from + pageSize - 1);
+
+    if (dbErr) {
+      console.error('Warning: could not query existing books:', dbErr.message);
+      break;
+    }
+    if (!data || data.length === 0) break;
+    existingBooks = existingBooks.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
   }
 
   const existingKeySet = new Set((existingBooks || []).map((b) => b.file_key));
