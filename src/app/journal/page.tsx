@@ -221,6 +221,15 @@ export default function JournalStudioPage() {
     const formattedToday = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const defaultTitle = isPrivate || type === 'personal_ledger' ? `Daily Ledger · ${formattedToday}` : '';
     
+    const freshMetadata: EntryMetadata = {
+      desk: 'commonwealth',
+      category: 'Dan Reads the News',
+      isPrivate,
+      habits: {},
+      triad: { bright_spot: '', calibration: '', working_thought: '' },
+      energy: null as any,
+    };
+
     const newDoc: Entry = {
       id: generateUUID(),
       user_id: isValidUUID(user?.id) ? user.id : null,
@@ -230,11 +239,7 @@ export default function JournalStudioPage() {
       slug: null,
       body_json: null,
       body_html: '',
-      metadata: {
-        desk: 'commonwealth',
-        category: 'Dan Reads the News',
-        isPrivate,
-      },
+      metadata: freshMetadata,
       published_at: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -247,8 +252,15 @@ export default function JournalStudioPage() {
     setEntryStatus(isPrivate ? 'private' : 'draft');
     setSelectedDesk('commonwealth');
     setSelectedCategory('Dan Reads the News');
-    setMetadata({ desk: 'commonwealth', category: 'Dan Reads the News', isPrivate });
+    setMetadata(freshMetadata);
     setSaveStatus('saved');
+    if (!isPrivate) {
+      setEditorialTab('drafts');
+    }
+    // Auto-close mobile drawer when starting a new document so canvas is immediately active
+    if (typeof window !== 'undefined' && window.innerWidth < 1280) {
+      setIsSidebarOpen(false);
+    }
   }, [user]);
 
   // Select an entry from list
@@ -264,6 +276,10 @@ export default function JournalStudioPage() {
     setSelectedCategory(cat);
     setMetadata(entry.metadata || { desk, category: cat, isPrivate: entry.status === 'private' });
     setSaveStatus('saved');
+    // Auto-close mobile drawer when an entry is selected
+    if (typeof window !== 'undefined' && window.innerWidth < 1280) {
+      setIsSidebarOpen(false);
+    }
   }, []);
 
   // Switch Top-level Workspace Mode
