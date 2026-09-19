@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Loader2, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { TrophyBook, ReaderSettings } from '@/types/trophy';
 import { getBookFromOpfs } from '@/lib/trophy/opfs';
+import { getPresignedDownloadUrl } from '@/lib/trophy/s3';
 import CbzReader from './CbzReader';
 import EpubReader from './EpubReader';
 import PdfReader from './PdfReader';
@@ -77,30 +78,31 @@ export default function ReaderContainer({
           return;
         }
 
-        // 2. Fetch presigned streaming URL from R2
-        const res = await fetch('/api/trophy/stream-url', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileKey: book.file_key }),
-        });
-
-        const resText = await res.text();
-        let data: any = {};
+        // 2. Fetch presigned streaming URL directly via R2 SDK
+        let streamUrl: string | null = null;
         try {
-          data = JSON.parse(resText);
-        } catch (e) {
-          throw new Error(
-            res.status === 500
-              ? 'R2 credentials may not be configured in your server environment variables.'
-              : `Server returned unexpected response (${res.status}): ${resText.slice(0, 100)}`
-          );
+          streamUrl = await getPresignedDownloadUrl(book.file_key, 86400);
+        } catch (s3Err) {
+          console.warn('[ReaderContainer] Client S3 presign fallback to API:', s3Err);
+          const res = await fetch('/api/trophy/stream-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fileKey: book.file_key }),
+          });
+          const resText = await res.text();
+          try {
+            const data = JSON.parse(resText);
+            streamUrl = data.streamUrl;
+          } catch (e) {
+            throw new Error(`Storage configuration error: ${resText.slice(0, 100)}`);
+          }
         }
 
-        if (!res.ok || !data.streamUrl) {
-          throw new Error(data?.error || `Failed to generate stream URL (Status ${res.status})`);
+        if (!streamUrl) {
+          throw new Error('Failed to obtain streaming URL for this title.');
         }
 
-        const fileResponse = await fetch(data.streamUrl);
+        const fileResponse = await fetch(streamUrl);
         if (!fileResponse.ok) {
           throw new Error(`Failed to download stream from storage (${fileResponse.status})`);
         }

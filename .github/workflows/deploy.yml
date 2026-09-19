@@ -27,6 +27,11 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_UMAMI_WEBSITE_ID: ${{ secrets.NEXT_PUBLIC_UMAMI_WEBSITE_ID }}
+          NEXT_PUBLIC_R2_ACCOUNT_ID: ${{ secrets.NEXT_PUBLIC_R2_ACCOUNT_ID || '91032568cebd0606c152575020c2a010' }}
+          NEXT_PUBLIC_R2_ACCESS_KEY_ID: ${{ secrets.NEXT_PUBLIC_R2_ACCESS_KEY_ID || '43ba5ffa4a0784c4dc6547de167dc4b7' }}
+          NEXT_PUBLIC_R2_SECRET_ACCESS_KEY: ${{ secrets.NEXT_PUBLIC_R2_SECRET_ACCESS_KEY || '02c60e117f7aaf7cbf5e7419238fcb19890442f63cdc78c6fd7e6fd0eceb34f5' }}
+          NEXT_PUBLIC_R2_BUCKET_NAME: ${{ secrets.NEXT_PUBLIC_R2_BUCKET_NAME || 'trophy-room' }}
+          NEXT_PUBLIC_R2_ENDPOINT: ${{ secrets.NEXT_PUBLIC_R2_ENDPOINT || 'https://91032568cebd0606c152575020c2a010.r2.cloudflarestorage.com' }}
         run: npm run build
 
       - name: Deploy to SiteGround via rsync
