@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const JSZip = require('jszip');
 const readline = require('readline');
+const { createClient } = require('@supabase/supabase-js');
 
 const SOURCE_DIR = process.argv[2] || 'C:\\Users\\danbi\\OneDrive\\Documents\\Ebooks';
 const CLI_EMAIL = process.argv[3] || process.env.SUPABASE_AUTH_EMAIL;
