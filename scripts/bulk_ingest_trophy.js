@@ -220,7 +220,9 @@ async function main() {
       let coverKey = null;
       let coverUrl = null;
 
-      if (format === 'cbz' || format === 'epub') {
+      // Calculate actual page count
+      let realPageCount = 100;
+      if (format === 'cbz') {
         const cover = await extractCoverFromZip(file.fullPath);
         if (cover) {
           coverKey = `covers/${path.parse(file.name).name.replace(/[^a-zA-Z0-9._-]/g, '_')}.jpg`;
@@ -233,6 +235,7 @@ async function main() {
             })
           );
           coverUrl = `${process.env.R2_ENDPOINT}/${BUCKET}/${coverKey}`;
+          if (cover.pageCount) realPageCount = cover.pageCount;
         }
       }
 
@@ -260,7 +263,7 @@ async function main() {
         author: null,
         description: null,
         reading_direction: 'ltr',
-        page_count: 100,
+        page_count: realPageCount,
         tags: [format.toUpperCase(), series !== 'Standalone' ? 'Series' : 'Single'],
       };
 
