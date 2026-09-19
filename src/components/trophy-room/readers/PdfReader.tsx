@@ -41,11 +41,18 @@ export default function PdfReader({
       try {
         const pdfjsLib = await import('pdfjs-dist');
         if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-          pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+          pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.mjs';
         }
 
         const arrayBuffer = await fileBlob.arrayBuffer();
-        const doc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const doc = await pdfjsLib.getDocument({
+          data: arrayBuffer,
+          cMapUrl: '/pdfjs/cmaps/',
+          cMapPacked: true,
+          standardFontDataUrl: '/pdfjs/standard_fonts/',
+          enableXfa: true,
+          useSystemFonts: true,
+        }).promise;
 
         if (isCancelled) return;
         setPdfDoc(doc);
