@@ -39,6 +39,7 @@ export default function ShelfView({ user }: ShelfViewProps) {
     updateSettings,
     ingestFiles,
     updateProgress,
+    updateBookMetadata,
     toggleOffline,
     deleteBook,
     loadLibrary,
@@ -235,7 +236,7 @@ export default function ShelfView({ user }: ShelfViewProps) {
       <MetadataModal
         book={editingBook}
         onClose={() => setEditingBook(null)}
-        onSaved={() => loadLibrary()}
+        onSaveMetadata={updateBookMetadata}
       />
 
       {/* Add / Ingest Books Modal */}

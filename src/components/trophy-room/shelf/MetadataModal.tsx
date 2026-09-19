@@ -1,55 +1,79 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { X, Save, Edit3, Loader2, Sparkles, CheckCircle2, Search, Globe } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  X,
+  Save,
+  Edit3,
+  Loader2,
+  Sparkles,
+  CheckCircle2,
+  Search,
+  Globe,
+  BookOpen,
+  Image as ImageIcon,
+  Layers,
+  ChevronRight,
+  ExternalLink,
+} from 'lucide-react';
 import { TrophyBook, ReadingDirection } from '@/types/trophy';
-import { createClient } from '@/lib/supabase/client';
+
+interface MetadataSearchResult {
+  id: string;
+  source: 'google' | 'openlibrary';
+  title: string;
+  subtitle?: string;
+  series?: string;
+  volumeNumber?: number;
+  authors: string[];
+  description?: string;
+  publisher?: string;
+  publishedDate?: string;
+  pageCount?: number;
+  categories?: string[];
+  thumbnailUrl?: string;
+}
 
 interface MetadataModalProps {
   book: TrophyBook | null;
   onClose: () => void;
-  onSaved: () => void;
+  onSaveMetadata: (
+    bookId: string,
+    updates: Partial<TrophyBook>,
+    applyToSeries?: boolean
+  ) => Promise<void>;
 }
 
 export default function MetadataModal({
   book,
   onClose,
-  onSaved,
+  onSaveMetadata,
 }: MetadataModalProps) {
-  const [title, setTitle] = useState(book?.title || '');
-  const [series, setSeries] = useState(book?.series || '');
-  const [issueNumber, setIssueNumber] = useState(book?.issue_number || 1);
-  const [author, setAuthor] = useState(book?.author || '');
-  const [description, setDescription] = useState(book?.description || '');
-  const [readingDirection, setReadingDirection] = useState<ReadingDirection>(
-    book?.reading_direction || 'ltr'
-  );
-  const [customSearchQuery, setCustomSearchQuery] = useState('');
-  const [searchingCloud, setSearchingCloud] = useState(false);
-  const [cloudMatchFound, setCloudMatchFound] = useState<string | null>(null);
+  const [title, setTitle] = useState('');
+  const [series, setSeries] = useState('');
+  const [issueNumber, setIssueNumber] = useState<number>(1);
+  const [author, setAuthor] = useState('');
+  const [description, setDescription] = useState('');
+  const [pageCount, setPageCount] = useState<number>(1);
+  const [readingDirection, setReadingDirection] = useState<ReadingDirection>('ltr');
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
+  const [applyToSeriesRun, setApplyToSeriesRun] = useState(false);
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<MetadataSearchResult[]>([]);
+  const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
+  const [searchSuccessMessage, setSearchSuccessMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Sync state whenever active book changes
-  useEffect(() => {
-    if (book) {
-      setTitle(book.title || '');
-      setSeries(book.series || '');
-      setIssueNumber(book.issue_number || 1);
-      setAuthor(book.author || '');
-      setDescription(book.description || '');
-      setReadingDirection(book.reading_direction || 'ltr');
-      setCustomSearchQuery(book.series && book.series !== 'Standalone' ? `${book.series}` : book.title || '');
-      setError(null);
-      setCloudMatchFound(null);
-      setSearchingCloud(false);
+  // Clean filename for automatic initial query
+  const deriveCleanSearchQuery = (b: TrophyBook) => {
+    if (b.series && b.series !== 'Standalone') {
+      return b.series;
     }
-  }, [book]);
-
-  if (!book) return null;
-
-  const cleanSearchTerm = (str: string) => {
-    return str
+    return (b.title || '')
       .replace(/\.(cbz|cbr|epub|pdf|zip)$/i, '')
       .replace(/\[.*?\]/g, ' ')
       .replace(/\((?!19\d\d|20\d\d).*?\)/g, ' ')
@@ -60,119 +84,237 @@ export default function MetadataModal({
       .trim();
   };
 
-  const handleAutoFetchCloud = async () => {
-    const rawSearch = customSearchQuery.trim() || (series && series !== 'Standalone' ? series : title);
-    const cleanedSearch = cleanSearchTerm(rawSearch);
-    if (!cleanedSearch) {
-      setError('Please enter a title or series name to search.');
+  // Reset and populate form whenever active book changes
+  useEffect(() => {
+    if (book) {
+      setTitle(book.title || '');
+      setSeries(book.series || '');
+      setIssueNumber(book.issue_number || 1);
+      setAuthor(book.author || '');
+      setDescription(book.description || '');
+      setPageCount(book.page_count || 1);
+      setReadingDirection(book.reading_direction || 'ltr');
+      setCoverUrl(book.cover_url || null);
+      setApplyToSeriesRun(false);
+
+      const initialQuery = deriveCleanSearchQuery(book);
+      setSearchQuery(initialQuery);
+      setSearchResults([]);
+      setSelectedResultId(null);
+      setSearchSuccessMessage(null);
+      setError(null);
+    }
+  }, [book]);
+
+  if (!book) return null;
+
+  // Smart volume / issue extractor
+  const extractVolumeNumber = (str: string): number | null => {
+    const match =
+      str.match(/\bvol(?:ume)?\.?\s*(\d+(?:\.\d+)?)/i) ||
+      str.match(/\bv(\d+(?:\.\d+)?)\b/i) ||
+      str.match(/#\s*(\d+(?:\.\d+)?)/) ||
+      str.match(/\b(?:issue|bk|book)\.?\s*(\d+)/i) ||
+      str.match(/\b(?:part|pt)\.?\s*(\d+)/i);
+    if (match && match[1]) {
+      const parsed = parseFloat(match[1]);
+      if (!isNaN(parsed)) return parsed;
+    }
+    return null;
+  };
+
+  // Perform Cloud Metadata Search (Google Books + Open Library)
+  const handleSearch = async (queryToRun?: string) => {
+    const q = (queryToRun !== undefined ? queryToRun : searchQuery).trim();
+    if (!q) {
+      setError('Please type a search query.');
       return;
     }
 
-    setSearchingCloud(true);
+    setSearching(true);
     setError(null);
-    setCloudMatchFound(null);
+    setSearchSuccessMessage(null);
+    setSearchResults([]);
+
+    const results: MetadataSearchResult[] = [];
 
     try {
-      // 1. First attempt: Google Books API (superior for comics & graphic novels)
-      const gBooksRes = await fetch(
-        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(cleanedSearch)}&maxResults=1`
+      // 1. Google Books API (Fetches up to 6 rich results)
+      const gRes = await fetch(
+        `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=6`
       );
 
-      if (gBooksRes.ok) {
-        const gData = await gBooksRes.json();
+      if (gRes.ok) {
+        const gData = await gRes.json();
         if (gData.items && gData.items.length > 0) {
-          const info = gData.items[0].volumeInfo;
-          if (info.title) {
-            // Keep series clean and append title
-            if (!series || series === 'Standalone') {
-              setSeries(info.title);
-            }
-          }
-          if (info.authors && info.authors.length > 0) {
-            setAuthor(info.authors.join(', '));
-          }
-          if (info.description) {
-            setDescription(info.description.replace(/<[^>]*>/g, ''));
-          }
-          setCloudMatchFound(`Matched on Google Books: "${info.title}" (${info.authors ? info.authors.join(', ') : 'Various'})`);
-          setSearchingCloud(false);
-          return;
+          gData.items.forEach((item: any) => {
+            const vi = item.volumeInfo || {};
+            const itemThumb =
+              vi.imageLinks?.thumbnail ||
+              vi.imageLinks?.smallThumbnail ||
+              vi.imageLinks?.medium;
+            const httpsThumb = itemThumb ? itemThumb.replace(/^http:\/\//i, 'https://') : undefined;
+
+            const fullTitle = [vi.title, vi.subtitle].filter(Boolean).join(': ');
+            const extractedVol = extractVolumeNumber(fullTitle);
+
+            results.push({
+              id: `g_${item.id}`,
+              source: 'google',
+              title: vi.title || fullTitle,
+              subtitle: vi.subtitle,
+              series: vi.seriesInfo?.shortSeriesBookTitle || vi.title,
+              volumeNumber: extractedVol || undefined,
+              authors: vi.authors || [],
+              description: vi.description ? vi.description.replace(/<[^>]*>/g, '') : undefined,
+              publisher: vi.publisher,
+              publishedDate: vi.publishedDate,
+              pageCount: vi.pageCount,
+              categories: vi.categories || [],
+              thumbnailUrl: httpsThumb,
+            });
+          });
         }
       }
 
-      // 2. Second attempt: Open Library API fallback
-      const olRes = await fetch(
-        `https://openlibrary.org/search.json?q=${encodeURIComponent(cleanedSearch)}&limit=1`
-      );
+      // 2. Open Library Search (Fallback & Complementary)
+      if (results.length < 4) {
+        const olRes = await fetch(
+          `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=4`
+        );
+        if (olRes.ok) {
+          const olData = await olRes.json();
+          if (olData.docs && olData.docs.length > 0) {
+            olData.docs.forEach((doc: any) => {
+              const coverId = doc.cover_i;
+              const thumbUrl = coverId
+                ? `https://covers.openlibrary.org/b/id/${coverId}-M.jpg`
+                : undefined;
 
-      if (olRes.ok) {
-        const olData = await olRes.json();
-        if (olData.docs && olData.docs.length > 0) {
-          const doc = olData.docs[0];
-          if (doc.title) {
-            if (!series || series === 'Standalone') setSeries(doc.title);
+              results.push({
+                id: `ol_${doc.key || Math.random()}`,
+                source: 'openlibrary',
+                title: doc.title,
+                authors: doc.author_name ? doc.author_name.slice(0, 3) : [],
+                description: doc.first_sentence ? doc.first_sentence[0] : undefined,
+                publisher: doc.publisher ? doc.publisher[0] : undefined,
+                publishedDate: doc.first_publish_year ? String(doc.first_publish_year) : undefined,
+                pageCount: doc.number_of_pages_median || undefined,
+                thumbnailUrl: thumbUrl,
+              });
+            });
           }
-          if (doc.author_name && doc.author_name.length > 0) {
-            setAuthor(doc.author_name.slice(0, 3).join(', '));
-          }
-          if (doc.first_sentence && doc.first_sentence.length > 0) {
-            setDescription(doc.first_sentence[0]);
-          }
-          setCloudMatchFound(`Matched on Open Library: "${doc.title}"`);
-          setSearchingCloud(false);
-          return;
         }
       }
 
-      setError(`No matching metadata found for "${cleanedSearch}". You can edit the search box above or type details manually.`);
-    } catch (e: any) {
-      console.error('[MetadataModal] Cloud lookup error:', e);
-      setError('Could not connect to online book database. Please verify your internet connection.');
+      if (results.length === 0) {
+        setError(`No matches found for "${q}". Try typing the series or creator name.`);
+      } else {
+        setSearchResults(results);
+      }
+    } catch (err: any) {
+      console.error('[MetadataModal] Cloud lookup error:', err);
+      setError('Could not connect to online metadata service. Check internet connection.');
     } finally {
-      setSearchingCloud(false);
+      setSearching(false);
     }
   };
 
+  // Apply selected cloud result into form
+  const handleApplyResult = (res: MetadataSearchResult) => {
+    setSelectedResultId(res.id);
+
+    // Smart Series vs Title assignment
+    if (res.series) {
+      setSeries(res.series);
+    } else if (res.title) {
+      // If title has a colon or volume (e.g. "Saga, Vol. 1" or "Peanuts: 1950-1952")
+      const parts = res.title.split(/[:\-,]/);
+      if (parts.length > 1 && parts[0].trim().length > 2) {
+        setSeries(parts[0].trim());
+      } else if (!series || series === 'Standalone') {
+        setSeries(res.title);
+      }
+    }
+
+    if (res.title) {
+      setTitle(res.title);
+    }
+
+    if (res.volumeNumber) {
+      setIssueNumber(res.volumeNumber);
+    }
+
+    if (res.authors && res.authors.length > 0) {
+      setAuthor(res.authors.join(', '));
+    }
+
+    if (res.description) {
+      setDescription(res.description);
+    }
+
+    if (res.pageCount && res.pageCount > 0) {
+      setPageCount(res.pageCount);
+    }
+
+    if (res.thumbnailUrl) {
+      setCoverUrl(res.thumbnailUrl);
+    }
+
+    setSearchSuccessMessage(
+      `Applied metadata from ${res.source === 'google' ? 'Google Books' : 'Open Library'}: "${res.title}"`
+    );
+  };
+
+  // Save changes locally and in Supabase
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setError(null);
 
     try {
-      const supabase = createClient();
-      const { error: updateError } = await supabase
-        .from('trophy_books')
-        .update({
+      await onSaveMetadata(
+        book.id,
+        {
           title: title.trim() || book.title,
           series: series.trim() || 'Standalone',
           issue_number: Number(issueNumber) || 1,
           author: author.trim() || null,
           description: description.trim() || null,
+          page_count: Number(pageCount) || book.page_count,
           reading_direction: readingDirection,
-        })
-        .eq('id', book.id);
+          cover_url: coverUrl || book.cover_url || null,
+        },
+        applyToSeriesRun
+      );
 
-      if (updateError) throw updateError;
-
-      onSaved();
       onClose();
     } catch (err: any) {
-      console.error('Error updating metadata:', err);
-      setError(err.message || 'Failed to update metadata.');
+      console.error('Error saving metadata:', err);
+      setError(err.message || 'Failed to save metadata updates.');
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white border-4 border-[#111827] rounded-3xl shadow-[8px_8px_0_#111827] max-w-lg w-full overflow-hidden text-[#111827]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="bg-[#FAF7F2] border-4 border-[#111827] rounded-3xl shadow-[8px_8px_0_#111827] max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden text-[#111827]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b-4 border-[#111827] bg-[#FFDE59]">
-          <h2 className="text-xl font-black uppercase tracking-wide text-[#111827] flex items-center gap-2">
-            <Edit3 className="w-5 h-5 stroke-[2.5]" />
-            Edit Book Metadata
-          </h2>
+        <div className="flex items-center justify-between px-6 py-4 border-b-4 border-[#111827] bg-[#FFDE59] shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 bg-white rounded-xl border-2 border-[#111827] shadow-[2px_2px_0_#111827]">
+              <Edit3 className="w-5 h-5 stroke-[2.5]" />
+            </div>
+            <div>
+              <h2 className="text-lg font-black uppercase tracking-wide text-[#111827]">
+                Book & Series Metadata Studio
+              </h2>
+              <p className="text-[11px] font-bold text-slate-800 truncate max-w-md">
+                {book.title} ({book.format.toUpperCase()})
+              </p>
+            </div>
+          </div>
           <button
             onClick={onClose}
             className="p-1.5 rounded-xl bg-white border-2 border-[#111827] text-[#111827] hover:bg-[#FF4757] hover:text-white shadow-[2px_2px_0_#111827] transition-colors"
@@ -181,69 +323,131 @@ export default function MetadataModal({
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSave} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto bg-paper-texture">
-          {/* Enhanced Auto-Fetch Cloud Banner */}
-          <div className="p-3.5 bg-gradient-to-r from-amber-100 via-[#FFDE59]/40 to-emerald-100 rounded-2xl border-3 border-[#111827] shadow-[3px_3px_0_#111827] space-y-2">
+        {/* Scrollable Content Body */}
+        <div className="p-6 overflow-y-auto space-y-6 flex-1 bg-paper-texture">
+          {/* Section 1: Live Cloud Search & Matching Engine */}
+          <div className="p-4 bg-white rounded-2xl border-3 border-[#111827] shadow-[4px_4px_0_#111827] space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-[#FF4757]" />
-                <span className="text-xs font-black uppercase tracking-wide text-[#111827]">
-                  Cloud Metadata Lookup (Google Books & Open Library)
+                <span className="text-xs font-black uppercase tracking-wider text-[#111827]">
+                  Cloud Metadata Search (Google Books & Open Library)
                 </span>
               </div>
-              <span className="comic-stamp text-[9px] px-1.5 py-0.2 rounded bg-white text-[#111827]">
-                Live API
+              <span className="comic-stamp text-[9px] px-2 py-0.5 rounded bg-[#FFDE59] text-[#111827] font-black">
+                Live Lookup
               </span>
             </div>
 
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
-                <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-500">
-                  <Search className="w-3.5 h-3.5" />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                  <Search className="w-4 h-4" />
                 </div>
                 <input
                   type="text"
-                  value={customSearchQuery}
-                  onChange={(e) => setCustomSearchQuery(e.target.value)}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
-                      handleAutoFetchCloud();
+                      handleSearch();
                     }
                   }}
-                  placeholder="Search series or book title (e.g. Saga, Peanuts, Batman)..."
-                  className="w-full pl-8 pr-3 py-1.5 bg-white text-[#111827] text-xs font-bold rounded-xl border-2 border-[#111827] shadow-[1px_1px_0_#111827] focus:outline-none focus:ring-1 focus:ring-[#FF4757]"
+                  placeholder="Search series or book title (e.g. Saga, Peanuts, Watchmen)..."
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 text-[#111827] text-xs font-bold rounded-xl border-2 border-[#111827] shadow-[1px_1px_0_#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59]"
                 />
               </div>
 
               <button
                 type="button"
-                disabled={searchingCloud}
-                onClick={handleAutoFetchCloud}
-                className="px-3.5 py-1.5 bg-[#FF4757] hover:bg-[#e03848] disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl border-2 border-[#111827] shadow-[2px_2px_0_#111827] flex items-center gap-1.5 transition-all shrink-0 active:scale-95"
+                disabled={searching}
+                onClick={() => handleSearch()}
+                className="px-4 py-2 bg-[#FF4757] hover:bg-[#e03848] disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl border-2 border-[#111827] shadow-[2px_2px_0_#111827] flex items-center gap-1.5 transition-all shrink-0 active:scale-95 cursor-pointer"
               >
-                {searchingCloud ? (
+                {searching ? (
                   <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Searching...</span>
                   </>
                 ) : (
                   <>
-                    <Globe className="w-3.5 h-3.5" />
-                    <span>Auto-Fetch</span>
+                    <Globe className="w-4 h-4" />
+                    <span>Search</span>
                   </>
                 )}
               </button>
             </div>
-          </div>
 
-          {cloudMatchFound && (
-            <div className="p-2.5 rounded-xl bg-emerald-100 border-2 border-[#2ED573] text-emerald-950 font-bold text-xs flex items-center gap-2 animate-in fade-in duration-150">
-              <CheckCircle2 className="w-4 h-4 text-[#2ED573] shrink-0" />
-              <span className="truncate">{cloudMatchFound}</span>
-            </div>
-          )}
+            {/* Success Applied Banner */}
+            {searchSuccessMessage && (
+              <div className="p-2.5 rounded-xl bg-emerald-100 border-2 border-[#2ED573] text-emerald-950 font-bold text-xs flex items-center gap-2 animate-in fade-in duration-150">
+                <CheckCircle2 className="w-4 h-4 text-[#2ED573] shrink-0" />
+                <span className="truncate">{searchSuccessMessage}</span>
+              </div>
+            )}
+
+            {/* Candidate Search Results List */}
+            {searchResults.length > 0 && (
+              <div className="mt-3 pt-3 border-t-2 border-slate-100 space-y-2 max-h-56 overflow-y-auto pr-1">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  Select a match to auto-fill metadata & cover art:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {searchResults.map((result) => {
+                    const isSelected = selectedResultId === result.id;
+                    return (
+                      <div
+                        key={result.id}
+                        onClick={() => handleApplyResult(result)}
+                        className={`p-2.5 rounded-xl border-2 transition-all flex gap-3 items-start cursor-pointer text-left ${
+                          isSelected
+                            ? 'bg-[#FFDE59]/30 border-[#111827] shadow-[2px_2px_0_#111827] ring-2 ring-[#FFDE59]'
+                            : 'bg-white hover:bg-amber-50/60 border-slate-300 hover:border-[#111827]'
+                        }`}
+                      >
+                        {/* Cover Thumbnail */}
+                        {result.thumbnailUrl ? (
+                          <img
+                            src={result.thumbnailUrl}
+                            alt={result.title}
+                            className="w-12 h-16 object-cover rounded-md border border-[#111827] shrink-0 shadow-xs"
+                          />
+                        ) : (
+                          <div className="w-12 h-16 bg-slate-200 rounded-md border border-slate-400 flex items-center justify-center shrink-0">
+                            <BookOpen className="w-5 h-5 text-slate-500" />
+                          </div>
+                        )}
+
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-xs font-black text-[#111827] line-clamp-1 leading-tight">
+                            {result.title}
+                          </h4>
+                          <p className="text-[10px] font-bold text-slate-600 line-clamp-1 mt-0.5">
+                            {result.authors.length > 0 ? result.authors.join(', ') : 'Unknown Creator'}
+                          </p>
+                          <div className="flex items-center gap-1.5 mt-1.5 text-[9px] font-bold text-slate-500">
+                            {result.publishedDate && <span>{result.publishedDate.slice(0, 4)}</span>}
+                            {result.pageCount && <span>• {result.pageCount} pgs</span>}
+                            <span className="uppercase px-1 py-0.2 rounded bg-slate-100 border border-slate-300 text-[8px]">
+                              {result.source}
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          className="px-2 py-1 bg-[#111827] text-white text-[10px] font-black uppercase tracking-wider rounded-lg shrink-0 mt-1"
+                        >
+                          Use
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
 
           {error && (
             <div className="p-3 rounded-xl bg-rose-100 border-2 border-[#FF4757] text-[#FF4757] font-bold text-xs animate-in fade-in duration-150">
@@ -251,126 +455,210 @@ export default function MetadataModal({
             </div>
           )}
 
-          {/* Title */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
-              Title
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-              className="w-full px-3.5 py-2.5 bg-white border-3 border-[#111827] rounded-xl text-sm font-semibold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
-            />
-          </div>
-
-          {/* Series & Issue */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="col-span-2 space-y-1.5">
-              <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
-                Series / Collection
+          {/* Section 2: Editable Metadata Form */}
+          <form id="metadata-form" onSubmit={handleSave} className="space-y-4">
+            {/* Title */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-black uppercase tracking-wider text-[#111827] flex items-center justify-between">
+                <span>Book / Issue Title</span>
+                <span className="text-[10px] text-slate-500 lowercase font-medium">required</span>
               </label>
               <input
                 type="text"
-                value={series}
-                onChange={(e) => setSeries(e.target.value)}
-                placeholder="e.g. Batman (2016)"
-                className="w-full px-3.5 py-2.5 bg-white border-3 border-[#111827] rounded-xl text-sm font-semibold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                required
+                placeholder="e.g. Saga #1 or Peanuts 1950-1952"
+                className="w-full px-3.5 py-2 bg-white border-2 border-[#111827] rounded-xl text-xs font-bold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
               />
             </div>
 
+            {/* Series & Issue # */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-2 space-y-1.5">
+                <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
+                  Series / Collection Name
+                </label>
+                <input
+                  type="text"
+                  value={series}
+                  onChange={(e) => setSeries(e.target.value)}
+                  placeholder="e.g. Saga, The Complete Peanuts, Batman"
+                  className="w-full px-3.5 py-2 bg-white border-2 border-[#111827] rounded-xl text-xs font-bold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
+                  Issue / Volume #
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  value={issueNumber}
+                  onChange={(e) => setIssueNumber(parseFloat(e.target.value) || 1)}
+                  className="w-full px-3.5 py-2 bg-white border-2 border-[#111827] rounded-xl text-xs font-bold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
+                />
+              </div>
+            </div>
+
+            {/* Batch Series Sync Checkbox */}
+            {book.series && (
+              <label className="flex items-center gap-2.5 p-2.5 bg-amber-50 rounded-xl border-2 border-[#111827]/40 cursor-pointer hover:bg-amber-100/70 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={applyToSeriesRun}
+                  onChange={(e) => setApplyToSeriesRun(e.target.checked)}
+                  className="w-4 h-4 rounded border-2 border-[#111827] text-[#FF4757] focus:ring-0 cursor-pointer"
+                />
+                <span className="text-xs font-bold text-[#111827]">
+                  Apply series name <span className="font-black text-[#FF4757]">"{series || 'Standalone'}"</span> and author to all issues in this series run
+                </span>
+              </label>
+            )}
+
+            {/* Author & Page Count */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-2 space-y-1.5">
+                <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
+                  Author / Writer / Creator
+                </label>
+                <input
+                  type="text"
+                  value={author}
+                  onChange={(e) => setAuthor(e.target.value)}
+                  placeholder="e.g. Charles M. Schulz, Brian K. Vaughan"
+                  className="w-full px-3.5 py-2 bg-white border-2 border-[#111827] rounded-xl text-xs font-bold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
+                  Exact Page Count
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={pageCount}
+                  onChange={(e) => setPageCount(parseInt(e.target.value, 10) || 1)}
+                  className="w-full px-3.5 py-2 bg-white border-2 border-[#111827] rounded-xl text-xs font-bold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
+                />
+              </div>
+            </div>
+
+            {/* Reading Direction & Cover Preview */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Reading Direction */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
+                  Reading Direction
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReadingDirection('ltr')}
+                    className={`py-2 px-3 rounded-xl border-2 border-[#111827] text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      readingDirection === 'ltr'
+                        ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757]'
+                        : 'bg-white text-slate-700 hover:bg-slate-100 shadow-[1px_1px_0_#111827]'
+                    }`}
+                  >
+                    LTR (Western)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReadingDirection('rtl')}
+                    className={`py-2 px-3 rounded-xl border-2 border-[#111827] text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      readingDirection === 'rtl'
+                        ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757]'
+                        : 'bg-white text-slate-700 hover:bg-slate-100 shadow-[1px_1px_0_#111827]'
+                    }`}
+                  >
+                    RTL (Manga)
+                  </button>
+                </div>
+              </div>
+
+              {/* Cover Art Status */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
+                  Cover Artwork
+                </label>
+                <div className="flex items-center gap-3 p-2 bg-white rounded-xl border-2 border-[#111827] shadow-[1px_1px_0_#111827]">
+                  {coverUrl ? (
+                    <img
+                      src={coverUrl}
+                      alt="Cover"
+                      className="w-8 h-11 object-cover rounded border border-[#111827]"
+                    />
+                  ) : (
+                    <div className="w-8 h-11 bg-slate-200 rounded border border-slate-400 flex items-center justify-center text-slate-500">
+                      <ImageIcon className="w-4 h-4" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-bold text-[#111827] truncate">
+                      {coverUrl ? 'Active Cover Art Linked' : 'Original Archive Cover'}
+                    </p>
+                    {coverUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setCoverUrl(null)}
+                        className="text-[10px] font-bold text-[#FF4757] hover:underline"
+                      >
+                        Revert to Archive Cover
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Description / Notes */}
             <div className="space-y-1.5">
               <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
-                Issue #
+                Synopsis / Book Notes
               </label>
-              <input
-                type="number"
-                step="any"
-                value={issueNumber}
-                onChange={(e) => setIssueNumber(parseFloat(e.target.value))}
-                className="w-full px-3.5 py-2.5 bg-white border-3 border-[#111827] rounded-xl text-sm font-semibold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
+              <textarea
+                rows={3}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Enter plot summary or book notes..."
+                className="w-full px-3.5 py-2 bg-white border-2 border-[#111827] rounded-xl text-xs font-bold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
               />
             </div>
-          </div>
+          </form>
+        </div>
 
-          {/* Author */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
-              Author / Creator
-            </label>
-            <input
-              type="text"
-              value={author}
-              onChange={(e) => setAuthor(e.target.value)}
-              placeholder="e.g. Neil Gaiman, Frank Miller"
-              className="w-full px-3.5 py-2.5 bg-white border-3 border-[#111827] rounded-xl text-sm font-semibold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
-            />
-          </div>
+        {/* Footer Actions */}
+        <div className="px-6 py-4 border-t-3 border-[#111827] bg-white flex items-center justify-between shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-[#111827] text-xs font-black uppercase tracking-wider rounded-xl border-2 border-[#111827] shadow-[2px_2px_0_#111827] transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
 
-          {/* Reading Direction */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
-              Reading Direction
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setReadingDirection('ltr')}
-                className={`py-2 px-3 rounded-xl border-2 border-[#111827] text-xs font-black uppercase tracking-wider transition-all ${
-                  readingDirection === 'ltr'
-                    ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757]'
-                    : 'bg-white text-slate-700 hover:bg-slate-100 shadow-[2px_2px_0_#111827]'
-                }`}
-              >
-                LTR (Western)
-              </button>
-              <button
-                type="button"
-                onClick={() => setReadingDirection('rtl')}
-                className={`py-2 px-3 rounded-xl border-2 border-[#111827] text-xs font-black uppercase tracking-wider transition-all ${
-                  readingDirection === 'rtl'
-                    ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757]'
-                    : 'bg-white text-slate-700 hover:bg-slate-100 shadow-[2px_2px_0_#111827]'
-                }`}
-              >
-                RTL (Manga)
-              </button>
-            </div>
-          </div>
-
-          {/* Description */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
-              Synopsis / Notes
-            </label>
-            <textarea
-              rows={3}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-white border-3 border-[#111827] rounded-xl text-sm font-semibold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
-            />
-          </div>
-
-          {/* Footer Actions */}
-          <div className="pt-4 border-t-2 border-slate-200 flex justify-end space-x-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-[#111827] text-xs font-black uppercase tracking-wider rounded-xl border-2 border-[#111827] shadow-[2px_2px_0_#111827] transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-6 py-2.5 bg-[#2ED573] hover:bg-[#26af5f] disabled:opacity-50 text-[#111827] font-black text-xs uppercase tracking-wider rounded-xl border-3 border-[#111827] shadow-[3px_3px_0_#111827] transition-all flex items-center gap-2"
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 stroke-[2.5]" />}
-              Save Changes
-            </button>
-          </div>
-        </form>
+          <button
+            type="submit"
+            form="metadata-form"
+            disabled={saving}
+            className="px-6 py-2.5 bg-[#2ED573] hover:bg-[#26af5f] disabled:opacity-50 text-[#111827] font-black text-xs uppercase tracking-wider rounded-xl border-3 border-[#111827] shadow-[3px_3px_0_#111827] transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+          >
+            {saving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Saving to Vault...</span>
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4 stroke-[2.5]" />
+                <span>Save Changes & Reorganize</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

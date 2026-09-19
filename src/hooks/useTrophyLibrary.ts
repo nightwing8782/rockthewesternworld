@@ -319,7 +319,70 @@ export function useTrophyLibrary(user: any) {
     }
   };
 
-  // 5. Delete Book
+  // 5. Update Book Metadata with Optimistic UI updates
+  const updateBookMetadata = async (
+    bookId: string,
+    updates: Partial<TrophyBook>,
+    applyToEntireSeries: boolean = false
+  ) => {
+    if (!user) return;
+    const currentBook = books.find((b) => b.id === bookId);
+    if (!currentBook) return;
+
+    // Optimistic UI update for instant shelf responsiveness
+    setBooks((prev) =>
+      prev.map((b) => {
+        if (b.id === bookId) {
+          return { ...b, ...updates };
+        }
+        if (applyToEntireSeries && updates.series && b.series === currentBook.series) {
+          return {
+            ...b,
+            series: updates.series,
+            ...(updates.author ? { author: updates.author } : {}),
+          };
+        }
+        return b;
+      })
+    );
+
+    // Save changes to Supabase
+    try {
+      const supabase = createClient();
+      const dbPayload: any = {};
+      if (updates.title !== undefined) dbPayload.title = updates.title;
+      if (updates.series !== undefined) dbPayload.series = updates.series;
+      if (updates.issue_number !== undefined) dbPayload.issue_number = updates.issue_number;
+      if (updates.author !== undefined) dbPayload.author = updates.author;
+      if (updates.description !== undefined) dbPayload.description = updates.description;
+      if (updates.reading_direction !== undefined) dbPayload.reading_direction = updates.reading_direction;
+      if (updates.page_count !== undefined) dbPayload.page_count = updates.page_count;
+      if (updates.cover_url !== undefined) dbPayload.cover_url = updates.cover_url;
+
+      if (applyToEntireSeries && updates.series && currentBook.series) {
+        await supabase
+          .from('trophy_books')
+          .update({
+            series: updates.series,
+            ...(updates.author ? { author: updates.author } : {}),
+          })
+          .eq('series', currentBook.series);
+      }
+
+      const { error: updateErr } = await supabase
+        .from('trophy_books')
+        .update(dbPayload)
+        .eq('id', bookId);
+
+      if (updateErr) throw updateErr;
+    } catch (err) {
+      console.error('Failed to save metadata updates to Supabase:', err);
+      // Rollback on network failure
+      await loadLibrary();
+    }
+  };
+
+  // 6. Delete Book
   const deleteBook = async (book: TrophyBook) => {
     if (!user) return;
     const confirm = window.confirm(`Delete "${book.title}" from The Trophy Room?`);
@@ -448,6 +511,7 @@ export function useTrophyLibrary(user: any) {
     updateSettings,
     ingestFiles,
     updateProgress,
+    updateBookMetadata,
     toggleOffline,
     deleteBook,
     loadLibrary,
