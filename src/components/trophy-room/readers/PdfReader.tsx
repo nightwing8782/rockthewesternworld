@@ -74,17 +74,41 @@ export default function PdfReader({
   const page1 = currentPage;
   const page2 = isDualPage && page1 + 1 <= numPages ? page1 + 1 : null;
 
-  // Render Page(s) on Canvas
+  const renderTask1Ref = useRef<any>(null);
+  const renderTask2Ref = useRef<any>(null);
+
+  // Render Page(s) on Canvas with High-DPI Retina Resolution
   const renderCurrentPages = useCallback(async () => {
     if (!pdfDoc || !containerRef.current) return;
     setRendering(true);
 
-    try {
-      const containerWidth = containerRef.current.clientWidth;
-      const containerHeight = containerRef.current.clientHeight;
+    // Cancel any previous in-flight render tasks to avoid collisions
+    if (renderTask1Ref.current) {
+      try {
+        renderTask1Ref.current.cancel();
+      } catch (e) {}
+      renderTask1Ref.current = null;
+    }
+    if (renderTask2Ref.current) {
+      try {
+        renderTask2Ref.current.cancel();
+      } catch (e) {}
+      renderTask2Ref.current = null;
+    }
 
-      const targetWidth = isDualPage ? containerWidth / 2 - 16 : containerWidth;
-      const targetHeight = containerHeight;
+    try {
+      const containerWidth = containerRef.current.clientWidth || window.innerWidth;
+      const containerHeight = containerRef.current.clientHeight || window.innerHeight;
+
+      // Deduct padding
+      const availableWidth = Math.max(300, containerWidth - 32);
+      const availableHeight = Math.max(300, containerHeight - 32);
+
+      const targetWidth = isDualPage ? availableWidth / 2 - 12 : availableWidth;
+      const targetHeight = availableHeight;
+
+      // Device Pixel Ratio for crystal-clear Retina rendering (e.g. 2x on MacBook / iPad, 3x on mobile)
+      const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 3) : 1;
 
       // Render First Page
       const p1 = await pdfDoc.getPage(page1);
@@ -96,22 +120,41 @@ export default function PdfReader({
       } else if (settings.fitMode === 'height') {
         scale1 = (targetHeight / vp1Unscaled.height) * (settings.zoomLevel / 100);
       } else {
-        // contain
+        // contain (default)
         scale1 = Math.min(targetWidth / vp1Unscaled.width, targetHeight / vp1Unscaled.height) * (settings.zoomLevel / 100);
       }
 
-      const vp1 = p1.getViewport({ scale: Math.max(0.4, scale1) });
+      const vp1 = p1.getViewport({ scale: Math.max(0.2, scale1) });
       const c1 = canvasRef1.current;
       if (c1) {
-        c1.width = vp1.width;
-        c1.height = vp1.height;
-        const ctx1 = c1.getContext('2d');
+        // Set actual pixel dimensions to DPR scaled resolution
+        c1.width = Math.floor(vp1.width * dpr);
+        c1.height = Math.floor(vp1.height * dpr);
+
+        // Set CSS display dimensions to logical points
+        c1.style.width = `${Math.floor(vp1.width)}px`;
+        c1.style.height = `${Math.floor(vp1.height)}px`;
+
+        const ctx1 = c1.getContext('2d', { alpha: false });
         if (ctx1) {
-          await (p1 as any).render({ canvasContext: ctx1, viewport: vp1, canvas: c1 } as any).promise;
+          ctx1.imageSmoothingEnabled = true;
+          ctx1.imageSmoothingQuality = 'high';
+          ctx1.fillStyle = '#ffffff';
+          ctx1.fillRect(0, 0, c1.width, c1.height);
+
+          const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null;
+          const renderTask = (p1 as any).render({
+            canvasContext: ctx1,
+            viewport: vp1,
+            transform: transform || undefined,
+            canvas: c1,
+          });
+          renderTask1Ref.current = renderTask;
+          await renderTask.promise;
         }
       }
 
-      // Render Second Page if dual-mode
+      // Render Second Page if dual-mode active
       if (page2 && canvasRef2.current) {
         const p2 = await pdfDoc.getPage(page2);
         const vp2Unscaled = p2.getViewport({ scale: 1.0 });
@@ -125,17 +168,35 @@ export default function PdfReader({
           scale2 = Math.min(targetWidth / vp2Unscaled.width, targetHeight / vp2Unscaled.height) * (settings.zoomLevel / 100);
         }
 
-        const vp2 = p2.getViewport({ scale: Math.max(0.4, scale2) });
+        const vp2 = p2.getViewport({ scale: Math.max(0.2, scale2) });
         const c2 = canvasRef2.current;
-        c2.width = vp2.width;
-        c2.height = vp2.height;
-        const ctx2 = c2.getContext('2d');
+        c2.width = Math.floor(vp2.width * dpr);
+        c2.height = Math.floor(vp2.height * dpr);
+        c2.style.width = `${Math.floor(vp2.width)}px`;
+        c2.style.height = `${Math.floor(vp2.height)}px`;
+
+        const ctx2 = c2.getContext('2d', { alpha: false });
         if (ctx2) {
-          await (p2 as any).render({ canvasContext: ctx2, viewport: vp2, canvas: c2 } as any).promise;
+          ctx2.imageSmoothingEnabled = true;
+          ctx2.imageSmoothingQuality = 'high';
+          ctx2.fillStyle = '#ffffff';
+          ctx2.fillRect(0, 0, c2.width, c2.height);
+
+          const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null;
+          const renderTask = (p2 as any).render({
+            canvasContext: ctx2,
+            viewport: vp2,
+            transform: transform || undefined,
+            canvas: c2,
+          });
+          renderTask2Ref.current = renderTask;
+          await renderTask.promise;
         }
       }
-    } catch (err) {
-      console.warn('[PdfReader] Render error:', err);
+    } catch (err: any) {
+      if (err?.name !== 'RenderingCancelledException') {
+        console.warn('[PdfReader] Render error:', err);
+      }
     } finally {
       setRendering(false);
     }
@@ -247,22 +308,32 @@ export default function PdfReader({
     <div
       ref={containerRef}
       onClick={handleContainerClick}
-      className="relative w-full h-full flex items-center justify-center overflow-hidden bg-black/95 select-none cursor-pointer"
+      className="relative w-full h-full flex items-center justify-center overflow-auto bg-[#0a0a0c] select-none cursor-pointer p-2 sm:p-4"
     >
       <div
         className={`flex items-center justify-center max-w-full max-h-full transition-opacity duration-150 ${
-          rendering ? 'opacity-80' : 'opacity-100'
-        } ${isRTL ? 'flex-row-reverse' : 'flex-row'} gap-4 p-2`}
+          rendering ? 'opacity-90' : 'opacity-100'
+        } ${isRTL ? 'flex-row-reverse' : 'flex-row'} gap-4 sm:gap-6`}
+        style={{
+          transform: settings.zoomLevel !== 100 ? `scale(${settings.zoomLevel / 100})` : undefined,
+          transformOrigin: 'center center',
+          transition: 'transform 0.15s ease-out',
+        }}
       >
-        <canvas
-          ref={canvasRef1}
-          className="shadow-2xl rounded-sm max-w-full max-h-[96vh] object-contain"
-        />
-        {isDualPage && page2 && (
+        <div className="relative bg-white shadow-[0_20px_60px_rgba(0,0,0,0.85)] ring-1 ring-white/10 rounded-sm overflow-hidden flex items-center justify-center">
           <canvas
-            ref={canvasRef2}
-            className="shadow-2xl rounded-sm max-w-full max-h-[96vh] object-contain"
+            ref={canvasRef1}
+            className="block max-w-full max-h-[95vh] object-contain"
           />
+        </div>
+
+        {isDualPage && page2 && (
+          <div className="relative bg-white shadow-[0_20px_60px_rgba(0,0,0,0.85)] ring-1 ring-white/10 rounded-sm overflow-hidden flex items-center justify-center">
+            <canvas
+              ref={canvasRef2}
+              className="block max-w-full max-h-[95vh] object-contain"
+            />
+          </div>
         )}
       </div>
 
