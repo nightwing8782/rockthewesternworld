@@ -17,8 +17,9 @@ let cachedWorkerBlobUrl: string | null = null;
 
 async function getResilientWorkerSrc(version: string): Promise<string> {
   if (cachedWorkerBlobUrl) return cachedWorkerBlobUrl;
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
   try {
-    const res = await fetch('/pdfjs/pdf.worker.min.mjs');
+    const res = await fetch(`${origin}/pdfjs/pdf.worker.min.mjs`);
     if (res.ok) {
       const code = await res.text();
       const blob = new Blob([code], { type: 'text/javascript' });
@@ -61,13 +62,14 @@ export default function PdfReader({
         const workerSrc = await getResilientWorkerSrc(pdfjsLib.version);
         pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
+        const origin = typeof window !== 'undefined' ? window.location.origin : '';
         const arrayBuffer = await fileBlob.arrayBuffer();
         const doc = await pdfjsLib.getDocument({
           data: arrayBuffer,
-          cMapUrl: '/pdfjs/cmaps/',
+          cMapUrl: `${origin}/pdfjs/cmaps/`,
           cMapPacked: true,
-          standardFontDataUrl: '/pdfjs/standard_fonts/',
-          wasmUrl: '/pdfjs/wasm/',
+          standardFontDataUrl: `${origin}/pdfjs/standard_fonts/`,
+          wasmUrl: `${origin}/pdfjs/wasm/`,
           enableXfa: true,
           useSystemFonts: true,
         }).promise;
@@ -149,29 +151,26 @@ export default function PdfReader({
         scale1 = Math.min(targetWidth / vp1Unscaled.width, targetHeight / vp1Unscaled.height) * (settings.zoomLevel / 100);
       }
 
-      const vp1 = p1.getViewport({ scale: Math.max(0.2, scale1) });
+      const scaledScale1 = Math.max(0.2, scale1) * dpr;
+      const vp1 = p1.getViewport({ scale: scaledScale1 });
       const c1 = canvasRef1.current;
       if (c1) {
-        // Set actual pixel dimensions to DPR scaled resolution
-        c1.width = Math.floor(vp1.width * dpr);
-        c1.height = Math.floor(vp1.height * dpr);
+        // Set canvas buffer to native High-DPI resolution
+        c1.width = Math.floor(vp1.width);
+        c1.height = Math.floor(vp1.height);
 
         // Set CSS display dimensions to logical points
-        c1.style.width = `${Math.floor(vp1.width)}px`;
-        c1.style.height = `${Math.floor(vp1.height)}px`;
+        c1.style.width = `${Math.floor(vp1.width / dpr)}px`;
+        c1.style.height = `${Math.floor(vp1.height / dpr)}px`;
 
-        const ctx1 = c1.getContext('2d', { alpha: false });
+        const ctx1 = c1.getContext('2d');
         if (ctx1) {
-          ctx1.imageSmoothingEnabled = true;
-          ctx1.imageSmoothingQuality = 'high';
           ctx1.fillStyle = '#ffffff';
           ctx1.fillRect(0, 0, c1.width, c1.height);
 
-          const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null;
           const renderTask = (p1 as any).render({
             canvasContext: ctx1,
             viewport: vp1,
-            transform: transform || undefined,
             canvas: c1,
           });
           renderTask1Ref.current = renderTask;
@@ -193,25 +192,22 @@ export default function PdfReader({
           scale2 = Math.min(targetWidth / vp2Unscaled.width, targetHeight / vp2Unscaled.height) * (settings.zoomLevel / 100);
         }
 
-        const vp2 = p2.getViewport({ scale: Math.max(0.2, scale2) });
+        const scaledScale2 = Math.max(0.2, scale2) * dpr;
+        const vp2 = p2.getViewport({ scale: scaledScale2 });
         const c2 = canvasRef2.current;
-        c2.width = Math.floor(vp2.width * dpr);
-        c2.height = Math.floor(vp2.height * dpr);
-        c2.style.width = `${Math.floor(vp2.width)}px`;
-        c2.style.height = `${Math.floor(vp2.height)}px`;
+        c2.width = Math.floor(vp2.width);
+        c2.height = Math.floor(vp2.height);
+        c2.style.width = `${Math.floor(vp2.width / dpr)}px`;
+        c2.style.height = `${Math.floor(vp2.height / dpr)}px`;
 
-        const ctx2 = c2.getContext('2d', { alpha: false });
+        const ctx2 = c2.getContext('2d');
         if (ctx2) {
-          ctx2.imageSmoothingEnabled = true;
-          ctx2.imageSmoothingQuality = 'high';
           ctx2.fillStyle = '#ffffff';
           ctx2.fillRect(0, 0, c2.width, c2.height);
 
-          const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null;
           const renderTask = (p2 as any).render({
             canvasContext: ctx2,
             viewport: vp2,
-            transform: transform || undefined,
             canvas: c2,
           });
           renderTask2Ref.current = renderTask;

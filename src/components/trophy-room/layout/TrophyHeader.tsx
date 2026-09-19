@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import {
   Trophy,
   Search,
@@ -13,6 +14,8 @@ import {
   Sparkles,
   BookOpen,
   Filter,
+  ArrowLeft,
+  Home,
 } from 'lucide-react';
 import { ShelfViewMode, FilterCategory, SortOption, IngestionProgressState } from '@/types/trophy';
 
@@ -62,11 +65,22 @@ export default function TrophyHeader({
       <div className="max-w-7xl mx-auto space-y-3">
         {/* Row 1: Brand + Stats + Action Buttons */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          {/* Logo & Title */}
-          <div className="flex items-center gap-3">
+          {/* Logo & Title & Homepage Link */}
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            {/* Back to Homepage Button */}
+            <Link
+              href="/"
+              className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-100 text-[#111827] font-black text-xs uppercase tracking-wider rounded-2xl border-3 border-[#111827] shadow-[3px_3px_0_#111827] active:translate-x-0.5 active:translate-y-0.5 transition-all group shrink-0"
+              title="Return to Rock The Western World Homepage"
+            >
+              <ArrowLeft className="w-4 h-4 stroke-[2.5] group-hover:-translate-x-0.5 transition-transform text-[#FF4757]" />
+              <span className="hidden sm:inline">Rock The Western World</span>
+              <span className="sm:hidden">Home</span>
+            </Link>
+
             <div className="relative">
-              <div className="w-12 h-12 rounded-2xl bg-[#FFDE59] border-3 border-[#111827] flex items-center justify-center shadow-[3px_3px_0_#111827] transform -rotate-2 hover:rotate-0 transition-transform">
-                <Trophy className="w-7 h-7 text-[#111827] fill-[#FF4757]" />
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-[#FFDE59] border-3 border-[#111827] flex items-center justify-center shadow-[3px_3px_0_#111827] transform -rotate-2 hover:rotate-0 transition-transform">
+                <Trophy className="w-6 h-6 sm:w-7 sm:h-7 text-[#111827] fill-[#FF4757]" />
               </div>
               {offlineCount > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 bg-[#2ED573] text-[#111827] border-2 border-[#111827] text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-[1px_1px_0_#111827]">
@@ -77,14 +91,14 @@ export default function TrophyHeader({
 
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-3xl sm:text-4xl font-hero tracking-wider text-[#111827] drop-shadow-[2px_2px_0_#FFDE59] uppercase leading-none">
+                <h1 className="text-2xl sm:text-4xl font-hero tracking-wider text-[#111827] drop-shadow-[2px_2px_0_#FFDE59] uppercase leading-none">
                   TROPHY ROOM
                 </h1>
-                <span className="bg-[#FF4757] text-white border-2 border-[#111827] text-[11px] font-comic font-black px-2 py-0.5 rounded-lg shadow-[2px_2px_0_#111827] uppercase tracking-wider -rotate-3">
+                <span className="bg-[#FF4757] text-white border-2 border-[#111827] text-[10px] sm:text-[11px] font-comic font-black px-1.5 sm:px-2 py-0.5 rounded-lg shadow-[2px_2px_0_#111827] uppercase tracking-wider -rotate-3">
                   IPAD EDITION
                 </span>
               </div>
-              <p className="text-xs font-bold font-comic text-slate-600 tracking-wide mt-0.5">
+              <p className="text-[11px] sm:text-xs font-bold font-comic text-slate-600 tracking-wide mt-0.5">
                 The Stacks • Offline Comic & eBook Library
               </p>
             </div>
