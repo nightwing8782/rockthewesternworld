@@ -23,6 +23,54 @@ export function detectFormat(fileName: string): BookFormat {
 }
 
 /**
+ * Un-squish PascalCase and compressed title strings
+ */
+export function unSquishWords(text: string): string {
+  if (!text || typeof text !== 'string') return text;
+
+  // 1. Strip extensions and brackets
+  let str = text
+    .replace(/\.(cbz|cbr|epub|pdf|zip)$/i, '')
+    .replace(/\[.*?\]/g, ' ')
+    .replace(/\((?!19\d\d|20\d\d).*?\)/g, ' ')
+    .replace(/[-_]+/g, ' ')
+    .trim();
+
+  // 2. Split PascalCase / CamelCase (e.g. ASilentVoice -> A Silent Voice)
+  str = str.replace(/([a-z])([A-Z])/g, '$1 $2');
+  str = str.replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
+
+  // 3. Clean common squished lowercase phrases
+  const explicitPhrases: [RegExp, string][] = [
+    [/^asilentvoice/i, 'A Silent Voice'],
+    [/^atouchofthelovebug/i, 'A Touch of the Love Bug'],
+    [/^attheclasspresidentsbeckandcall/i, "At the Class President's Beck and Call"],
+    [/^thecompletepeanuts/i, 'The Complete Peanuts'],
+  ];
+
+  for (const [pattern, replacement] of explicitPhrases) {
+    if (pattern.test(str)) {
+      str = str.replace(pattern, replacement);
+      break;
+    }
+  }
+
+  // 4. Format to clean Title Case
+  const lowercase = ['a', 'an', 'the', 'and', 'but', 'or', 'for', 'nor', 'on', 'at', 'to', 'by', 'of', 'in', 'with', 'vs'];
+  str = str
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word, index) => {
+      const wLower = word.toLowerCase();
+      if (index > 0 && lowercase.includes(wLower)) return wLower;
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+
+  return str;
+}
+
+/**
  * Clean filename into structured Series, Issue Number, and Title
  */
 export function parseFilenameHeuristics(filename: string): {
@@ -56,8 +104,8 @@ export function parseFilenameHeuristics(filename: string): {
   }
 
   // Clean trailing punctuation
-  series = series.replace(/[-_#]+$/, '').trim();
-  const cleanTitle = name.replace(/[-_]+/g, ' ').trim();
+  series = unSquishWords(series.replace(/[-_#]+$/, '').trim());
+  const cleanTitle = unSquishWords(name);
 
   return {
     cleanTitle: cleanTitle || filename,

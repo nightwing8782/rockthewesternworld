@@ -17,7 +17,9 @@ import AddBookModal from '../modals/AddBookModal';
 import SettingsModal from '../modals/SettingsModal';
 import ReaderContainer from '../readers/ReaderContainer';
 import TrophyErrorBoundary from '../common/TrophyErrorBoundary';
-import { BookOpen, PlusCircle, HardDrive, Layers, LayoutGrid, List, Loader2 } from 'lucide-react';
+import ContinueReadingDeck from '../hub/ContinueReadingDeck';
+import WatchtowerSectorsGrid from '../hub/WatchtowerSectorsGrid';
+import { BookOpen, PlusCircle, HardDrive, Layers, LayoutGrid, List, Loader2, ArrowLeft, Compass } from 'lucide-react';
 
 interface ShelfViewProps {
   user: any;
@@ -132,109 +134,170 @@ export default function ShelfView({ user }: ShelfViewProps) {
           </div>
         )}
 
-        {/* Content Views */}
+        {/* Main Content Area */}
         {!isLoading && totalItemCount > 0 && (
           <main className="space-y-6">
-            {/* Shelf Bar: View Mode Switcher + Stats */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border-3 border-[#111827] shadow-[4px_4px_0_#111827]">
-              {/* Left: View Mode Toggle Buttons */}
-              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border-2 border-[#111827]">
-                <button
-                  onClick={() => setViewMode('stacked')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs tracking-wider uppercase transition-all ${
-                    viewMode === 'stacked'
-                      ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757] font-black'
-                      : 'text-slate-700 hover:text-black font-bold'
-                  }`}
-                  title="Group series into bundle stacks"
-                >
-                  <Layers className="w-3.5 h-3.5 stroke-[2.5]" />
-                  <span>BUNDLED STACKS</span>
-                </button>
+            {/* Hub View Mode: Continue Reading Deck + Watchtower Sector Portals */}
+            {filter === 'all' && !searchQuery ? (
+              <div className="space-y-8">
+                {/* 1. Top Hero: Continue Reading Deck */}
+                <ContinueReadingDeck
+                  books={books}
+                  onOpenBook={(b) => setActiveBook(b)}
+                />
 
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs tracking-wider uppercase transition-all ${
-                    viewMode === 'grid'
-                      ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757] font-black'
-                      : 'text-slate-700 hover:text-black font-bold'
-                  }`}
-                  title="Display all individual issue covers"
-                >
-                  <LayoutGrid className="w-3.5 h-3.5 stroke-[2.5]" />
-                  <span>ALL COVERS</span>
-                </button>
-
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs tracking-wider uppercase transition-all ${
-                    viewMode === 'list'
-                      ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757] font-black'
-                      : 'text-slate-700 hover:text-black font-bold'
-                  }`}
-                  title="Detailed compact list with progress"
-                >
-                  <List className="w-3.5 h-3.5 stroke-[2.5]" />
-                  <span>LIST VIEW</span>
-                </button>
+                {/* 2. Watchtower Sector Portals Grid */}
+                <WatchtowerSectorsGrid
+                  books={books}
+                  onSelectSector={(sec) => setFilter(sec)}
+                  onSelectAll={() => setViewMode('grid')}
+                />
               </div>
+            ) : (
+              /* Focused Sector / Filtered Shelf View */
+              <div className="space-y-6">
+                {/* Sector Navigation & Control Breadcrumb Bar */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-3xl border-4 border-[#111827] shadow-[5px_5px_0_#111827]">
+                  {/* Left: Return to Hub + Sector Title */}
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => {
+                        setFilter('all');
+                        setSearchQuery('');
+                      }}
+                      className="flex items-center gap-1.5 px-3.5 py-2 bg-[#FFDE59] hover:bg-[#ffcf21] text-[#111827] font-black text-xs uppercase tracking-wider rounded-xl border-2 border-[#111827] shadow-[2px_2px_0_#111827] active:scale-95 transition-all cursor-pointer"
+                      title="Return to Watchtower Hub Portals"
+                    >
+                      <ArrowLeft className="w-4 h-4 stroke-[3]" />
+                      <span>Watchtower Hub</span>
+                    </button>
 
-              {/* Right: Summary info */}
-              <div className="flex items-center gap-3 text-xs font-bold text-slate-600 self-end sm:self-center">
-                <span>
-                  {viewMode === 'stacked'
-                    ? `${seriesGroups.length} Series & Standalones`
-                    : `${filteredBooks.length} Issues & Books`}
-                </span>
-                <div className="flex items-center gap-1.5 text-slate-900 bg-amber-100 px-2 py-0.5 rounded-lg border border-[#111827]">
-                  <HardDrive className="w-3 h-3 text-amber-700" />
-                  <span>R2 Cloud + OPFS Ready</span>
+                    <div className="h-6 w-0.5 bg-slate-300 hidden sm:block" />
+
+                    <div>
+                      <span className="text-[9px] font-black uppercase tracking-widest text-[#FF4757]">
+                        {searchQuery ? 'SEARCH QUERY' : 'ACTIVE SECTOR'}
+                      </span>
+                      <h3 className="font-black text-sm sm:text-base text-[#111827] uppercase tracking-wide leading-none">
+                        {searchQuery
+                          ? `Results for "${searchQuery}"`
+                          : filter === 'comic'
+                          ? '🦸 Sector 01: Comic Archives'
+                          : filter === 'manga'
+                          ? '⛩️ Sector 02: Manga Sanctuary'
+                          : filter === 'cookbook'
+                          ? '🍳 Sector 03: The Culinary Vault'
+                          : filter === 'reference'
+                          ? '🛠️ Sector 04: 101 Reference Stacks'
+                          : filter === 'wellness'
+                          ? '🧘 Sector 05: Wellness & Habits'
+                          : filter === 'magazine'
+                          ? '📰 Sector 06: Periodicals & Essays'
+                          : filter === 'favorites'
+                          ? '⭐ Sector 07: Trophy Hall of Fame'
+                          : filter === 'epub'
+                          ? '📖 Sector 08: Prose & Literature'
+                          : `${filter.toUpperCase()} ARCHIVES`}
+                      </h3>
+                    </div>
+                  </div>
+
+                  {/* Right: View Mode & Count */}
+                  <div className="flex items-center gap-3 self-end sm:self-center">
+                    {/* View Mode Switcher */}
+                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border-2 border-[#111827]">
+                      <button
+                        onClick={() => setViewMode('stacked')}
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs tracking-wider uppercase transition-all ${
+                          viewMode === 'stacked'
+                            ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757] font-black'
+                            : 'text-slate-700 hover:text-black font-bold'
+                        }`}
+                        title="Group series into bundle stacks"
+                      >
+                        <Layers className="w-3.5 h-3.5 stroke-[2.5]" />
+                        <span className="hidden md:inline">Stacks</span>
+                      </button>
+
+                      <button
+                        onClick={() => setViewMode('grid')}
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs tracking-wider uppercase transition-all ${
+                          viewMode === 'grid'
+                            ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757] font-black'
+                            : 'text-slate-700 hover:text-black font-bold'
+                        }`}
+                        title="Display all individual issue covers"
+                      >
+                        <LayoutGrid className="w-3.5 h-3.5 stroke-[2.5]" />
+                        <span className="hidden md:inline">Covers</span>
+                      </button>
+
+                      <button
+                        onClick={() => setViewMode('list')}
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs tracking-wider uppercase transition-all ${
+                          viewMode === 'list'
+                            ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757] font-black'
+                            : 'text-slate-700 hover:text-black font-bold'
+                        }`}
+                        title="Detailed compact list with progress"
+                      >
+                        <List className="w-3.5 h-3.5 stroke-[2.5]" />
+                        <span className="hidden md:inline">List</span>
+                      </button>
+                    </div>
+
+                    <span className="text-xs font-mono font-black text-slate-700">
+                      {viewMode === 'stacked'
+                        ? `${seriesGroups.length} Stacks`
+                        : `${filteredBooks.length} Titles`}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            {/* View Mode 1: Series Stacks (Default) */}
-            {viewMode === 'stacked' && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {seriesGroups.map((group) => (
-                  <SeriesStackCard
-                    key={group.seriesName}
-                    series={group}
-                    onOpenSeries={(s) => setSelectedSeries(s)}
-                    onOpenBook={(b) => setActiveBook(b)}
-                    onEditMetadata={(b) => setEditingBook(b)}
-                    onToggleOffline={toggleOffline}
-                    onDelete={deleteBook}
-                  />
-                ))}
-              </div>
-            )}
+                {/* View Mode 1: Series Stacks (Default) */}
+                {viewMode === 'stacked' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    {seriesGroups.map((group) => (
+                      <SeriesStackCard
+                        key={group.seriesName}
+                        series={group}
+                        onOpenSeries={(s) => setSelectedSeries(s)}
+                        onOpenBook={(b) => setActiveBook(b)}
+                        onEditMetadata={(b) => setEditingBook(b)}
+                        onToggleOffline={toggleOffline}
+                        onDelete={deleteBook}
+                      />
+                    ))}
+                  </div>
+                )}
 
-            {/* View Mode 2: Individual Grid */}
-            {viewMode === 'grid' && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {filteredBooks.map((book) => (
-                  <BookCard
-                    key={book.id}
-                    book={book}
+                {/* View Mode 2: Individual Grid */}
+                {viewMode === 'grid' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    {filteredBooks.map((book) => (
+                      <BookCard
+                        key={book.id}
+                        book={book}
+                        onOpen={(b) => setActiveBook(b)}
+                        onEditMetadata={(b) => setEditingBook(b)}
+                        onToggleOffline={toggleOffline}
+                        onDelete={deleteBook}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* View Mode 3: Table / List View */}
+                {viewMode === 'list' && (
+                  <BookListView
+                    books={filteredBooks}
                     onOpen={(b) => setActiveBook(b)}
                     onEditMetadata={(b) => setEditingBook(b)}
                     onToggleOffline={toggleOffline}
                     onDelete={deleteBook}
                   />
-                ))}
+                )}
               </div>
-            )}
-
-            {/* View Mode 3: Table / List View */}
-            {viewMode === 'list' && (
-              <BookListView
-                books={filteredBooks}
-                onOpen={(b) => setActiveBook(b)}
-                onEditMetadata={(b) => setEditingBook(b)}
-                onToggleOffline={toggleOffline}
-                onDelete={deleteBook}
-              />
             )}
           </main>
         )}
