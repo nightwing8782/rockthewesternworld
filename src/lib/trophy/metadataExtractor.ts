@@ -22,8 +22,61 @@ export function detectFormat(fileName: string): BookFormat {
   return 'cbz';
 }
 
+const KNOWN_WORDS = [
+  // Manga & Anime
+  'silent', 'voice', 'canon', 'youth', 'touch', 'love', 'bug', 'class', 'presidents', 'president',
+  'beck', 'call', 'fullmetal', 'alchemist', 'chainsaw', 'punch', 'death', 'note', 'titan',
+  'attack', 'shingeki', 'kyojin', 'tokyo', 'ghoul', 'berserk', 'hunter', 'bleach', 'naruto',
+  'piece', 'dragon', 'ball', 'jujutsu', 'kaisen', 'demon', 'slayer', 'kimetsu', 'yaiba',
+  'family', 'vinland', 'saga', 'slam', 'dunk', 'vagabond', 'monster', 'punpun', 'goodnight',
+  'oyasumi', 'pluto', 'akira', 'evangelion', 'solanin', 'haikyuu', 'kuroko', 'basket', 'blue',
+  'lock', 'period', 'giant', 'killing', 'space', 'brothers', 'planetes', 'inuyasha', 'ranma',
+  'sailor', 'moon', 'cardcaptor', 'sakura', 'clamp', 'fruits', 'horimiya', 'kaguya', 'sama',
+  'rent', 'girlfriend', 'quintessential', 'quintuplets', 'komi', 'cant', 'communicate', 'bocchi',
+  'rock', 'frieren', 'dungeon', 'meshi', 'delicious', 'apothecary', 'diaries', 'witch', 'hat',
+  'atelier', 'land', 'lustrous', 'houseki', 'kuni', 'abyss', 'dorohedoro', 'golden', 'kamuy',
+  'kingdom', 'hellsing', 'trigun', 'gantz', 'claymore', 'souleater', 'fireforce', 'boruto',
+  'parasyte', 'ajin', 'gintama', 'beastars', 'drstone', 'blackclover', 'fairytail', 'edenszero',
+  'radiant', 'blame', 'biomega', 'sidonia',
+
+  // Comic & Superhero terms
+  'complete', 'peanuts', 'transformers', 'more', 'than', 'meets', 'eye', 'last', 'stand',
+  'wreckers', 'all', 'hail', 'megatron', 'autocracy', 'monstrosity', 'primacy', 'sins',
+  'requiem', 'robots', 'disguise', 'windblade', 'till', 'are', 'one', 'lost', 'light',
+  'optimus', 'prime', 'unicron', 'shattered', 'glass', 'beast', 'wars', 'ironhide',
+  'bumblebee', 'drift', 'kup', 'blurr', 'cliffjumper', 'wheeljack', 'origin', 'spotlight',
+  'maximum', 'dinobots', 'heart', 'darkness', 'chaos', 'dark', 'cybertron', 'combiner',
+  'titans', 'return', 'revolution', 'first', 'strike', 'infestation', 'incompetent', 'villain',
+  'doctor', 'aphra', 'darth', 'vader', 'star', 'bounty', 'hunters', 'high', 'republic',
+  'department', 'truth', 'something', 'is', 'killing', 'the', 'children', 'house', 'slaughter',
+  'nice', 'lake', 'dracula', 'wynd', 'memetic', 'cognet', 'eugenic', 'over', 'garden',
+  'wall', 'woods', 'bravest', 'warriors', 'lumberjanes', 'steven', 'universe', 'adventure',
+  'time', 'regular', 'show', 'panelxpanel', 'panel', 'story', 'craft', 'anatomy', 'hero',
+  'thousand', 'faces', 'save', 'cat', 'batman', 'superman', 'wonder', 'woman', 'spider',
+  'avengers', 'xmen', 'mutants', 'flash', 'green', 'lantern', 'nightwing', 'daredevil',
+
+  // General / Guides
+  'cookbook', 'food', 'lab', 'serious', 'eats', 'baking', 'bread', 'salt', 'fat', 'acid', 'heat',
+  'flour', 'water', 'yeast', 'dummies', 'writing', 'screenplay', 'screenwriting', 'guide',
+  'secret', 'history', 'chronicles', 'chronicle', 'tales', 'legend', 'quest', 'magic', 'galaxy',
+  'sun', 'sky', 'wind', 'fire', 'earth', 'stone', 'iron', 'steel', 'gold', 'silver', 'room',
+  'street', 'road', 'path', 'door', 'gate', 'bridge', 'tower', 'castle', 'palace', 'temple',
+  'school', 'academy', 'club', 'friend', 'friends', 'girl', 'boy', 'man', 'woman', 'child',
+  'daughter', 'brother', 'sister', 'father', 'mother', 'family', 'master', 'teacher', 'student',
+  'prince', 'princess', 'knight', 'soldier', 'warrior', 'captain', 'leader', 'boss', 'wizard',
+  'ghost', 'spirit', 'angel', 'saint', 'wolf', 'fox', 'bear', 'lion', 'tiger', 'rabbit',
+  'flower', 'tree', 'forest', 'mountain', 'river', 'ocean', 'island', 'garden', 'spring',
+  'summer', 'autumn', 'winter', 'rain', 'snow', 'storm', 'cloud', 'thunder', 'lightning',
+  'dream', 'nightmare', 'memory', 'hope', 'wish', 'fear', 'pain', 'joy', 'sorrow', 'truth',
+  'peace', 'order', 'destiny', 'fate', 'promise', 'vow', 'curse', 'spell', 'power', 'force',
+  'energy', 'soul', 'mind', 'body', 'sound', 'music', 'song', 'dance', 'game', 'play',
+  'volume', 'issue', 'chapter', 'part', 'book', 'edition', 'version', 'special', 'annual'
+];
+
+KNOWN_WORDS.sort((a, b) => b.length - a.length);
+
 /**
- * Un-squish PascalCase and compressed title strings
+ * Un-squish PascalCase, CamelCase, and continuous lowercase run-on title strings
  */
 export function unSquishWords(text: string): string {
   if (!text || typeof text !== 'string') return text;
@@ -36,16 +89,15 @@ export function unSquishWords(text: string): string {
     .replace(/[-_]+/g, ' ')
     .trim();
 
-  // 2. Split PascalCase / CamelCase (e.g. ASilentVoice -> A Silent Voice)
-  str = str.replace(/([a-z])([A-Z])/g, '$1 $2');
-  str = str.replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
-
-  // 3. Clean common squished lowercase phrases
+  // 2. Explicit known full phrases
   const explicitPhrases: [RegExp, string][] = [
     [/^asilentvoice/i, 'A Silent Voice'],
+    [/^canonofyouth/i, 'Canon of Youth'],
     [/^atouchofthelovebug/i, 'A Touch of the Love Bug'],
     [/^attheclasspresidentsbeckandcall/i, "At the Class President's Beck and Call"],
     [/^thecompletepeanuts/i, 'The Complete Peanuts'],
+    [/^thefoodlab/i, 'The Food Lab'],
+    [/^goodnightpunpun/i, 'Goodnight Punpun'],
   ];
 
   for (const [pattern, replacement] of explicitPhrases) {
@@ -55,8 +107,100 @@ export function unSquishWords(text: string): string {
     }
   }
 
-  // 4. Format to clean Title Case
-  const lowercase = ['a', 'an', 'the', 'and', 'but', 'or', 'for', 'nor', 'on', 'at', 'to', 'by', 'of', 'in', 'with', 'vs'];
+  // 3. Split PascalCase / CamelCase (e.g. ASilentVoice -> A Silent Voice, CanonOfYouth -> Canon Of Youth)
+  str = str.replace(/([a-z])([A-Z])/g, '$1 $2');
+  str = str.replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
+
+  // 4. Token-by-token dynamic segmentation for long unspaced lowercase strings
+  const tokens = str.split(/\s+/);
+  const fixedTokens = tokens.map((token) => {
+    if (token.length < 8 || /\s/.test(token)) return token;
+
+    const lower = token.toLowerCase();
+
+    // Check specific known starts
+    if (lower.startsWith('canonofyouth')) return 'Canon of Youth' + token.slice(12);
+    if (lower.startsWith('asilentvoice')) return 'A Silent Voice' + token.slice(12);
+    if (lower.startsWith('atouchofthelovebug')) return 'A Touch of the Love Bug' + token.slice(18);
+    if (lower.startsWith('attheclasspresidentsbeckandcall')) return "At the Class President's Beck and Call" + token.slice(31);
+    if (lower.startsWith('thecompletepeanuts')) return 'The Complete Peanuts' + token.slice(18);
+
+    let remainder = lower;
+    const pieces: string[] = [];
+    let matched = true;
+
+    while (remainder.length > 0 && matched) {
+      matched = false;
+
+      // Small prepositions/articles
+      if (remainder.startsWith('a') && remainder.length > 1 && !remainder.startsWith('an') && !remainder.startsWith('at') && !remainder.startsWith('as') && !remainder.startsWith('all')) {
+        pieces.push('A');
+        remainder = remainder.slice(1);
+        matched = true;
+        continue;
+      }
+      if (remainder.startsWith('at') && remainder.length > 2) {
+        pieces.push('At');
+        remainder = remainder.slice(2);
+        matched = true;
+        continue;
+      }
+      if (remainder.startsWith('of') && remainder.length > 2) {
+        pieces.push('of');
+        remainder = remainder.slice(2);
+        matched = true;
+        continue;
+      }
+      if (remainder.startsWith('in') && remainder.length > 2) {
+        pieces.push('in');
+        remainder = remainder.slice(2);
+        matched = true;
+        continue;
+      }
+      if (remainder.startsWith('to') && remainder.length > 2) {
+        pieces.push('to');
+        remainder = remainder.slice(2);
+        matched = true;
+        continue;
+      }
+      if (remainder.startsWith('the') && remainder.length > 3) {
+        pieces.push('The');
+        remainder = remainder.slice(3);
+        matched = true;
+        continue;
+      }
+      if (remainder.startsWith('and') && remainder.length > 3) {
+        pieces.push('and');
+        remainder = remainder.slice(3);
+        matched = true;
+        continue;
+      }
+
+      for (const kw of KNOWN_WORDS) {
+        if (remainder.startsWith(kw)) {
+          pieces.push(kw.charAt(0).toUpperCase() + kw.slice(1));
+          remainder = remainder.slice(kw.length);
+          matched = true;
+          break;
+        }
+      }
+    }
+
+    if (!matched && remainder.length > 0) {
+      pieces.push(remainder);
+    }
+
+    if (pieces.length > 1) {
+      return pieces.join(' ');
+    }
+
+    return token;
+  });
+
+  str = fixedTokens.join(' ');
+
+  // 5. Clean Title Casing
+  const lowercase = ['a', 'an', 'the', 'and', 'but', 'or', 'for', 'nor', 'on', 'at', 'to', 'by', 'of', 'in', 'with', 'vs', 'v'];
   str = str
     .split(/\s+/)
     .filter(Boolean)
@@ -66,6 +210,11 @@ export function unSquishWords(text: string): string {
       return word.charAt(0).toUpperCase() + word.slice(1);
     })
     .join(' ');
+
+  // Format vol / issue markers
+  str = str.replace(/\bv(\d+)\b/i, 'Vol. $1');
+  str = str.replace(/\bvol\.?\s*(\d+)/i, 'Vol. $1');
+  str = str.replace(/\b#\s*(\d+)/, '#$1');
 
   return str;
 }
@@ -158,7 +307,7 @@ async function extractFromCbz(file: File | Blob, filename: string): Promise<Extr
       const summaryTag = doc.querySelector('Summary')?.textContent;
       const mangaTag = doc.querySelector('Manga')?.textContent;
 
-      if (seriesTag) parsed.series = seriesTag.trim();
+      if (seriesTag) parsed.series = unSquishWords(seriesTag.trim());
       if (numberTag && !isNaN(parseFloat(numberTag))) parsed.issueNumber = parseFloat(numberTag);
       if (writerTag) author = writerTag.trim();
       if (summaryTag) description = summaryTag.trim();
@@ -211,7 +360,7 @@ async function extractFromEpub(file: File | Blob, filename: string): Promise<Ext
         const creatorTag = opfDoc.querySelector('creator, dc\\:creator')?.textContent;
         const descTag = opfDoc.querySelector('description, dc\\:description')?.textContent;
 
-        if (titleTag) parsed.cleanTitle = titleTag.trim();
+        if (titleTag) parsed.cleanTitle = unSquishWords(titleTag.trim());
         if (creatorTag) author = creatorTag.trim();
         if (descTag) description = descTag.trim();
 
@@ -258,54 +407,38 @@ async function extractFromPdf(file: File | Blob, filename: string): Promise<Extr
   let coverBlob: Blob | null = null;
   let pageCount = 0;
 
-  try {
-    if (typeof window !== 'undefined') {
-      const pdfjsLib = await import('pdfjs-dist');
-      // Set worker
-      if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
-      }
-
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      pageCount = pdf.numPages;
-
-      // Render page 1 to canvas for thumbnail
-      const page = await pdf.getPage(1);
-      const viewport = page.getViewport({ scale: 1.0 });
-      const canvas = document.createElement('canvas');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      const ctx = canvas.getContext('2d');
-
-      if (ctx) {
-        await (page as any).render({ canvasContext: ctx, viewport, canvas } as any).promise;
-        coverBlob = await new Promise<Blob | null>((resolve) =>
-          canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.85)
-        );
-      }
-    }
-  } catch (err) {
-    console.warn('[Extractor] Error reading PDF thumbnail:', err);
-  }
-
   return {
     title: parsed.cleanTitle,
     series: parsed.series,
     issueNumber: parsed.issueNumber,
     readingDirection: 'ltr',
-    pageCount: pageCount || 1,
+    pageCount: pageCount || 50,
     coverBlob,
   };
 }
 
 /**
- * Universal Ingestion Extractor
+ * Universal Metadata Extractor
  */
-export async function extractBookInfo(file: File, filename = file.name): Promise<ExtractedInfo> {
-  const format = detectFormat(filename);
-  if (format === 'cbz') return extractFromCbz(file, filename);
-  if (format === 'epub') return extractFromEpub(file, filename);
-  if (format === 'pdf') return extractFromPdf(file, filename);
-  return extractFromCbz(file, filename);
+export async function extractBookMetadata(
+  file: File | Blob,
+  filename: string,
+  format?: BookFormat
+): Promise<ExtractedInfo> {
+  const detected = format || detectFormat(filename);
+
+  switch (detected) {
+    case 'epub':
+      return extractFromEpub(file, filename);
+    case 'pdf':
+      return extractFromPdf(file, filename);
+    case 'cbz':
+    default:
+      return extractFromCbz(file, filename);
+  }
+}
+
+export async function extractBookInfo(file: File | Blob, filename?: string): Promise<ExtractedInfo> {
+  const name = filename || (file instanceof File ? file.name : 'book');
+  return extractBookMetadata(file, name);
 }

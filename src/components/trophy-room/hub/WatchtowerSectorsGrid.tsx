@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { TrophyBook, FilterCategory } from '@/types/trophy';
 import { resolveCoverUrl } from '@/lib/trophy/coverResolver';
+import { isMangaBook, isComicBook } from '@/lib/trophy/sectorClassifier';
 
 interface SectorDef {
   id: FilterCategory;
@@ -192,10 +193,10 @@ export default function WatchtowerSectorsGrid({
   const getSectorStats = (filterId: FilterCategory) => {
     const matching = books.filter((book) => {
       if (filterId === 'comic') {
-        return book.medium === 'comic' || book.format === 'cbz' || (book.tags || []).includes('comic');
+        return isComicBook(book);
       }
       if (filterId === 'manga') {
-        return book.medium === 'manga' || (book.tags || []).includes('manga');
+        return isMangaBook(book);
       }
       if (filterId === 'cookbook') {
         return book.medium === 'cookbook' || (book.tags || []).includes('cookbook');
@@ -213,7 +214,7 @@ export default function WatchtowerSectorsGrid({
         return !!book.is_favorite;
       }
       if (filterId === 'epub') {
-        return book.format === 'epub' || book.medium === 'novel';
+        return book.format === 'epub' || book.medium === 'novel' || (book.tags || []).includes('novel');
       }
       return true;
     });

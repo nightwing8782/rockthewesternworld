@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { trophyDb } from '@/lib/trophy/db';
 import { saveBookToOpfs, getBookFromOpfs, isBookInOpfs, deleteBookFromOpfs } from '@/lib/trophy/opfs';
-import { extractBookInfo, detectFormat } from '@/lib/trophy/metadataExtractor';
+import { extractBookMetadata, extractBookInfo, detectFormat, unSquishWords } from '@/lib/trophy/metadataExtractor';
+import { isMangaBook, isComicBook } from '@/lib/trophy/sectorClassifier';
 import { getPresignedUploadUrl, getPresignedDownloadUrl } from '@/lib/trophy/s3';
 import {
   TrophyBook,
@@ -112,13 +113,17 @@ export function useTrophyLibrary(user: any) {
       setProgressMap(progMap);
 
       if (booksData && booksData.length > 0) {
-        // Check offline status for each book
+        // Check offline status for each book & un-squish title/series
         const hydrated: TrophyBook[] = await Promise.all(
           booksData.map(async (book: any) => {
             const isOffline = await isBookInOpfs(book.id);
             const prog = progMap.get(book.id) || null;
+            const cleanTitle = unSquishWords(book.title || '');
+            const cleanSeries = book.series && book.series !== 'Standalone' ? unSquishWords(book.series) : (book.series || 'Standalone');
             return {
               ...book,
+              title: cleanTitle,
+              series: cleanSeries,
               isOffline,
               progress: prog,
             };
@@ -422,12 +427,10 @@ export function useTrophyLibrary(user: any) {
       .filter((book) => {
         // Medium & Category Filter
         if (filter === 'comic') {
-          const isComic = book.medium === 'comic' || book.format === 'cbz' || (book.tags || []).includes('comic');
-          if (!isComic) return false;
+          if (!isComicBook(book)) return false;
         }
         if (filter === 'manga') {
-          const isManga = book.medium === 'manga' || (book.tags || []).includes('manga');
-          if (!isManga) return false;
+          if (!isMangaBook(book)) return false;
         }
         if (filter === 'cookbook') {
           const isCookbook = book.medium === 'cookbook' || (book.tags || []).includes('cookbook');
@@ -446,6 +449,10 @@ export function useTrophyLibrary(user: any) {
           if (!isMag) return false;
         }
         if (filter === 'favorites' && !book.is_favorite) return false;
+        if (filter === 'epub') {
+          const isEpubOrNovel = book.format === 'epub' || book.medium === 'novel' || (book.tags || []).includes('novel');
+          if (!isEpubOrNovel) return false;
+        }
 
         // Raw Format Filter
         if (filter === 'cbz' && book.format !== 'cbz') return false;
