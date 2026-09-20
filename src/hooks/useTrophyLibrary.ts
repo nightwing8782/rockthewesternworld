@@ -454,14 +454,16 @@ export function useTrophyLibrary(user: any) {
         if (filter === 'completed' && !book.progress?.completed) return false;
 
         // Search Filter
-        if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase();
-          const matchTitle = (book.title || '').toLowerCase().includes(q);
-          const matchSeries = (book.series || '').toLowerCase().includes(q);
-          const matchAuthor = (book.author || '').toLowerCase().includes(q);
-          const matchPublisher = (book.publisher || '').toLowerCase().includes(q);
-          const matchFranchise = (book.franchise || '').toLowerCase().includes(q);
-          const matchTags = (book.tags || []).some((t) => t.toLowerCase().includes(q));
+        if (searchQuery && typeof searchQuery === 'string' && searchQuery.trim()) {
+          const q = searchQuery.toLowerCase().trim();
+          const matchTitle = String(book.title || '').toLowerCase().includes(q);
+          const matchSeries = String(book.series || '').toLowerCase().includes(q);
+          const matchAuthor = String(book.author || '').toLowerCase().includes(q);
+          const matchPublisher = String(book.publisher || '').toLowerCase().includes(q);
+          const matchFranchise = String(book.franchise || '').toLowerCase().includes(q);
+          const matchTags = Array.isArray(book.tags)
+            ? book.tags.some((t) => typeof t === 'string' && t.toLowerCase().includes(q))
+            : false;
           return matchTitle || matchSeries || matchAuthor || matchPublisher || matchFranchise || matchTags;
         }
         return true;
@@ -472,17 +474,17 @@ export function useTrophyLibrary(user: any) {
           const bTime = b.progress?.last_read_at ? new Date(b.progress.last_read_at).getTime() : 0;
           return bTime - aTime;
         }
-        if (sortOption === 'title-asc') return (a.title || '').localeCompare(b.title || '');
+        if (sortOption === 'title-asc') return String(a.title || '').localeCompare(String(b.title || ''));
         if (sortOption === 'progress-desc') {
           const aP = a.progress?.percent_read || 0;
           const bP = b.progress?.percent_read || 0;
           return bP - aP;
         }
-        if (sortOption === 'issue-asc') return (a.issue_number || 1) - (b.issue_number || 1);
+        if (sortOption === 'issue-asc') return (Number(a.issue_number) || 1) - (Number(b.issue_number) || 1);
         // default: series-asc
-        const seriesCompare = (a.series || '').localeCompare(b.series || '');
+        const seriesCompare = String(a.series || '').localeCompare(String(b.series || ''));
         if (seriesCompare !== 0) return seriesCompare;
-        return (a.issue_number || 1) - (b.issue_number || 1);
+        return (Number(a.issue_number) || 1) - (Number(b.issue_number) || 1);
       });
   }, [books, filter, searchQuery, sortOption]);
 
@@ -491,7 +493,7 @@ export function useTrophyLibrary(user: any) {
     const groupMap = new Map<string, TrophyBook[]>();
 
     filteredBooks.forEach((book) => {
-      const sName = book.series?.trim() || 'Standalone';
+      const sName = (book.series && typeof book.series === 'string' ? book.series.trim() : '') || 'Standalone';
       if (!groupMap.has(sName)) {
         groupMap.set(sName, []);
       }
@@ -502,7 +504,7 @@ export function useTrophyLibrary(user: any) {
 
     groupMap.forEach((sBooks, seriesName) => {
       // Sort issues ascending
-      sBooks.sort((a, b) => (a.issue_number || 1) - (b.issue_number || 1));
+      sBooks.sort((a, b) => (Number(a.issue_number) || 1) - (Number(b.issue_number) || 1));
       const totalIssues = sBooks.length;
       const completedIssues = sBooks.filter((b) => b.progress?.completed).length;
 
@@ -527,15 +529,18 @@ export function useTrophyLibrary(user: any) {
         coverUrl: coverBook?.cover_url || null,
         formats,
         lastReadAt,
+        medium: sBooks[0]?.medium,
+        publisher: sBooks[0]?.publisher,
+        franchise: sBooks[0]?.franchise,
       });
     });
 
     // Sort series groups
     return groups.sort((a, b) => {
       if (sortOption === 'recently-read') return b.lastReadAt - a.lastReadAt;
-      if (sortOption === 'series-asc') return a.seriesName.localeCompare(b.seriesName);
-      if (sortOption === 'title-asc') return a.seriesName.localeCompare(b.seriesName);
-      return a.seriesName.localeCompare(b.seriesName);
+      if (sortOption === 'series-asc') return String(a.seriesName || '').localeCompare(String(b.seriesName || ''));
+      if (sortOption === 'title-asc') return String(a.seriesName || '').localeCompare(String(b.seriesName || ''));
+      return String(a.seriesName || '').localeCompare(String(b.seriesName || ''));
     });
   }, [filteredBooks, sortOption]);
 
