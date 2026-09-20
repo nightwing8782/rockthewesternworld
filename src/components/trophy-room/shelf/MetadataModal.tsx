@@ -294,37 +294,41 @@ export default function MetadataModal({
   };
 
   // Save changes locally and in Supabase instantly
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSaving(true);
 
-    // Trigger instant background save and close modal immediately
-    onSaveMetadata(
-      book.id,
-      {
-        title: title.trim() || book.title,
-        series: series.trim() || 'Standalone',
-        issue_number: Number(issueNumber) || 1,
-        volume_number: volumeNumber !== '' ? Number(volumeNumber) : null,
-        author: author.trim() || null,
-        illustrator: illustrator.trim() || null,
-        publisher: publisher.trim() || null,
-        franchise: franchise.trim() || null,
-        published_year: publishedYear.trim() || null,
-        medium,
-        is_favorite: isFavorite,
-        collections: collections.length > 0 ? collections : [],
-        description: description.trim() || null,
-        page_count: Number(pageCount) || book.page_count,
-        reading_direction: readingDirection,
-        cover_url: coverUrl || book.cover_url || null,
-      },
-      applyToSeriesRun
-    ).catch((err) => {
-      console.error('Error saving metadata in background:', err);
-    });
-
-    onClose();
+    try {
+      await onSaveMetadata(
+        book.id,
+        {
+          title: title.trim() || book.title,
+          series: series.trim() || 'Standalone',
+          issue_number: Number(issueNumber) || 1,
+          volume_number: volumeNumber !== '' ? Number(volumeNumber) : null,
+          author: author.trim() || null,
+          illustrator: illustrator.trim() || null,
+          publisher: publisher.trim() || null,
+          franchise: franchise.trim() || null,
+          published_year: publishedYear.trim() || null,
+          medium,
+          is_favorite: isFavorite,
+          collections: collections.length > 0 ? collections : [],
+          description: description.trim() || null,
+          page_count: Number(pageCount) || book.page_count,
+          reading_direction: readingDirection,
+          cover_url: coverUrl || book.cover_url || null,
+        },
+        applyToSeriesRun
+      );
+      onClose();
+    } catch (err: any) {
+      console.error('Error saving metadata:', err);
+      setError(err?.message || 'Failed to save metadata updates. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (

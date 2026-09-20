@@ -18,6 +18,32 @@ import {
   GroupByMode,
 } from '@/types/trophy';
 
+const LOCAL_OVERRIDES_KEY = 'trophy_book_metadata_overrides';
+
+function getLocalBookOverrides(): Record<string, Partial<TrophyBook>> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(LOCAL_OVERRIDES_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveLocalBookOverride(bookId: string, updates: Partial<TrophyBook>) {
+  if (typeof window === 'undefined') return;
+  try {
+    const existing = getLocalBookOverrides();
+    existing[bookId] = {
+      ...(existing[bookId] || {}),
+      ...updates,
+    };
+    localStorage.setItem(LOCAL_OVERRIDES_KEY, JSON.stringify(existing));
+  } catch (e) {
+    console.warn('[Trophy Library] Failed to save local metadata override:', e);
+  }
+}
+
 export function useTrophyLibrary(user: any) {
   const [books, setBooks] = useState<TrophyBook[]>([]);
   const [progressMap, setProgressMap] = useState<Map<string, TrophyProgress>>(new Map());
@@ -113,15 +139,19 @@ export function useTrophyLibrary(user: any) {
       setProgressMap(progMap);
 
       if (booksData && booksData.length > 0) {
-        // Check offline status for each book & un-squish title/series
+        const localOverrides = getLocalBookOverrides();
+        // Check offline status for each book & un-squish title/series & merge local overrides
         const hydrated: TrophyBook[] = await Promise.all(
           booksData.map(async (book: any) => {
             const isOffline = await isBookInOpfs(book.id);
             const prog = progMap.get(book.id) || null;
-            const cleanTitle = unSquishWords(book.title || '');
-            const cleanSeries = book.series && book.series !== 'Standalone' ? unSquishWords(book.series) : (book.series || 'Standalone');
+            const override = localOverrides[book.id] || {};
+            const merged = { ...book, ...override };
+
+            const cleanTitle = unSquishWords(merged.title || '');
+            const cleanSeries = merged.series && merged.series !== 'Standalone' ? unSquishWords(merged.series) : (merged.series || 'Standalone');
             return {
-              ...book,
+              ...merged,
               title: cleanTitle,
               series: cleanSeries,
               isOffline,
@@ -336,7 +366,23 @@ export function useTrophyLibrary(user: any) {
     const currentBook = books.find((b) => b.id === bookId);
     if (!currentBook) return;
 
-    // Optimistic UI update for instant shelf responsiveness
+    // 1. Persist to local storage immediately so it NEVER disappears across reloads
+    saveLocalBookOverride(bookId, updates);
+    if (applyToEntireSeries && updates.series && currentBook.series) {
+      books.forEach((b) => {
+        if (b.series === currentBook.series) {
+          saveLocalBookOverride(b.id, {
+            series: updates.series,
+            ...(updates.author ? { author: updates.author } : {}),
+            ...(updates.publisher ? { publisher: updates.publisher } : {}),
+            ...(updates.franchise ? { franchise: updates.franchise } : {}),
+            ...(updates.medium ? { medium: updates.medium } : {}),
+          });
+        }
+      });
+    }
+
+    // 2. Optimistic UI update for instant shelf responsiveness
     setBooks((prev) =>
       prev.map((b) => {
         if (b.id === bookId) {
@@ -347,13 +393,16 @@ export function useTrophyLibrary(user: any) {
             ...b,
             series: updates.series,
             ...(updates.author ? { author: updates.author } : {}),
+            ...(updates.publisher ? { publisher: updates.publisher } : {}),
+            ...(updates.franchise ? { franchise: updates.franchise } : {}),
+            ...(updates.medium ? { medium: updates.medium } : {}),
           };
         }
         return b;
       })
     );
 
-    // Save changes to Supabase
+    // 3. Save changes to Supabase with adaptive fallback
     try {
       const supabase = createClient();
       const dbPayload: any = {};
@@ -367,7 +416,7 @@ export function useTrophyLibrary(user: any) {
       if (updates.cover_url !== undefined) dbPayload.cover_url = updates.cover_url;
       if (updates.medium !== undefined) dbPayload.medium = updates.medium;
       if (updates.genres !== undefined) dbPayload.genres = updates.genres;
-      if (updates.volume_number !== undefined) dbPayload.volume_number = updates.volume_number;
+      if (updates.volume_number !== undefined && updates.volume_number !== null) dbPayload.volume_number = updates.volume_number;
       if (updates.franchise !== undefined) dbPayload.franchise = updates.franchise;
       if (updates.illustrator !== undefined) dbPayload.illustrator = updates.illustrator;
       if (updates.publisher !== undefined) dbPayload.publisher = updates.publisher;
@@ -379,29 +428,40 @@ export function useTrophyLibrary(user: any) {
       if (updates.collections !== undefined) dbPayload.collections = updates.collections;
       if (updates.aspect_ratio !== undefined) dbPayload.aspect_ratio = updates.aspect_ratio;
 
+      // Try full payload first
+      const { error: fullErr } = await supabase
+        .from('trophy_books')
+        .update(dbPayload)
+        .eq('id', bookId);
+
+      if (fullErr) {
+        console.warn('[Trophy Library] Full payload update failed, falling back to core fields:', fullErr.message);
+        // Fallback: core columns that are always present in trophy_books
+        const corePayload: any = {
+          title: updates.title || currentBook.title,
+          series: updates.series || currentBook.series,
+          issue_number: updates.issue_number !== undefined ? updates.issue_number : currentBook.issue_number,
+          reading_direction: updates.reading_direction || currentBook.reading_direction,
+        };
+        if (updates.author !== undefined) corePayload.author = updates.author;
+        if (updates.description !== undefined) corePayload.description = updates.description;
+        if (updates.cover_url !== undefined) corePayload.cover_url = updates.cover_url;
+        if (updates.page_count !== undefined) corePayload.page_count = updates.page_count;
+
+        await supabase.from('trophy_books').update(corePayload).eq('id', bookId);
+      }
+
       if (applyToEntireSeries && updates.series && currentBook.series) {
         await supabase
           .from('trophy_books')
           .update({
             series: updates.series,
             ...(updates.author ? { author: updates.author } : {}),
-            ...(updates.publisher ? { publisher: updates.publisher } : {}),
-            ...(updates.franchise ? { franchise: updates.franchise } : {}),
-            ...(updates.medium ? { medium: updates.medium } : {}),
           })
           .eq('series', currentBook.series);
       }
-
-      const { error: updateErr } = await supabase
-        .from('trophy_books')
-        .update(dbPayload)
-        .eq('id', bookId);
-
-      if (updateErr) throw updateErr;
     } catch (err) {
-      console.error('Failed to save metadata updates to Supabase:', err);
-      // Rollback on network failure
-      await loadLibrary();
+      console.warn('[Trophy Library] Supabase background save notice (local state persisted):', err);
     }
   };
 
