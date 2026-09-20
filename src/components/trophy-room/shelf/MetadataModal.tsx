@@ -319,7 +319,7 @@ export default function MetadataModal({
                 Book & Series Metadata Studio
               </h2>
               <p className="text-[11px] font-bold text-slate-800 truncate max-w-md">
-                {book.title} ({book.format.toUpperCase()})
+                {book.title} ({String(book.format || 'cbz').toUpperCase()})
               </p>
             </div>
           </div>

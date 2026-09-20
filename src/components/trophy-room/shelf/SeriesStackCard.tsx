@@ -27,24 +27,12 @@ export default function SeriesStackCard({
   const [coverSrc, setCoverSrc] = useState<string | null>(series.coverUrl || null);
   const [imageError, setImageError] = useState(false);
 
-  // If only 1 issue in standalone, render as single BookCard
-  if (series.totalIssues <= 1 && series.books[0]) {
-    return (
-      <BookCard
-        book={series.books[0]}
-        onOpen={onOpenBook}
-        onEditMetadata={onEditMetadata}
-        onToggleOffline={onToggleOffline}
-        onDelete={onDelete}
-      />
-    );
-  }
-
   const leadBook = series.books[0];
 
   useEffect(() => {
     let isCancelled = false;
     async function loadLeadCover() {
+      if (!series || !series.books || series.books.length === 0) return;
       const bookWithCover = series.books.find((b) => b.cover_key || b.cover_url) || leadBook;
       if (bookWithCover) {
         const resolved = await resolveCoverUrl(bookWithCover);
@@ -59,6 +47,19 @@ export default function SeriesStackCard({
       isCancelled = true;
     };
   }, [series.books, leadBook]);
+
+  // If only 1 issue in standalone, render as single BookCard AFTER all hooks are called
+  if (series.totalIssues <= 1 && series.books[0]) {
+    return (
+      <BookCard
+        book={series.books[0]}
+        onOpen={onOpenBook}
+        onEditMetadata={onEditMetadata}
+        onToggleOffline={onToggleOffline}
+        onDelete={onDelete}
+      />
+    );
+  }
 
   const offlineCount = series.books.filter((b) => b.isOffline).length;
   const progressPercent = Math.round(
@@ -113,10 +114,10 @@ export default function SeriesStackCard({
           <div className="flex items-center gap-1">
             {uniqueFormats.map((fmt) => (
               <span
-                key={fmt}
+                key={fmt || 'cbz'}
                 className="comic-stamp text-[9px] px-1.5 py-0.5 rounded bg-[#FFDE59] text-[#111827]"
               >
-                {fmt.toUpperCase()}
+                {String(fmt || 'cbz').toUpperCase()}
               </span>
             ))}
           </div>

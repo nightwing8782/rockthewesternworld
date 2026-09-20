@@ -16,6 +16,7 @@ import MetadataModal from './MetadataModal';
 import AddBookModal from '../modals/AddBookModal';
 import SettingsModal from '../modals/SettingsModal';
 import ReaderContainer from '../readers/ReaderContainer';
+import TrophyErrorBoundary from '../common/TrophyErrorBoundary';
 import { BookOpen, PlusCircle, HardDrive, Layers, LayoutGrid, List, Loader2 } from 'lucide-react';
 
 interface ShelfViewProps {
@@ -56,8 +57,9 @@ export default function ShelfView({ user }: ShelfViewProps) {
   const totalItemCount = viewMode === 'stacked' ? seriesGroups.length : filteredBooks.length;
 
   return (
-    <div className="min-h-screen bg-paper-texture text-[#111827] font-sans pb-24 selection:bg-[#FFDE59] selection:text-[#111827]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <TrophyErrorBoundary fallbackTitle="Trophy Vault Shelf Error">
+      <div className="min-h-screen bg-paper-texture text-[#111827] font-sans pb-24 selection:bg-[#FFDE59] selection:text-[#111827]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header with Search, Filter Tabs, and Ingest Action */}
         <TrophyHeader
           viewMode={viewMode}
@@ -271,5 +273,6 @@ export default function ShelfView({ user }: ShelfViewProps) {
         />
       )}
     </div>
+  </TrophyErrorBoundary>
   );
 }

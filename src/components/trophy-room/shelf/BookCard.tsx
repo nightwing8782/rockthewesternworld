@@ -51,12 +51,14 @@ export default function BookCard({
     };
   }, [book.cover_key, book.cover_url]);
 
-  // Format badge colors
+  // Format badge colors with safe fallback
+  const normFormat = String(book.format || 'cbz').toLowerCase();
   const formatBadgeBg = {
     cbz: 'bg-[#FFDE59] text-[#111827]',
+    cbr: 'bg-[#FFDE59] text-[#111827]',
     epub: 'bg-[#00D2D3] text-[#111827]',
     pdf: 'bg-[#FF4757] text-white',
-  }[book.format];
+  }[normFormat] || 'bg-slate-700 text-white';
 
   const percentRead = book.progress?.percent_read || 0;
   const isCompleted = book.progress?.completed;
@@ -96,7 +98,7 @@ export default function BookCard({
         <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1.5 pointer-events-none z-10">
           {/* Format Stamp */}
           <span className={`comic-stamp text-[10px] px-2 py-0.5 rounded ${formatBadgeBg}`}>
-            {book.format.toUpperCase()}
+            {normFormat.toUpperCase()}
           </span>
 
           {/* Reading Direction Badge */}

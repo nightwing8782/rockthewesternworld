@@ -21,13 +21,21 @@ export default function TypographicCover({
   author,
   className = '',
 }: TypographicCoverProps) {
-  // Determine color theme based on format
-  const theme = {
+  // Determine color theme based on format with resilient fallback
+  const normalizedFormat = String(format || 'cbz').toLowerCase();
+  const themeMap: Record<string, { bg: string; accentBg: string; accentText: string; badge: string; icon: React.ReactNode }> = {
     cbz: {
       bg: 'bg-[#FF4757]',
       accentBg: 'bg-[#FFDE59]',
       accentText: 'text-[#111827]',
       badge: 'CBZ COMIC',
+      icon: <BookOpen className="w-3.5 h-3.5 text-[#111827]" />,
+    },
+    cbr: {
+      bg: 'bg-[#FF4757]',
+      accentBg: 'bg-[#FFDE59]',
+      accentText: 'text-[#111827]',
+      badge: 'CBR COMIC',
       icon: <BookOpen className="w-3.5 h-3.5 text-[#111827]" />,
     },
     epub: {
@@ -44,7 +52,15 @@ export default function TypographicCover({
       badge: 'PDF DOCUMENT',
       icon: <Bookmark className="w-3.5 h-3.5 text-[#111827]" />,
     },
-  }[format];
+  };
+
+  const theme = themeMap[normalizedFormat] || {
+    bg: 'bg-slate-800',
+    accentBg: 'bg-[#FFDE59]',
+    accentText: 'text-[#111827]',
+    badge: (normalizedFormat || 'BOOK').toUpperCase(),
+    icon: <BookOpen className="w-3.5 h-3.5 text-[#111827]" />,
+  };
 
   return (
     <div

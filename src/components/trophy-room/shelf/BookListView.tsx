@@ -93,7 +93,7 @@ export default function BookListView({
                         : 'bg-[#FF4757] text-white'
                     }`}
                   >
-                    {book.format.toUpperCase()}
+                    {String(book.format || 'cbz').toUpperCase()}
                   </span>
                 </td>
 
