@@ -1,9 +1,63 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Play, Sparkles, BookOpen, Clock, ChevronRight, Star } from 'lucide-react';
 import { TrophyBook } from '@/types/trophy';
 import TypographicCover from '../common/TypographicCover';
+import { resolveCoverUrl } from '@/lib/trophy/coverResolver';
+
+interface DeckCoverProps {
+  book: TrophyBook;
+}
+
+function DeckCover({ book }: DeckCoverProps) {
+  const [coverSrc, setCoverSrc] = useState<string | null>(book.cover_url || null);
+  const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    let isCancelled = false;
+    async function loadCover() {
+      if (book.cover_key || book.cover_url) {
+        const resolved = await resolveCoverUrl(book);
+        if (!isCancelled && resolved) {
+          setCoverSrc(resolved);
+          setImageError(false);
+        }
+      }
+    }
+    loadCover();
+    return () => {
+      isCancelled = true;
+    };
+  }, [book.cover_key, book.cover_url]);
+
+  return (
+    <div className="relative w-20 h-28 sm:w-24 sm:h-32 shrink-0 rounded-2xl border-3 border-[#111827] overflow-hidden bg-slate-900 shadow-[3px_3px_0_#111827]">
+      {coverSrc && !imageError ? (
+        <img
+          src={coverSrc}
+          alt={book.title}
+          onError={() => setImageError(true)}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          loading="lazy"
+        />
+      ) : (
+        <TypographicCover
+          title={book.title}
+          series={book.series}
+          issueNumber={book.issue_number}
+          format={book.format}
+          author={book.author}
+        />
+      )}
+
+      {/* Format Pill */}
+      <span className="absolute top-1 left-1 comic-stamp text-[8px] px-1 py-0.2 rounded bg-black/80 text-white font-mono">
+        {book.format?.toUpperCase() || 'CBZ'}
+      </span>
+    </div>
+  );
+}
 
 interface ContinueReadingDeckProps {
   books: TrophyBook[];
@@ -70,34 +124,13 @@ export default function ContinueReadingDeck({
               {/* Halftone Top Bar */}
               <div className="flex gap-4 items-start">
                 {/* Book Thumbnail */}
-                <div className="relative w-20 h-28 sm:w-24 sm:h-32 shrink-0 rounded-2xl border-3 border-[#111827] overflow-hidden bg-slate-900 shadow-[3px_3px_0_#111827]">
-                  {book.cover_url ? (
-                    <img
-                      src={book.cover_url}
-                      alt={book.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                  ) : (
-                    <TypographicCover
-                      title={book.title}
-                      series={book.series}
-                      issueNumber={book.issue_number}
-                      format={book.format}
-                      author={book.author}
-                    />
-                  )}
-
-                  {/* Format Pill */}
-                  <span className="absolute top-1 left-1 comic-stamp text-[8px] px-1 py-0.2 rounded bg-black/80 text-white font-mono">
-                    {book.format.toUpperCase()}
-                  </span>
-                </div>
+                <DeckCover book={book} />
 
                 {/* Metadata */}
                 <div className="flex-1 min-w-0 flex flex-col justify-between h-full py-0.5">
                   <div>
                     <span className="text-[9px] font-black uppercase tracking-widest text-[#FF4757] line-clamp-1">
-                      {book.series !== 'Standalone' ? book.series : 'STANDALONE ISSUE'}
+                      {book.series && book.series !== 'Standalone' ? book.series : 'STANDALONE ISSUE'}
                     </span>
                     <h3
                       className="font-black text-sm sm:text-base text-[#111827] line-clamp-2 leading-tight group-hover:text-[#FF4757] transition-colors mt-0.5"

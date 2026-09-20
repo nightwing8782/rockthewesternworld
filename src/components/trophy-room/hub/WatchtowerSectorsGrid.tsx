@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Shield,
   Layers,
@@ -12,6 +12,7 @@ import {
   Flame,
 } from 'lucide-react';
 import { TrophyBook, FilterCategory } from '@/types/trophy';
+import { resolveCoverUrl } from '@/lib/trophy/coverResolver';
 
 interface SectorDef {
   id: FilterCategory;
@@ -107,6 +108,75 @@ const SECTORS: SectorDef[] = [
   },
 ];
 
+interface MiniCoverProps {
+  book: TrophyBook;
+  index: number;
+  accentBg: string;
+}
+
+function MiniSectorCover({ book, index, accentBg }: MiniCoverProps) {
+  const [src, setSrc] = useState<string | null>(book.cover_url || null);
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    if (book.cover_key || book.cover_url) {
+      resolveCoverUrl(book).then((url) => {
+        if (active && url) {
+          setSrc(url);
+          setHasError(false);
+        }
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [book.cover_key, book.cover_url]);
+
+  const rotation = index === 0 ? '-rotate-6' : index === 1 ? 'rotate-0' : 'rotate-6';
+  const zIndex = index === 0 ? 'z-10' : index === 1 ? 'z-20' : 'z-30';
+
+  if (src && !hasError) {
+    return (
+      <div
+        className={`relative inline-block w-10 h-14 rounded-md border-2 border-[#111827] bg-slate-900 shadow-[2px_2px_0_#111827] overflow-hidden transform group-hover:rotate-0 transition-transform duration-200 ${rotation} ${zIndex}`}
+      >
+        <img
+          src={src}
+          alt=""
+          onError={() => setHasError(true)}
+          className="w-full h-full object-cover select-none"
+          loading="lazy"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
+      </div>
+    );
+  }
+
+  // Stylish stylized fallback mini book
+  return (
+    <div
+      className={`relative inline-block w-10 h-14 rounded-md border-2 border-[#111827] shadow-[2px_2px_0_#111827] p-1 flex flex-col justify-between overflow-hidden transform group-hover:rotate-0 transition-transform duration-200 select-none ${rotation} ${zIndex} ${
+        index === 0
+          ? 'bg-[#111827] text-white'
+          : index === 1
+          ? `${accentBg} text-[#111827]`
+          : 'bg-white text-[#111827]'
+      }`}
+    >
+      <div className="text-[7px] font-black uppercase font-mono tracking-tighter truncate opacity-80">
+        {book.format?.toUpperCase() || 'VOL'}
+      </div>
+      <div className="flex justify-center items-center my-auto">
+        <BookOpen className="w-3.5 h-3.5 opacity-70" />
+      </div>
+      <div className="text-[6px] font-black uppercase tracking-tighter truncate text-center">
+        {book.series && book.series !== 'Standalone' ? book.series.slice(0, 8) : book.title?.slice(0, 8)}
+      </div>
+    </div>
+  );
+}
+
 interface WatchtowerSectorsGridProps {
   books: TrophyBook[];
   onSelectSector: (sector: FilterCategory) => void;
@@ -120,7 +190,7 @@ export default function WatchtowerSectorsGrid({
 }: WatchtowerSectorsGridProps) {
   // Count items per sector
   const getSectorStats = (filterId: FilterCategory) => {
-    let matching = books.filter((book) => {
+    const matching = books.filter((book) => {
       if (filterId === 'comic') {
         return book.medium === 'comic' || book.format === 'cbz' || (book.tags || []).includes('comic');
       }
@@ -150,12 +220,9 @@ export default function WatchtowerSectorsGrid({
 
     const total = matching.length;
     const completed = matching.filter((b) => b.progress?.completed).length;
-    const sampleCovers = matching
-      .filter((b) => b.cover_url)
-      .slice(0, 3)
-      .map((b) => b.cover_url as string);
+    const sampleBooks = matching.slice(0, 3);
 
-    return { total, completed, sampleCovers };
+    return { total, completed, sampleBooks };
   };
 
   return (
@@ -222,20 +289,19 @@ export default function WatchtowerSectorsGrid({
 
               {/* Middle: Stack Sample Previews */}
               <div className="my-4 pt-3 border-t-2 border-slate-100 flex items-center justify-between">
-                <div className="flex -space-x-4 overflow-hidden">
-                  {stats.sampleCovers.length > 0 ? (
-                    stats.sampleCovers.map((src, i) => (
-                      <img
-                        key={i}
-                        src={src}
-                        alt="Preview"
-                        className="inline-block w-10 h-14 rounded-md border-2 border-[#111827] object-cover shadow-[2px_2px_0_#000] transform group-hover:rotate-0 transition-transform"
-                        style={{ transform: `rotate(${i * 4 - 4}deg)` }}
+                <div className="flex -space-x-3 overflow-visible py-1 px-1">
+                  {stats.sampleBooks.length > 0 ? (
+                    stats.sampleBooks.map((book, i) => (
+                      <MiniSectorCover
+                        key={book.id || i}
+                        book={book}
+                        index={i}
+                        accentBg={sector.accentBg}
                       />
                     ))
                   ) : (
-                    <div className="w-10 h-14 bg-slate-200 rounded-md border-2 border-[#111827] flex items-center justify-center text-slate-400">
-                      <BookOpen className="w-4 h-4" />
+                    <div className="w-10 h-14 bg-slate-100 rounded-md border-2 border-[#111827] flex items-center justify-center text-slate-400 shadow-[2px_2px_0_#111827]">
+                      <BookOpen className="w-4 h-4 opacity-50" />
                     </div>
                   )}
                 </div>
