@@ -90,6 +90,14 @@ export interface TrophyProgress {
   reading_time_seconds?: number;
 }
 
+export type GroupByMode =
+  | 'series'
+  | 'collection'
+  | 'medium'
+  | 'publisher'
+  | 'franchise'
+  | 'author';
+
 export interface SeriesGroup {
   seriesName: string;
   books: TrophyBook[];
@@ -102,6 +110,8 @@ export interface SeriesGroup {
   medium?: BookMedium | string;
   publisher?: string | null;
   franchise?: string | null;
+  groupByType?: GroupByMode;
+  stackBadge?: string;
 }
 
 export interface ReaderSettings {

@@ -38,7 +38,7 @@ export default function SeriesPickerModal({
                 {series.seriesName}
               </h2>
               <p className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                {series.totalIssues} {series.totalIssues === 1 ? 'Issue' : 'Issues'} • {series.completedIssues} Completed
+                {series.totalIssues} {series.totalIssues === 1 ? 'Title / Issue' : 'Titles / Issues'} • {series.completedIssues} Read
               </p>
             </div>
           </div>

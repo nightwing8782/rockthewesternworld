@@ -16,6 +16,8 @@ import {
   Layers,
   Calendar,
   Building,
+  Tag,
+  Plus,
 } from 'lucide-react';
 import { TrophyBook, ReadingDirection, BookMedium } from '@/types/trophy';
 
@@ -43,12 +45,14 @@ interface MetadataModalProps {
     updates: Partial<TrophyBook>,
     applyToSeries?: boolean
   ) => Promise<void>;
+  existingCollections?: string[];
 }
 
 export default function MetadataModal({
   book,
   onClose,
   onSaveMetadata,
+  existingCollections = [],
 }: MetadataModalProps) {
   const [title, setTitle] = useState('');
   const [series, setSeries] = useState('');
@@ -65,6 +69,8 @@ export default function MetadataModal({
   const [pageCount, setPageCount] = useState<number>(1);
   const [readingDirection, setReadingDirection] = useState<ReadingDirection>('ltr');
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
+  const [collections, setCollections] = useState<string[]>([]);
+  const [newCollectionInput, setNewCollectionInput] = useState('');
   const [applyToSeriesRun, setApplyToSeriesRun] = useState(false);
 
   // Search state
@@ -110,6 +116,8 @@ export default function MetadataModal({
       setPageCount(book.page_count || 1);
       setReadingDirection(book.reading_direction || (book.medium === 'manga' ? 'rtl' : 'ltr'));
       setCoverUrl(book.cover_url || null);
+      setCollections(Array.isArray(book.collections) ? [...book.collections] : []);
+      setNewCollectionInput('');
       setApplyToSeriesRun(false);
 
       const initialQuery = deriveCleanSearchQuery(book);
@@ -136,6 +144,19 @@ export default function MetadataModal({
       if (!isNaN(parsed)) return parsed;
     }
     return null;
+  };
+
+  // Add custom collection tag
+  const handleAddCollection = (nameToAdd?: string) => {
+    const target = (nameToAdd || newCollectionInput).trim();
+    if (target && !collections.includes(target)) {
+      setCollections([...collections, target]);
+    }
+    setNewCollectionInput('');
+  };
+
+  const handleRemoveCollection = (toRemove: string) => {
+    setCollections(collections.filter((c) => c !== toRemove));
   };
 
   // Perform Cloud Metadata Search (Google Books + Open Library)
@@ -272,42 +293,38 @@ export default function MetadataModal({
     );
   };
 
-  // Save changes locally and in Supabase
-  const handleSave = async (e: React.FormEvent) => {
+  // Save changes locally and in Supabase instantly
+  const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
     setError(null);
 
-    try {
-      await onSaveMetadata(
-        book.id,
-        {
-          title: title.trim() || book.title,
-          series: series.trim() || 'Standalone',
-          issue_number: Number(issueNumber) || 1,
-          volume_number: volumeNumber !== '' ? Number(volumeNumber) : null,
-          author: author.trim() || null,
-          illustrator: illustrator.trim() || null,
-          publisher: publisher.trim() || null,
-          franchise: franchise.trim() || null,
-          published_year: publishedYear.trim() || null,
-          medium,
-          is_favorite: isFavorite,
-          description: description.trim() || null,
-          page_count: Number(pageCount) || book.page_count,
-          reading_direction: readingDirection,
-          cover_url: coverUrl || book.cover_url || null,
-        },
-        applyToSeriesRun
-      );
+    // Trigger instant background save and close modal immediately
+    onSaveMetadata(
+      book.id,
+      {
+        title: title.trim() || book.title,
+        series: series.trim() || 'Standalone',
+        issue_number: Number(issueNumber) || 1,
+        volume_number: volumeNumber !== '' ? Number(volumeNumber) : null,
+        author: author.trim() || null,
+        illustrator: illustrator.trim() || null,
+        publisher: publisher.trim() || null,
+        franchise: franchise.trim() || null,
+        published_year: publishedYear.trim() || null,
+        medium,
+        is_favorite: isFavorite,
+        collections: collections.length > 0 ? collections : [],
+        description: description.trim() || null,
+        page_count: Number(pageCount) || book.page_count,
+        reading_direction: readingDirection,
+        cover_url: coverUrl || book.cover_url || null,
+      },
+      applyToSeriesRun
+    ).catch((err) => {
+      console.error('Error saving metadata in background:', err);
+    });
 
-      onClose();
-    } catch (err: any) {
-      console.error('Error saving metadata:', err);
-      setError(err.message || 'Failed to save metadata updates.');
-    } finally {
-      setSaving(false);
-    }
+    onClose();
   };
 
   return (
@@ -606,6 +623,90 @@ export default function MetadataModal({
                   className="w-full px-3.5 py-2 bg-white border-2 border-[#111827] rounded-xl text-xs font-bold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
                 />
               </div>
+            </div>
+
+            {/* Custom User Collections */}
+            <div className="p-3.5 bg-white rounded-2xl border-2 border-[#111827] shadow-[2px_2px_0_#111827] space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black uppercase tracking-wider text-[#111827] flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-[#FF4757]" />
+                  <span>Custom Collections & Reading Shelves</span>
+                </label>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  {collections.length} {collections.length === 1 ? 'Shelf' : 'Shelves'} Assigned
+                </span>
+              </div>
+
+              {/* Active Collections Tags */}
+              <div className="flex flex-wrap items-center gap-1.5 min-h-[30px]">
+                {collections.map((col) => (
+                  <span
+                    key={col}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#FFDE59] border border-[#111827] text-xs font-black text-[#111827] shadow-[1px_1px_0_#111827] animate-in fade-in duration-100"
+                  >
+                    <span>{col}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCollection(col)}
+                      className="text-[#111827] hover:text-[#FF4757] ml-0.5"
+                    >
+                      <X className="w-3 h-3 stroke-[3]" />
+                    </button>
+                  </span>
+                ))}
+
+                {collections.length === 0 && (
+                  <span className="text-[11px] font-medium text-slate-400 italic">
+                    Not assigned to any custom collections yet.
+                  </span>
+                )}
+              </div>
+
+              {/* Add Collection Input */}
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="text"
+                  value={newCollectionInput}
+                  onChange={(e) => setNewCollectionInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddCollection();
+                    }
+                  }}
+                  placeholder="Type new collection name (e.g. Weekend Reads, Essential Schulz)..."
+                  className="flex-1 px-3 py-1.5 bg-slate-50 border-2 border-[#111827] rounded-xl text-xs font-bold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59]"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleAddCollection()}
+                  disabled={!newCollectionInput.trim()}
+                  className="px-3 py-1.5 bg-[#2ED573] hover:bg-[#26af5f] disabled:opacity-40 text-[#111827] font-black text-xs uppercase tracking-wider rounded-xl border-2 border-[#111827] shadow-[1px_1px_0_#111827] flex items-center gap-1 cursor-pointer transition-all shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                  <span>Add</span>
+                </button>
+              </div>
+
+              {/* Quick Suggestions from Existing Library Collections */}
+              {existingCollections && existingCollections.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1 pt-1 border-t border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 mr-1">Existing:</span>
+                  {existingCollections
+                    .filter((c) => !collections.includes(c))
+                    .slice(0, 6)
+                    .map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => handleAddCollection(c)}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 hover:bg-amber-100 text-slate-700 border border-slate-300 transition-colors"
+                      >
+                        + {c}
+                      </button>
+                    ))}
+                </div>
+              )}
             </div>
 
             {/* Batch Series Sync Checkbox */}

@@ -282,6 +282,32 @@ export default function PdfReader({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [nextPage, prevPage, onPageChange, numPages, isRTL]);
 
+  // Wheel Page Turning (locked view, no document scroll)
+  const lastWheelTimeRef = useRef<number>(0);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const now = Date.now();
+      if (now - lastWheelTimeRef.current < 250) return; // Debounce 250ms
+
+      if (e.deltaY > 20 || e.deltaX > 20) {
+        lastWheelTimeRef.current = now;
+        if (isRTL) prevPage();
+        else nextPage();
+      } else if (e.deltaY < -20 || e.deltaX < -20) {
+        lastWheelTimeRef.current = now;
+        if (isRTL) nextPage();
+        else prevPage();
+      }
+    };
+
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
+  }, [nextPage, prevPage, isRTL]);
+
   // Touch Swipe
   useSwipeGestures(containerRef, {
     onSwipeLeft: isRTL ? prevPage : nextPage,
@@ -329,7 +355,7 @@ export default function PdfReader({
     <div
       ref={containerRef}
       onClick={handleContainerClick}
-      className="relative w-full h-full flex items-center justify-center overflow-auto bg-[#0a0a0c] select-none cursor-pointer p-2 sm:p-4"
+      className="relative w-full h-full flex items-center justify-center overflow-hidden bg-[#0a0a0c] select-none cursor-pointer p-2 sm:p-4 touch-none"
     >
       <div
         className={`flex items-center justify-center max-w-full max-h-full transition-opacity duration-150 ${
@@ -344,7 +370,7 @@ export default function PdfReader({
         <div className="relative bg-white shadow-[0_20px_60px_rgba(0,0,0,0.85)] ring-1 ring-white/10 rounded-sm overflow-hidden flex items-center justify-center">
           <canvas
             ref={canvasRef1}
-            className="block max-w-full max-h-[95vh] object-contain"
+            className="block max-w-[96vw] max-h-[96vh] object-contain"
           />
         </div>
 
@@ -352,7 +378,7 @@ export default function PdfReader({
           <div className="relative bg-white shadow-[0_20px_60px_rgba(0,0,0,0.85)] ring-1 ring-white/10 rounded-sm overflow-hidden flex items-center justify-center">
             <canvas
               ref={canvasRef2}
-              className="block max-w-full max-h-[95vh] object-contain"
+              className="block max-w-[96vw] max-h-[96vh] object-contain"
             />
           </div>
         )}

@@ -14,6 +14,7 @@ import {
   SortOption,
   IngestionProgressState,
   ReaderSettings,
+  GroupByMode,
 } from '@/types/trophy';
 
 export function useTrophyLibrary(user: any) {
@@ -21,6 +22,7 @@ export function useTrophyLibrary(user: any) {
   const [progressMap, setProgressMap] = useState<Map<string, TrophyProgress>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<FilterCategory>('all');
+  const [groupBy, setGroupBy] = useState<GroupByMode>('series');
   const [sortOption, setSortOption] = useState<SortOption>('recently-read');
   const [searchQuery, setSearchQuery] = useState('');
   const [ingestionProgress, setIngestionProgress] = useState<IngestionProgressState | null>(null);
@@ -488,22 +490,71 @@ export function useTrophyLibrary(user: any) {
       });
   }, [books, filter, searchQuery, sortOption]);
 
-  // 7. Group Filtered Books into Series Stacks
+  // 7. Group Filtered Books dynamically into Stacks (by Series, Custom Collection, Medium, Publisher, Franchise, or Author)
   const seriesGroups = useMemo<SeriesGroup[]>(() => {
     const groupMap = new Map<string, TrophyBook[]>();
 
     filteredBooks.forEach((book) => {
-      const sName = (book.series && typeof book.series === 'string' ? book.series.trim() : '') || 'Standalone';
-      if (!groupMap.has(sName)) {
-        groupMap.set(sName, []);
+      if (groupBy === 'collection') {
+        const bookCollections = Array.isArray(book.collections) && book.collections.length > 0
+          ? book.collections
+          : ['Unassigned'];
+        bookCollections.forEach((cName) => {
+          const cleanName = (typeof cName === 'string' ? cName.trim() : '') || 'Unassigned';
+          if (!groupMap.has(cleanName)) {
+            groupMap.set(cleanName, []);
+          }
+          groupMap.get(cleanName)!.push(book);
+        });
+      } else if (groupBy === 'medium') {
+        const mediumLabels: Record<string, string> = {
+          comic: 'Comics & Graphic Novels',
+          manga: 'Manga (RTL)',
+          cookbook: 'Cookbooks & Culinary',
+          reference: 'Reference & 101 Guides',
+          wellness: 'Wellness, Habits & Life',
+          writing: 'Writing & Creative Craft',
+          magazine: 'Periodicals & Magazines',
+          novel: 'Prose, Fiction & Essays',
+        };
+        const medKey = String(book.medium || (book.format === 'cbz' ? 'comic' : book.format === 'epub' ? 'novel' : 'comic')).toLowerCase();
+        const mName = mediumLabels[medKey] || 'General Books';
+        if (!groupMap.has(mName)) {
+          groupMap.set(mName, []);
+        }
+        groupMap.get(mName)!.push(book);
+      } else if (groupBy === 'publisher') {
+        const pubName = (book.publisher && typeof book.publisher === 'string' ? book.publisher.trim() : '') || 'Indie / Self-Published';
+        if (!groupMap.has(pubName)) {
+          groupMap.set(pubName, []);
+        }
+        groupMap.get(pubName)!.push(book);
+      } else if (groupBy === 'franchise') {
+        const franName = (book.franchise && typeof book.franchise === 'string' ? book.franchise.trim() : '') || 'Standalone Works';
+        if (!groupMap.has(franName)) {
+          groupMap.set(franName, []);
+        }
+        groupMap.get(franName)!.push(book);
+      } else if (groupBy === 'author') {
+        const authName = (book.author && typeof book.author === 'string' ? book.author.trim() : '') || 'Various Creators';
+        if (!groupMap.has(authName)) {
+          groupMap.set(authName, []);
+        }
+        groupMap.get(authName)!.push(book);
+      } else {
+        // Default: Series
+        const sName = (book.series && typeof book.series === 'string' ? book.series.trim() : '') || 'Standalone';
+        if (!groupMap.has(sName)) {
+          groupMap.set(sName, []);
+        }
+        groupMap.get(sName)!.push(book);
       }
-      groupMap.get(sName)!.push(book);
     });
 
     const groups: SeriesGroup[] = [];
 
     groupMap.forEach((sBooks, seriesName) => {
-      // Sort issues ascending
+      // Sort issues/items ascending
       sBooks.sort((a, b) => (Number(a.issue_number) || 1) - (Number(b.issue_number) || 1));
       const totalIssues = sBooks.length;
       const completedIssues = sBooks.filter((b) => b.progress?.completed).length;
@@ -532,17 +583,18 @@ export function useTrophyLibrary(user: any) {
         medium: sBooks[0]?.medium,
         publisher: sBooks[0]?.publisher,
         franchise: sBooks[0]?.franchise,
+        groupByType: groupBy,
       });
     });
 
-    // Sort series groups
+    // Sort series/collection groups
     return groups.sort((a, b) => {
       if (sortOption === 'recently-read') return b.lastReadAt - a.lastReadAt;
       if (sortOption === 'series-asc') return String(a.seriesName || '').localeCompare(String(b.seriesName || ''));
       if (sortOption === 'title-asc') return String(a.seriesName || '').localeCompare(String(b.seriesName || ''));
       return String(a.seriesName || '').localeCompare(String(b.seriesName || ''));
     });
-  }, [filteredBooks, sortOption]);
+  }, [filteredBooks, groupBy, sortOption]);
 
   return {
     books,
@@ -551,6 +603,8 @@ export function useTrophyLibrary(user: any) {
     isLoading,
     filter,
     setFilter,
+    groupBy,
+    setGroupBy,
     sortOption,
     setSortOption,
     searchQuery,

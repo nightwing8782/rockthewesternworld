@@ -31,6 +31,8 @@ export default function ShelfView({ user }: ShelfViewProps) {
     isLoading,
     filter,
     setFilter,
+    groupBy,
+    setGroupBy,
     sortOption,
     setSortOption,
     searchQuery,
@@ -53,6 +55,18 @@ export default function ShelfView({ user }: ShelfViewProps) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  const existingCollections = React.useMemo(() => {
+    const set = new Set<string>();
+    books.forEach((b) => {
+      if (Array.isArray(b.collections)) {
+        b.collections.forEach((c) => {
+          if (typeof c === 'string' && c.trim()) set.add(c.trim());
+        });
+      }
+    });
+    return Array.from(set).sort();
+  }, [books]);
+
   const offlineCount = books.filter((b) => b.isOffline).length;
   const totalItemCount = viewMode === 'stacked' ? seriesGroups.length : filteredBooks.length;
 
@@ -66,6 +80,8 @@ export default function ShelfView({ user }: ShelfViewProps) {
           onViewModeChange={setViewMode}
           filter={filter}
           onFilterChange={setFilter}
+          groupBy={groupBy}
+          onGroupByChange={setGroupBy}
           sortOption={sortOption}
           onSortChange={setSortOption}
           searchQuery={searchQuery}
@@ -239,6 +255,7 @@ export default function ShelfView({ user }: ShelfViewProps) {
         book={editingBook}
         onClose={() => setEditingBook(null)}
         onSaveMetadata={updateBookMetadata}
+        existingCollections={existingCollections}
       />
 
       {/* Add / Ingest Books Modal */}

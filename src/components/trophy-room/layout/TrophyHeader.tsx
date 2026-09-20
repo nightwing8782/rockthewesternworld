@@ -17,13 +17,15 @@ import {
   ArrowLeft,
   Home,
 } from 'lucide-react';
-import { ShelfViewMode, FilterCategory, SortOption, IngestionProgressState } from '@/types/trophy';
+import { ShelfViewMode, FilterCategory, SortOption, IngestionProgressState, GroupByMode } from '@/types/trophy';
 
 interface TrophyHeaderProps {
   viewMode: ShelfViewMode;
   onViewModeChange: (mode: ShelfViewMode) => void;
   filter: FilterCategory;
   onFilterChange: (filter: FilterCategory) => void;
+  groupBy: GroupByMode;
+  onGroupByChange: (groupBy: GroupByMode) => void;
   sortOption: SortOption;
   onSortChange: (sort: SortOption) => void;
   searchQuery: string;
@@ -41,6 +43,8 @@ export default function TrophyHeader({
   onViewModeChange,
   filter,
   onFilterChange,
+  groupBy,
+  onGroupByChange,
   sortOption,
   onSortChange,
   searchQuery,
@@ -279,6 +283,26 @@ export default function TrophyHeader({
               <option value="in-progress">In Progress ({inProgressCount})</option>
               <option value="completed">Completed</option>
               <option value="offline">Downloaded / OPFS ({offlineCount})</option>
+            </select>
+          </div>
+
+          {/* Group By Dropdown (For Stacked Shelves) */}
+          <div className="flex items-center gap-1.5 bg-[#FFDE59] px-3 py-1.5 rounded-xl border-2 border-[#111827] shadow-[2px_2px_0_#111827]">
+            <Layers className="w-3.5 h-3.5 text-[#111827] stroke-[2.5]" />
+            <label className="text-[11px] font-black uppercase text-[#111827] whitespace-nowrap">
+              GROUP STACKS:
+            </label>
+            <select
+              value={groupBy}
+              onChange={(e) => onGroupByChange(e.target.value as GroupByMode)}
+              className="bg-transparent text-[#111827] text-xs font-black tracking-wide focus:outline-none cursor-pointer pl-1 uppercase"
+            >
+              <option value="series">By Series Run</option>
+              <option value="collection">By Custom Collections</option>
+              <option value="medium">By Medium / Type</option>
+              <option value="publisher">By Publisher</option>
+              <option value="franchise">By Franchise</option>
+              <option value="author">By Creator / Author</option>
             </select>
           </div>
 

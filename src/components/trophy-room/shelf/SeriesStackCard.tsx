@@ -143,7 +143,7 @@ export default function SeriesStackCard({
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 backdrop-blur-[2px] transition-opacity z-20">
           <div className="flex items-center gap-1.5 bg-[#FFDE59] text-[#111827] font-black text-sm tracking-wide px-4 py-2 rounded-xl border-3 border-[#111827] shadow-[3px_3px_0_#111827]">
             <BookOpen className="w-4 h-4 stroke-[2.5]" />
-            VIEW {series.totalIssues} ISSUES
+            VIEW {series.totalIssues} {series.totalIssues === 1 ? 'BOOK' : 'BOOKS'}
           </div>
         </div>
       </div>
@@ -162,7 +162,17 @@ export default function SeriesStackCard({
       <div className="p-3.5 flex-1 flex flex-col justify-between bg-white">
         <div>
           <span className="text-[10px] font-black uppercase tracking-widest text-[#FF4757]">
-            COLLECTION / RUN
+            {series.groupByType === 'collection'
+              ? 'CUSTOM COLLECTION'
+              : series.groupByType === 'medium'
+              ? 'CATEGORY SHELF'
+              : series.groupByType === 'publisher'
+              ? 'PUBLISHER CATALOG'
+              : series.groupByType === 'franchise'
+              ? 'FRANCHISE RUN'
+              : series.groupByType === 'author'
+              ? 'CREATOR PORTFOLIO'
+              : 'SERIES RUN'}
           </span>
 
           <h3
@@ -173,7 +183,7 @@ export default function SeriesStackCard({
           </h3>
 
           <div className="mt-1 flex items-center justify-between text-xs font-bold text-slate-500">
-            <span>{series.totalIssues} {series.totalIssues === 1 ? 'Volume' : 'Volumes'}</span>
+            <span>{series.totalIssues} {series.totalIssues === 1 ? 'Title' : 'Titles'}</span>
             <span className={isAllCompleted ? 'text-[#2ED573] font-black' : 'text-slate-700'}>
               {series.completedIssues}/{series.totalIssues} Read
             </span>
@@ -184,10 +194,10 @@ export default function SeriesStackCard({
         <div className="mt-3 pt-2 border-t-2 border-slate-100 flex items-center justify-between text-[11px] font-bold text-slate-600">
           <span className="text-[#111827] font-black flex items-center gap-1">
             <Sparkles className="w-3 h-3 text-[#FFDE59]" />
-            Complete Run
+            {series.groupByType === 'collection' ? 'Curated Shelf' : 'Full Stack'}
           </span>
           <span className="text-slate-400 font-mono text-[10px]">
-            {series.totalIssues} Issues
+            {series.totalIssues} Items
           </span>
         </div>
       </div>

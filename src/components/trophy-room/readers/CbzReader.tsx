@@ -165,6 +165,32 @@ export default function CbzReader({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isRtl, nextPage, prevPage]);
 
+  // Wheel Page Turning (locked view, no document scroll)
+  const lastWheelTimeRef = useRef<number>(0);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const now = Date.now();
+      if (now - lastWheelTimeRef.current < 250) return; // Debounce 250ms
+
+      if (e.deltaY > 20 || e.deltaX > 20) {
+        lastWheelTimeRef.current = now;
+        if (isRtl) prevPage();
+        else nextPage();
+      } else if (e.deltaY < -20 || e.deltaX < -20) {
+        lastWheelTimeRef.current = now;
+        if (isRtl) nextPage();
+        else prevPage();
+      }
+    };
+
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
+  }, [nextPage, prevPage, isRtl]);
+
   if (loading) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh] gap-3 text-stone-300">
@@ -188,7 +214,7 @@ export default function CbzReader({
   return (
     <div
       ref={containerRef}
-      className="flex-1 relative w-full h-full flex items-center justify-center select-none overflow-hidden touch-none"
+      className="flex-1 relative w-full h-full flex items-center justify-center select-none overflow-hidden touch-none p-2 sm:p-4"
       style={{
         transform: settings.zoomLevel !== 100 ? `scale(${settings.zoomLevel / 100})` : undefined,
       }}
@@ -214,12 +240,12 @@ export default function CbzReader({
         <img
           src={currentImageUrl}
           alt={`Page ${currentPage} of ${totalPages}`}
-          className={`max-w-full max-h-screen object-contain pointer-events-none transition-all duration-150 ${
+          className={`max-w-[96vw] max-h-[96vh] object-contain pointer-events-none transition-all duration-150 shadow-[0_20px_60px_rgba(0,0,0,0.85)] ${
             settings.fitMode === 'width'
-              ? 'w-full h-auto'
+              ? 'w-full max-h-[96vh] object-contain'
               : settings.fitMode === 'height'
-              ? 'h-screen w-auto'
-              : 'max-h-screen max-w-full'
+              ? 'h-[96vh] max-w-[96vw] object-contain'
+              : 'max-h-[96vh] max-w-[96vw] object-contain'
           }`}
           loading="eager"
         />
