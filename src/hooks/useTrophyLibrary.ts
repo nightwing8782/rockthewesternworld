@@ -158,7 +158,7 @@ export function useTrophyLibrary(user: any) {
         const extracted = await extractBookInfo(file);
 
         // Step B: Get presigned upload URL for the main file
-        setIngestionProgress((prev) => prev ? { ...prev, statusMessage: `Uploading ${file.name} to Cloudflare R2...` } : null);
+        setIngestionProgress((prev: any) => prev ? { ...prev, statusMessage: `Uploading ${file.name} to Cloudflare R2...` } : null);
         const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
         const fileKey = `books/${format}/${cleanFileName}`;
         const contentType = file.type || 'application/octet-stream';
@@ -192,7 +192,7 @@ export function useTrophyLibrary(user: any) {
         }
 
         // Step E: Insert into Supabase trophy_books
-        setIngestionProgress((prev) => prev ? { ...prev, statusMessage: `Indexing in Supabase catalog...` } : null);
+        setIngestionProgress((prev: any) => prev ? { ...prev, statusMessage: `Indexing in Supabase catalog...` } : null);
         const supabase = createClient();
         const newBookRecord = {
           user_id: user.id,
@@ -358,6 +358,19 @@ export function useTrophyLibrary(user: any) {
       if (updates.reading_direction !== undefined) dbPayload.reading_direction = updates.reading_direction;
       if (updates.page_count !== undefined) dbPayload.page_count = updates.page_count;
       if (updates.cover_url !== undefined) dbPayload.cover_url = updates.cover_url;
+      if (updates.medium !== undefined) dbPayload.medium = updates.medium;
+      if (updates.genres !== undefined) dbPayload.genres = updates.genres;
+      if (updates.volume_number !== undefined) dbPayload.volume_number = updates.volume_number;
+      if (updates.franchise !== undefined) dbPayload.franchise = updates.franchise;
+      if (updates.illustrator !== undefined) dbPayload.illustrator = updates.illustrator;
+      if (updates.publisher !== undefined) dbPayload.publisher = updates.publisher;
+      if (updates.published_year !== undefined) dbPayload.published_year = updates.published_year;
+      if (updates.isbn !== undefined) dbPayload.isbn = updates.isbn;
+      if (updates.is_favorite !== undefined) dbPayload.is_favorite = updates.is_favorite;
+      if (updates.rating !== undefined) dbPayload.rating = updates.rating;
+      if (updates.story_arc !== undefined) dbPayload.story_arc = updates.story_arc;
+      if (updates.collections !== undefined) dbPayload.collections = updates.collections;
+      if (updates.aspect_ratio !== undefined) dbPayload.aspect_ratio = updates.aspect_ratio;
 
       if (applyToEntireSeries && updates.series && currentBook.series) {
         await supabase
@@ -365,6 +378,9 @@ export function useTrophyLibrary(user: any) {
           .update({
             series: updates.series,
             ...(updates.author ? { author: updates.author } : {}),
+            ...(updates.publisher ? { publisher: updates.publisher } : {}),
+            ...(updates.franchise ? { franchise: updates.franchise } : {}),
+            ...(updates.medium ? { medium: updates.medium } : {}),
           })
           .eq('series', currentBook.series);
       }
@@ -398,11 +414,38 @@ export function useTrophyLibrary(user: any) {
     }
   };
 
-  // 6. Filtered and Sorted Books
+  // 7. Filtered and Sorted Books
   const filteredBooks = useMemo(() => {
     return books
       .filter((book) => {
-        // Format Filter
+        // Medium & Category Filter
+        if (filter === 'comic') {
+          const isComic = book.medium === 'comic' || book.format === 'cbz' || (book.tags || []).includes('comic');
+          if (!isComic) return false;
+        }
+        if (filter === 'manga') {
+          const isManga = book.medium === 'manga' || (book.tags || []).includes('manga');
+          if (!isManga) return false;
+        }
+        if (filter === 'cookbook') {
+          const isCookbook = book.medium === 'cookbook' || (book.tags || []).includes('cookbook');
+          if (!isCookbook) return false;
+        }
+        if (filter === 'reference') {
+          const isRef = book.medium === 'reference' || (book.tags || []).includes('reference');
+          if (!isRef) return false;
+        }
+        if (filter === 'wellness') {
+          const isWellness = book.medium === 'wellness' || (book.tags || []).includes('wellness');
+          if (!isWellness) return false;
+        }
+        if (filter === 'magazine') {
+          const isMag = book.medium === 'magazine' || (book.tags || []).includes('magazine');
+          if (!isMag) return false;
+        }
+        if (filter === 'favorites' && !book.is_favorite) return false;
+
+        // Raw Format Filter
         if (filter === 'cbz' && book.format !== 'cbz') return false;
         if (filter === 'epub' && book.format !== 'epub') return false;
         if (filter === 'pdf' && book.format !== 'pdf') return false;
@@ -416,10 +459,11 @@ export function useTrophyLibrary(user: any) {
           const matchTitle = (book.title || '').toLowerCase().includes(q);
           const matchSeries = (book.series || '').toLowerCase().includes(q);
           const matchAuthor = (book.author || '').toLowerCase().includes(q);
+          const matchPublisher = (book.publisher || '').toLowerCase().includes(q);
+          const matchFranchise = (book.franchise || '').toLowerCase().includes(q);
           const matchTags = (book.tags || []).some((t) => t.toLowerCase().includes(q));
-          return matchTitle || matchSeries || matchAuthor || matchTags;
+          return matchTitle || matchSeries || matchAuthor || matchPublisher || matchFranchise || matchTags;
         }
-
         return true;
       })
       .sort((a, b) => {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Save,
@@ -12,11 +12,12 @@ import {
   Globe,
   BookOpen,
   Image as ImageIcon,
+  Star,
   Layers,
-  ChevronRight,
-  ExternalLink,
+  Calendar,
+  Building,
 } from 'lucide-react';
-import { TrophyBook, ReadingDirection } from '@/types/trophy';
+import { TrophyBook, ReadingDirection, BookMedium } from '@/types/trophy';
 
 interface MetadataSearchResult {
   id: string;
@@ -52,7 +53,14 @@ export default function MetadataModal({
   const [title, setTitle] = useState('');
   const [series, setSeries] = useState('');
   const [issueNumber, setIssueNumber] = useState<number>(1);
+  const [volumeNumber, setVolumeNumber] = useState<number | ''>('');
   const [author, setAuthor] = useState('');
+  const [illustrator, setIllustrator] = useState('');
+  const [publisher, setPublisher] = useState('');
+  const [franchise, setFranchise] = useState('');
+  const [publishedYear, setPublishedYear] = useState('');
+  const [medium, setMedium] = useState<BookMedium>('comic');
+  const [isFavorite, setIsFavorite] = useState(false);
   const [description, setDescription] = useState('');
   const [pageCount, setPageCount] = useState<number>(1);
   const [readingDirection, setReadingDirection] = useState<ReadingDirection>('ltr');
@@ -90,10 +98,17 @@ export default function MetadataModal({
       setTitle(book.title || '');
       setSeries(book.series || '');
       setIssueNumber(book.issue_number || 1);
+      setVolumeNumber(book.volume_number !== undefined && book.volume_number !== null ? book.volume_number : '');
       setAuthor(book.author || '');
+      setIllustrator(book.illustrator || '');
+      setPublisher(book.publisher || '');
+      setFranchise(book.franchise || '');
+      setPublishedYear(book.published_year || '');
+      setMedium((book.medium as BookMedium) || (book.format === 'cbz' ? 'comic' : book.format === 'epub' ? 'novel' : 'comic'));
+      setIsFavorite(!!book.is_favorite);
       setDescription(book.description || '');
       setPageCount(book.page_count || 1);
-      setReadingDirection(book.reading_direction || 'ltr');
+      setReadingDirection(book.reading_direction || (book.medium === 'manga' ? 'rtl' : 'ltr'));
       setCoverUrl(book.cover_url || null);
       setApplyToSeriesRun(false);
 
@@ -139,7 +154,7 @@ export default function MetadataModal({
     const results: MetadataSearchResult[] = [];
 
     try {
-      // 1. Google Books API (Fetches up to 6 rich results)
+      // 1. Google Books API
       const gRes = await fetch(
         `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=6`
       );
@@ -177,7 +192,7 @@ export default function MetadataModal({
         }
       }
 
-      // 2. Open Library Search (Fallback & Complementary)
+      // 2. Open Library Search
       if (results.length < 4) {
         const olRes = await fetch(
           `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=4`
@@ -224,11 +239,9 @@ export default function MetadataModal({
   const handleApplyResult = (res: MetadataSearchResult) => {
     setSelectedResultId(res.id);
 
-    // Smart Series vs Title assignment
     if (res.series) {
       setSeries(res.series);
     } else if (res.title) {
-      // If title has a colon or volume (e.g. "Saga, Vol. 1" or "Peanuts: 1950-1952")
       const parts = res.title.split(/[:\-,]/);
       if (parts.length > 1 && parts[0].trim().length > 2) {
         setSeries(parts[0].trim());
@@ -237,29 +250,17 @@ export default function MetadataModal({
       }
     }
 
-    if (res.title) {
-      setTitle(res.title);
-    }
-
+    if (res.title) setTitle(res.title);
     if (res.volumeNumber) {
       setIssueNumber(res.volumeNumber);
+      setVolumeNumber(res.volumeNumber);
     }
-
-    if (res.authors && res.authors.length > 0) {
-      setAuthor(res.authors.join(', '));
-    }
-
-    if (res.description) {
-      setDescription(res.description);
-    }
-
-    if (res.pageCount && res.pageCount > 0) {
-      setPageCount(res.pageCount);
-    }
-
-    if (res.thumbnailUrl) {
-      setCoverUrl(res.thumbnailUrl);
-    }
+    if (res.authors && res.authors.length > 0) setAuthor(res.authors.join(', '));
+    if (res.publisher) setPublisher(res.publisher);
+    if (res.publishedDate) setPublishedYear(res.publishedDate.slice(0, 4));
+    if (res.description) setDescription(res.description);
+    if (res.pageCount && res.pageCount > 0) setPageCount(res.pageCount);
+    if (res.thumbnailUrl) setCoverUrl(res.thumbnailUrl);
 
     setSearchSuccessMessage(
       `Applied metadata from ${res.source === 'google' ? 'Google Books' : 'Open Library'}: "${res.title}"`
@@ -279,7 +280,14 @@ export default function MetadataModal({
           title: title.trim() || book.title,
           series: series.trim() || 'Standalone',
           issue_number: Number(issueNumber) || 1,
+          volume_number: volumeNumber !== '' ? Number(volumeNumber) : null,
           author: author.trim() || null,
+          illustrator: illustrator.trim() || null,
+          publisher: publisher.trim() || null,
+          franchise: franchise.trim() || null,
+          published_year: publishedYear.trim() || null,
+          medium,
+          is_favorite: isFavorite,
           description: description.trim() || null,
           page_count: Number(pageCount) || book.page_count,
           reading_direction: readingDirection,
@@ -317,15 +325,15 @@ export default function MetadataModal({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl bg-white border-2 border-[#111827] text-[#111827] hover:bg-[#FF4757] hover:text-white shadow-[2px_2px_0_#111827] transition-colors"
+            className="p-1.5 rounded-xl bg-white border-2 border-[#111827] text-[#111827] hover:bg-[#FF4757] hover:text-white shadow-[2px_2px_0_#111827] transition-colors cursor-pointer"
           >
             <X className="w-5 h-5 stroke-[2.5]" />
           </button>
         </div>
 
         {/* Scrollable Content Body */}
-        <div className="p-6 overflow-y-auto space-y-6 flex-1 bg-paper-texture">
-          {/* Section 1: Live Cloud Search & Matching Engine */}
+        <div className="p-6 overflow-y-auto space-y-5 flex-1 bg-paper-texture">
+          {/* Section 1: Live Cloud Search */}
           <div className="p-4 bg-white rounded-2xl border-3 border-[#111827] shadow-[4px_4px_0_#111827] space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -379,7 +387,6 @@ export default function MetadataModal({
               </button>
             </div>
 
-            {/* Success Applied Banner */}
             {searchSuccessMessage && (
               <div className="p-2.5 rounded-xl bg-emerald-100 border-2 border-[#2ED573] text-emerald-950 font-bold text-xs flex items-center gap-2 animate-in fade-in duration-150">
                 <CheckCircle2 className="w-4 h-4 text-[#2ED573] shrink-0" />
@@ -387,7 +394,6 @@ export default function MetadataModal({
               </div>
             )}
 
-            {/* Candidate Search Results List */}
             {searchResults.length > 0 && (
               <div className="mt-3 pt-3 border-t-2 border-slate-100 space-y-2 max-h-56 overflow-y-auto pr-1">
                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
@@ -406,7 +412,6 @@ export default function MetadataModal({
                             : 'bg-white hover:bg-amber-50/60 border-slate-300 hover:border-[#111827]'
                         }`}
                       >
-                        {/* Cover Thumbnail */}
                         {result.thumbnailUrl ? (
                           <img
                             src={result.thumbnailUrl}
@@ -455,26 +460,64 @@ export default function MetadataModal({
             </div>
           )}
 
-          {/* Section 2: Editable Metadata Form */}
+          {/* Section 2: Form */}
           <form id="metadata-form" onSubmit={handleSave} className="space-y-4">
-            {/* Title */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-black uppercase tracking-wider text-[#111827] flex items-center justify-between">
-                <span>Book / Issue Title</span>
-                <span className="text-[10px] text-slate-500 lowercase font-medium">required</span>
-              </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                required
-                placeholder="e.g. Saga #1 or Peanuts 1950-1952"
-                className="w-full px-3.5 py-2 bg-white border-2 border-[#111827] rounded-xl text-xs font-bold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
-              />
+            {/* Title & Favorite Star */}
+            <div className="flex items-end gap-3">
+              <div className="flex-1 space-y-1.5">
+                <label className="text-xs font-black uppercase tracking-wider text-[#111827] flex items-center justify-between">
+                  <span>Book / Issue Title</span>
+                  <span className="text-[10px] text-slate-500 lowercase font-medium">required</span>
+                </label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  required
+                  placeholder="e.g. Saga #1 or Peanuts 1950-1952"
+                  className="w-full px-3.5 py-2 bg-white border-2 border-[#111827] rounded-xl text-xs font-bold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
+                />
+              </div>
+
+              {/* Favorite Toggle */}
+              <button
+                type="button"
+                onClick={() => setIsFavorite(!isFavorite)}
+                className={`p-2 rounded-xl border-2 border-[#111827] transition-all flex items-center justify-center shrink-0 cursor-pointer shadow-[2px_2px_0_#111827] ${
+                  isFavorite ? 'bg-[#FFDE59] text-[#111827]' : 'bg-white text-slate-400 hover:text-amber-500'
+                }`}
+                title={isFavorite ? 'In Favorites Hall of Fame' : 'Add to Favorites'}
+              >
+                <Star className={`w-5 h-5 ${isFavorite ? 'fill-[#FF4757] text-[#111827]' : ''}`} />
+              </button>
             </div>
 
-            {/* Series & Issue # */}
+            {/* Medium & Series */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
+                  Medium / Category
+                </label>
+                <select
+                  value={medium}
+                  onChange={(e) => {
+                    const nextMed = e.target.value as BookMedium;
+                    setMedium(nextMed);
+                    if (nextMed === 'manga') setReadingDirection('rtl');
+                  }}
+                  className="w-full px-3 py-2 bg-white border-2 border-[#111827] rounded-xl text-xs font-bold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827] uppercase cursor-pointer"
+                >
+                  <option value="comic">🦸 Comic / Graphic Novel</option>
+                  <option value="manga">⛩️ Manga (RTL)</option>
+                  <option value="cookbook">🍳 Cookbook / Culinary</option>
+                  <option value="reference">🛠️ Reference / 101s</option>
+                  <option value="wellness">🧘 Wellness & Habits</option>
+                  <option value="writing">✍️ Writing & Screenplay</option>
+                  <option value="magazine">📰 Periodical / Magazine</option>
+                  <option value="novel">📖 Prose & Fiction</option>
+                </select>
+              </div>
+
               <div className="sm:col-span-2 space-y-1.5">
                 <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
                   Series / Collection Name
@@ -483,20 +526,50 @@ export default function MetadataModal({
                   type="text"
                   value={series}
                   onChange={(e) => setSeries(e.target.value)}
-                  placeholder="e.g. Saga, The Complete Peanuts, Batman"
+                  placeholder="e.g. Saga, The Complete Peanuts, Adams 101"
+                  className="w-full px-3.5 py-2 bg-white border-2 border-[#111827] rounded-xl text-xs font-bold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
+                />
+              </div>
+            </div>
+
+            {/* Volume #, Issue #, and Franchise */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
+                  Volume #
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  value={volumeNumber}
+                  onChange={(e) => setVolumeNumber(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                  placeholder="e.g. 1"
                   className="w-full px-3.5 py-2 bg-white border-2 border-[#111827] rounded-xl text-xs font-bold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
                 />
               </div>
 
               <div className="space-y-1.5">
                 <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
-                  Issue / Volume #
+                  Issue #
                 </label>
                 <input
                   type="number"
                   step="any"
                   value={issueNumber}
                   onChange={(e) => setIssueNumber(parseFloat(e.target.value) || 1)}
+                  className="w-full px-3.5 py-2 bg-white border-2 border-[#111827] rounded-xl text-xs font-bold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
+                  Franchise / Universe
+                </label>
+                <input
+                  type="text"
+                  value={franchise}
+                  onChange={(e) => setFranchise(e.target.value)}
+                  placeholder="e.g. Transformers, Peanuts"
                   className="w-full px-3.5 py-2 bg-white border-2 border-[#111827] rounded-xl text-xs font-bold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
                 />
               </div>
@@ -512,35 +585,48 @@ export default function MetadataModal({
                   className="w-4 h-4 rounded border-2 border-[#111827] text-[#FF4757] focus:ring-0 cursor-pointer"
                 />
                 <span className="text-xs font-bold text-[#111827]">
-                  Apply series name <span className="font-black text-[#FF4757]">"{series || 'Standalone'}"</span> and author to all issues in this series run
+                  Apply series <span className="font-black text-[#FF4757]">"{series || 'Standalone'}"</span>, publisher, and medium to all issues in this run
                 </span>
               </label>
             )}
 
-            {/* Author & Page Count */}
+            {/* Author, Publisher, Year */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="sm:col-span-2 space-y-1.5">
+              <div className="space-y-1.5">
                 <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
-                  Author / Writer / Creator
+                  Author / Writer / Chef
                 </label>
                 <input
                   type="text"
                   value={author}
                   onChange={(e) => setAuthor(e.target.value)}
-                  placeholder="e.g. Charles M. Schulz, Brian K. Vaughan"
+                  placeholder="e.g. Charles M. Schulz"
                   className="w-full px-3.5 py-2 bg-white border-2 border-[#111827] rounded-xl text-xs font-bold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
                 />
               </div>
 
               <div className="space-y-1.5">
                 <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
-                  Exact Page Count
+                  Publisher / Imprint
                 </label>
                 <input
-                  type="number"
-                  min="1"
-                  value={pageCount}
-                  onChange={(e) => setPageCount(parseInt(e.target.value, 10) || 1)}
+                  type="text"
+                  value={publisher}
+                  onChange={(e) => setPublisher(e.target.value)}
+                  placeholder="e.g. Fantagraphics, Adams"
+                  className="w-full px-3.5 py-2 bg-white border-2 border-[#111827] rounded-xl text-xs font-bold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
+                  Published Year
+                </label>
+                <input
+                  type="text"
+                  value={publishedYear}
+                  onChange={(e) => setPublishedYear(e.target.value)}
+                  placeholder="e.g. 1959"
                   className="w-full px-3.5 py-2 bg-white border-2 border-[#111827] rounded-xl text-xs font-bold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#FFDE59] shadow-[2px_2px_0_#111827]"
                 />
               </div>
@@ -548,7 +634,6 @@ export default function MetadataModal({
 
             {/* Reading Direction & Cover Preview */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Reading Direction */}
               <div className="space-y-1.5">
                 <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
                   Reading Direction
@@ -579,7 +664,6 @@ export default function MetadataModal({
                 </div>
               </div>
 
-              {/* Cover Art Status */}
               <div className="space-y-1.5">
                 <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
                   Cover Artwork
@@ -614,7 +698,7 @@ export default function MetadataModal({
               </div>
             </div>
 
-            {/* Description / Notes */}
+            {/* Description */}
             <div className="space-y-1.5">
               <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
                 Synopsis / Book Notes

@@ -1,8 +1,42 @@
 export type BookFormat = 'cbz' | 'epub' | 'pdf';
 export type ReadingDirection = 'ltr' | 'rtl';
 export type ShelfViewMode = 'stacked' | 'grid' | 'list';
-export type FilterCategory = 'all' | 'cbz' | 'epub' | 'pdf' | 'offline' | 'in-progress' | 'completed';
-export type SortOption = 'series-asc' | 'title-asc' | 'recently-read' | 'progress-desc' | 'issue-asc';
+export type BookMedium =
+  | 'comic'
+  | 'manga'
+  | 'novel'
+  | 'cookbook'
+  | 'reference'
+  | 'magazine'
+  | 'wellness'
+  | 'writing'
+  | 'artbook'
+  | 'other';
+
+export type FilterCategory =
+  | 'all'
+  | 'comic'
+  | 'manga'
+  | 'cookbook'
+  | 'reference'
+  | 'wellness'
+  | 'magazine'
+  | 'cbz'
+  | 'epub'
+  | 'pdf'
+  | 'offline'
+  | 'in-progress'
+  | 'completed'
+  | 'favorites';
+
+export type SortOption =
+  | 'series-asc'
+  | 'title-asc'
+  | 'recently-read'
+  | 'progress-desc'
+  | 'issue-asc'
+  | 'year-desc'
+  | 'rating-desc';
 
 export interface TrophyBook {
   id: string;
@@ -21,6 +55,21 @@ export interface TrophyBook {
   reading_direction: ReadingDirection;
   page_count: number;
   tags: string[];
+  // Rich Taxonomy & Metadata Extension
+  medium?: BookMedium | string;
+  genres?: string[];
+  volume_number?: number | null;
+  franchise?: string | null;
+  illustrator?: string | null;
+  publisher?: string | null;
+  published_year?: string | null;
+  isbn?: string | null;
+  is_favorite?: boolean;
+  rating?: number | null;
+  story_arc?: string | null;
+  collections?: string[];
+  primary_color?: string | null;
+  aspect_ratio?: 'portrait' | 'landscape' | string;
   created_at?: string;
   updated_at?: string;
   // Dynamic client fields
@@ -50,6 +99,9 @@ export interface SeriesGroup {
   coverBlob?: Blob | null;
   formats: BookFormat[];
   lastReadAt: number;
+  medium?: BookMedium | string;
+  publisher?: string | null;
+  franchise?: string | null;
 }
 
 export interface ReaderSettings {
@@ -58,9 +110,10 @@ export interface ReaderSettings {
   fitMode: 'contain' | 'width' | 'height';
   amberFilterPercent: number; // 0 to 100
   fontSize: number; // For EPUB (e.g. 100%)
-  fontFamily: 'serif' | 'sans' | 'comic';
-  epubTheme: 'light' | 'sepia' | 'dark';
-  zoomLevel: number;
+  zoomLevel: number; // For Comic/PDF (e.g. 100%)
+  theme?: 'light' | 'sepia' | 'dark' | 'black';
+  epubTheme?: 'light' | 'sepia' | 'dark' | 'black';
+  fontFamily?: 'serif' | 'sans' | 'mono';
 }
 
 export interface IngestionProgressState {
@@ -68,7 +121,5 @@ export interface IngestionProgressState {
   currentFileIndex: number;
   totalFiles: number;
   currentFileName: string;
-  statusMessage: string;
-  bytesReceived?: number;
-  totalBytes?: number;
+  statusMessage?: string;
 }

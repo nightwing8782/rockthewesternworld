@@ -214,21 +214,38 @@ export default function TrophyHeader({
           )}
         </div>
 
-        {/* Row 3: Filter Dropdowns & All Pill */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          {/* All Items Pill Button */}
-          <button
-            onClick={() => onFilterChange('all')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border-2 border-[#111827] font-black text-xs uppercase tracking-wider whitespace-nowrap transition-all ${
-              filter === 'all'
-                ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757]'
-                : 'bg-white text-[#111827] hover:bg-amber-50 shadow-[2px_2px_0_#111827]'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>ALL ({totalBooks})</span>
-          </button>
+        {/* Row 3: Medium Filter Ribbon */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          {[
+            { id: 'all', label: `ALL (${totalBooks})`, icon: '📚' },
+            { id: 'comic', label: 'COMICS', icon: '🦸' },
+            { id: 'manga', label: 'MANGA', icon: '⛩️' },
+            { id: 'cookbook', label: 'COOKBOOKS', icon: '🍳' },
+            { id: 'reference', label: 'REFERENCE (101s)', icon: '🛠️' },
+            { id: 'wellness', label: 'WELLNESS', icon: '🧘' },
+            { id: 'magazine', label: 'MAGAZINES', icon: '📰' },
+            { id: 'favorites', label: 'FAVORITES', icon: '⭐' },
+          ].map((tab) => {
+            const isActive = filter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => onFilterChange(tab.id as FilterCategory)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border-2 border-[#111827] font-black text-xs uppercase tracking-wider whitespace-nowrap transition-all cursor-pointer ${
+                  isActive
+                    ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757]'
+                    : 'bg-white text-[#111827] hover:bg-amber-50 shadow-[1.5px_1.5px_0_#111827]'
+                }`}
+              >
+                <span>{tab.icon}</span>
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
 
+        {/* Row 4: Format, Status & Sort Controls */}
+        <div className="flex items-center gap-2.5 flex-wrap">
           {/* Format Dropdown */}
           <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border-2 border-[#111827] shadow-[2px_2px_0_#111827]">
             <BookOpen className="w-3.5 h-3.5 text-[#FF4757] stroke-[2.5]" />
@@ -240,7 +257,7 @@ export default function TrophyHeader({
               onChange={(e) => onFilterChange(e.target.value as FilterCategory)}
               className="bg-transparent text-[#111827] text-xs font-black tracking-wide focus:outline-none cursor-pointer pl-1 uppercase"
             >
-              <option value="all">All Formats</option>
+              <option value="all">All File Formats</option>
               <option value="cbz">CBZ Comics</option>
               <option value="epub">EPUB eBooks</option>
               <option value="pdf">PDF Documents</option>
@@ -279,7 +296,7 @@ export default function TrophyHeader({
               <option value="title-asc">Title (A-Z)</option>
               <option value="recently-read">Recently Read</option>
               <option value="progress-desc">Highest Progress</option>
-              <option value="issue-asc">Issue #</option>
+              <option value="issue-asc">Issue / Volume #</option>
             </select>
           </div>
         </div>
