@@ -206,10 +206,15 @@ export default function MetadataModal({
                 ? `https://covers.openlibrary.org/b/id/${coverId}-M.jpg`
                 : undefined;
 
+              const fullOlTitle = [doc.title, doc.subtitle].filter(Boolean).join(': ');
+              const extractedOlVol = extractVolumeNumber(fullOlTitle);
+
               results.push({
                 id: `ol_${doc.key || Math.random()}`,
                 source: 'openlibrary',
                 title: doc.title,
+                subtitle: doc.subtitle,
+                volumeNumber: extractedOlVol || undefined,
                 authors: doc.author_name ? doc.author_name.slice(0, 3) : [],
                 description: doc.first_sentence ? doc.first_sentence[0] : undefined,
                 publisher: doc.publisher ? doc.publisher[0] : undefined,
@@ -307,7 +312,7 @@ export default function MetadataModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-[#FAF7F2] border-4 border-[#111827] rounded-3xl shadow-[8px_8px_0_#111827] max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden text-[#111827]">
+      <div className="bg-[#FAF7F2] border-4 border-[#111827] rounded-3xl shadow-[8px_8px_0_#111827] max-w-3xl w-full max-h-[92vh] flex flex-col overflow-hidden text-[#111827]">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b-4 border-[#111827] bg-[#FFDE59] shrink-0">
           <div className="flex items-center gap-2.5">
@@ -395,56 +400,84 @@ export default function MetadataModal({
             )}
 
             {searchResults.length > 0 && (
-              <div className="mt-3 pt-3 border-t-2 border-slate-100 space-y-2 max-h-56 overflow-y-auto pr-1">
-                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                  Select a match to auto-fill metadata & cover art:
+              <div className="mt-3 pt-3 border-t-2 border-slate-100 space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                <p className="text-[11px] font-black uppercase tracking-wider text-slate-600 flex items-center justify-between">
+                  <span>Select a match to auto-fill metadata & cover art ({searchResults.length} results):</span>
+                  <span className="text-[10px] text-slate-400 lowercase font-normal">click any card to apply</span>
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="space-y-2">
                   {searchResults.map((result) => {
                     const isSelected = selectedResultId === result.id;
                     return (
                       <div
                         key={result.id}
                         onClick={() => handleApplyResult(result)}
-                        className={`p-2.5 rounded-xl border-2 transition-all flex gap-3 items-start cursor-pointer text-left ${
+                        className={`p-3 rounded-2xl border-3 transition-all flex items-center gap-3.5 cursor-pointer text-left ${
                           isSelected
-                            ? 'bg-[#FFDE59]/30 border-[#111827] shadow-[2px_2px_0_#111827] ring-2 ring-[#FFDE59]'
-                            : 'bg-white hover:bg-amber-50/60 border-slate-300 hover:border-[#111827]'
+                            ? 'bg-[#FFDE59]/40 border-[#111827] shadow-[3px_3px_0_#111827] ring-2 ring-[#FFDE59]'
+                            : 'bg-white hover:bg-amber-50/70 border-slate-300 hover:border-[#111827] shadow-[2px_2px_0_rgba(0,0,0,0.06)]'
                         }`}
                       >
+                        {/* Cover Image */}
                         {result.thumbnailUrl ? (
                           <img
                             src={result.thumbnailUrl}
                             alt={result.title}
-                            className="w-12 h-16 object-cover rounded-md border border-[#111827] shrink-0 shadow-xs"
+                            className="w-14 h-20 object-cover rounded-lg border-2 border-[#111827] shrink-0 shadow-[2px_2px_0_#111827]"
                           />
                         ) : (
-                          <div className="w-12 h-16 bg-slate-200 rounded-md border border-slate-400 flex items-center justify-center shrink-0">
-                            <BookOpen className="w-5 h-5 text-slate-500" />
+                          <div className="w-14 h-20 bg-slate-100 rounded-lg border-2 border-slate-300 flex flex-col items-center justify-center shrink-0 text-slate-400">
+                            <BookOpen className="w-6 h-6 stroke-[1.5]" />
+                            <span className="text-[8px] uppercase font-black mt-1">No Cover</span>
                           </div>
                         )}
 
+                        {/* Details */}
                         <div className="flex-1 min-w-0">
-                          <h4 className="text-xs font-black text-[#111827] line-clamp-1 leading-tight">
-                            {result.title}
-                          </h4>
-                          <p className="text-[10px] font-bold text-slate-600 line-clamp-1 mt-0.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <h4 className="text-xs sm:text-sm font-black text-[#111827] leading-snug break-words">
+                              {result.title}
+                              {result.subtitle ? ` — ${result.subtitle}` : ''}
+                            </h4>
+                          </div>
+
+                          <p className="text-xs font-bold text-slate-700 mt-1">
                             {result.authors.length > 0 ? result.authors.join(', ') : 'Unknown Creator'}
+                            {result.publisher ? ` • ${result.publisher}` : ''}
                           </p>
-                          <div className="flex items-center gap-1.5 mt-1.5 text-[9px] font-bold text-slate-500">
-                            {result.publishedDate && <span>{result.publishedDate.slice(0, 4)}</span>}
-                            {result.pageCount && <span>• {result.pageCount} pgs</span>}
-                            <span className="uppercase px-1 py-0.2 rounded bg-slate-100 border border-slate-300 text-[8px]">
-                              {result.source}
+
+                          <div className="flex flex-wrap items-center gap-2 mt-1.5 text-[10px] font-bold text-slate-500">
+                            {result.volumeNumber && (
+                              <span className="comic-stamp px-1.5 py-0.2 rounded bg-[#FFDE59] text-[#111827] font-black border border-[#111827]">
+                                Vol. {result.volumeNumber}
+                              </span>
+                            )}
+                            {result.publishedDate && (
+                              <span className="comic-stamp px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-300">
+                                Year: {result.publishedDate.slice(0, 4)}
+                              </span>
+                            )}
+                            {result.pageCount && (
+                              <span className="comic-stamp px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-300">
+                                {result.pageCount} Pages
+                              </span>
+                            )}
+                            <span className="comic-stamp text-[9px] uppercase px-1.5 py-0.2 rounded bg-slate-800 text-white font-mono">
+                              {result.source.toUpperCase()}
                             </span>
                           </div>
                         </div>
 
+                        {/* Action Button */}
                         <button
                           type="button"
-                          className="px-2 py-1 bg-[#111827] text-white text-[10px] font-black uppercase tracking-wider rounded-lg shrink-0 mt-1"
+                          className={`px-3.5 py-2 text-xs font-black uppercase tracking-wider rounded-xl border-2 border-[#111827] shrink-0 transition-all ${
+                            isSelected
+                              ? 'bg-[#2ED573] text-[#111827] shadow-[2px_2px_0_#111827]'
+                              : 'bg-[#111827] text-white hover:bg-[#FF4757] shadow-[2px_2px_0_#111827]'
+                          }`}
                         >
-                          Use
+                          {isSelected ? 'Selected' : 'Use'}
                         </button>
                       </div>
                     );
