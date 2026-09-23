@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { AlertTriangle, Loader2, ZoomIn } from 'lucide-react';
 import { useSwipeGestures } from '@/hooks/useSwipeGestures';
 import { ReaderSettings } from '@/types/trophy';
 
@@ -47,6 +47,28 @@ export default function PdfReader({
   const [loading, setLoading] = useState(true);
   const [rendering, setRendering] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Tap feedback & Zoom State
+  const [tapFlash, setTapFlash] = useState<'left' | 'right' | null>(null);
+  const [zoomScale, setZoomScale] = useState<number>(1);
+  const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const isZoomed = zoomScale > 1.05;
+
+  // Window size tracking
+  const [windowSize, setWindowSize] = useState({ width: 1024, height: 768 });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, []);
 
   // Load PDF Document
   useEffect(() => {
@@ -97,7 +119,8 @@ export default function PdfReader({
   }, [fileBlob]);
 
   // Determine if dual page is active
-  const isDualPage = settings.dualPageLandscape && typeof window !== 'undefined' && window.innerWidth > 900;
+  const isLandscape = windowSize.width > windowSize.height && windowSize.width >= 768;
+  const isDualPage = settings.dualPageLandscape && isLandscape;
   const page1 = currentPage;
   const page2 = isDualPage && page1 + 1 <= numPages ? page1 + 1 : null;
 
@@ -109,7 +132,6 @@ export default function PdfReader({
     if (!pdfDoc || !containerRef.current) return;
     setRendering(true);
 
-    // Cancel any previous in-flight render tasks to avoid collisions
     if (renderTask1Ref.current) {
       try {
         renderTask1Ref.current.cancel();
@@ -127,14 +149,12 @@ export default function PdfReader({
       const containerWidth = containerRef.current.clientWidth || window.innerWidth;
       const containerHeight = containerRef.current.clientHeight || window.innerHeight;
 
-      // Deduct padding
-      const availableWidth = Math.max(300, containerWidth - 32);
-      const availableHeight = Math.max(300, containerHeight - 32);
+      const availableWidth = Math.max(300, containerWidth - 24);
+      const availableHeight = Math.max(300, containerHeight - 24);
 
-      const targetWidth = isDualPage ? availableWidth / 2 - 12 : availableWidth;
+      const targetWidth = isDualPage ? availableWidth / 2 - 8 : availableWidth;
       const targetHeight = availableHeight;
 
-      // Device Pixel Ratio for crystal-clear Retina rendering (e.g. 2x on MacBook / iPad, 3x on mobile)
       const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 3) : 1;
 
       // Render First Page
@@ -147,7 +167,6 @@ export default function PdfReader({
       } else if (settings.fitMode === 'height') {
         scale1 = (targetHeight / vp1Unscaled.height) * (settings.zoomLevel / 100);
       } else {
-        // contain (default)
         scale1 = Math.min(targetWidth / vp1Unscaled.width, targetHeight / vp1Unscaled.height) * (settings.zoomLevel / 100);
       }
 
@@ -155,11 +174,8 @@ export default function PdfReader({
       const vp1 = p1.getViewport({ scale: scaledScale1 });
       const c1 = canvasRef1.current;
       if (c1) {
-        // Set canvas buffer to native High-DPI resolution
         c1.width = Math.floor(vp1.width);
         c1.height = Math.floor(vp1.height);
-
-        // Set CSS display dimensions to logical points
         c1.style.width = `${Math.floor(vp1.width / dpr)}px`;
         c1.style.height = `${Math.floor(vp1.height / dpr)}px`;
 
@@ -227,34 +243,81 @@ export default function PdfReader({
     renderCurrentPages();
   }, [renderCurrentPages]);
 
-  // Window Resize
-  useEffect(() => {
-    const handleResize = () => {
-      renderCurrentPages();
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [renderCurrentPages]);
-
   // Navigation handlers
   const step = isDualPage ? 2 : 1;
   const isRTL = settings.readingDirection === 'rtl';
 
+  const triggerTapFlash = (side: 'left' | 'right') => {
+    setTapFlash(side);
+    setTimeout(() => setTapFlash(null), 250);
+  };
+
   const nextPage = useCallback(() => {
+    if (isZoomed) {
+      setZoomScale(1);
+      setPanOffset({ x: 0, y: 0 });
+      return;
+    }
     if (currentPage + step <= numPages) {
+      triggerTapFlash('right');
       onPageChange(currentPage + step, numPages);
     } else if (currentPage < numPages) {
+      triggerTapFlash('right');
       onPageChange(numPages, numPages);
     }
-  }, [currentPage, step, numPages, onPageChange]);
+  }, [currentPage, step, numPages, isZoomed, onPageChange]);
 
   const prevPage = useCallback(() => {
+    if (isZoomed) {
+      setZoomScale(1);
+      setPanOffset({ x: 0, y: 0 });
+      return;
+    }
     if (currentPage - step >= 1) {
+      triggerTapFlash('left');
       onPageChange(currentPage - step, numPages);
     } else if (currentPage > 1) {
+      triggerTapFlash('left');
       onPageChange(1, numPages);
     }
-  }, [currentPage, step, numPages, onPageChange]);
+  }, [currentPage, step, numPages, isZoomed, onPageChange]);
+
+  // Double-tap zoom toggle
+  const handleDoubleTap = useCallback((clientX: number, clientY: number) => {
+    setZoomScale((prev) => {
+      if (prev > 1.2) {
+        setPanOffset({ x: 0, y: 0 });
+        return 1;
+      }
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (rect) {
+        const cx = clientX - rect.left - rect.width / 2;
+        const cy = clientY - rect.top - rect.height / 2;
+        setPanOffset({ x: -cx * 0.8, y: -cy * 0.8 });
+      }
+      return 2.2;
+    });
+  }, []);
+
+  // Pinch zoom
+  const handlePinchZoom = useCallback((scaleDelta: number) => {
+    setZoomScale((prev) => {
+      const next = Math.min(3.5, Math.max(1, prev * (1 + (scaleDelta - 1) * 0.5)));
+      if (next <= 1.05) setPanOffset({ x: 0, y: 0 });
+      return next;
+    });
+  }, []);
+
+  // 3-Zone Touch Gestures (Left 30% | Center 40% | Right 30%)
+  useSwipeGestures(containerRef, {
+    onSwipeLeft: () => (isRTL ? prevPage() : nextPage()),
+    onSwipeRight: () => (isRTL ? nextPage() : prevPage()),
+    onTapLeft: () => (isRTL ? nextPage() : prevPage()),
+    onTapRight: () => (isRTL ? prevPage() : nextPage()),
+    onTapCenter: onToggleHUD,
+    onDoubleTap: handleDoubleTap,
+    onPinchZoom: handlePinchZoom,
+  });
 
   // Keyboard navigation
   useEffect(() => {
@@ -275,14 +338,16 @@ export default function PdfReader({
       } else if (e.key === 'End') {
         e.preventDefault();
         onPageChange(numPages, numPages);
+      } else if (e.key === 'Escape') {
+        onToggleHUD();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [nextPage, prevPage, onPageChange, numPages, isRTL]);
+  }, [nextPage, prevPage, onPageChange, numPages, isRTL, onToggleHUD]);
 
-  // Wheel Page Turning (locked view, no document scroll)
+  // Wheel Page Turning
   const lastWheelTimeRef = useRef<number>(0);
   useEffect(() => {
     const el = containerRef.current;
@@ -291,7 +356,7 @@ export default function PdfReader({
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
       const now = Date.now();
-      if (now - lastWheelTimeRef.current < 250) return; // Debounce 250ms
+      if (now - lastWheelTimeRef.current < 250) return;
 
       if (e.deltaY > 20 || e.deltaX > 20) {
         lastWheelTimeRef.current = now;
@@ -308,33 +373,9 @@ export default function PdfReader({
     return () => el.removeEventListener('wheel', handleWheel);
   }, [nextPage, prevPage, isRTL]);
 
-  // Touch Swipe
-  useSwipeGestures(containerRef, {
-    onSwipeLeft: isRTL ? prevPage : nextPage,
-    onSwipeRight: isRTL ? nextPage : prevPage,
-    onTapCenter: onToggleHUD,
-  });
-
-  // Tap zones: left 25% prev, right 25% next, center 50% toggle HUD
-  const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const width = rect.width;
-
-    if (x < width * 0.25) {
-      if (isRTL) nextPage();
-      else prevPage();
-    } else if (x > width * 0.75) {
-      if (isRTL) prevPage();
-      else nextPage();
-    } else {
-      onToggleHUD();
-    }
-  };
-
   if (loading) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-black/95 text-stone-300">
+      <div className="h-[100dvh] w-full flex flex-col items-center justify-center bg-stone-950 text-stone-300">
         <Loader2 className="w-10 h-10 animate-spin text-amber-500 mb-4" />
         <p className="font-mono text-xs uppercase tracking-widest text-stone-400">Loading Document Pages...</p>
       </div>
@@ -343,7 +384,7 @@ export default function PdfReader({
 
   if (error) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-black text-rose-400 p-6 text-center">
+      <div className="h-[100dvh] w-full flex flex-col items-center justify-center bg-stone-950 text-rose-400 p-6 text-center">
         <AlertTriangle className="w-12 h-12 mb-3 text-rose-500" />
         <h3 className="font-serif text-lg font-bold text-white mb-2">Error Opening PDF</h3>
         <p className="text-sm font-sans max-w-md text-stone-400">{error}</p>
@@ -354,17 +395,30 @@ export default function PdfReader({
   return (
     <div
       ref={containerRef}
-      onClick={handleContainerClick}
-      className="relative w-full h-full flex items-center justify-center overflow-hidden bg-[#0a0a0c] select-none cursor-pointer p-2 sm:p-4 touch-none"
+      className="relative h-[100dvh] w-full flex items-center justify-center overflow-hidden bg-[#0a0a0c] select-none touch-none overscroll-none p-2 sm:p-4 cursor-default"
+      style={{
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+        paddingLeft: 'env(safe-area-inset-left)',
+        paddingRight: 'env(safe-area-inset-right)',
+      }}
     >
+      {/* Subtle Visual Edge Tap Indicator Feedback */}
+      {tapFlash === 'left' && (
+        <div className="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-amber-500/20 to-transparent pointer-events-none transition-opacity duration-200 z-20" />
+      )}
+      {tapFlash === 'right' && (
+        <div className="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-amber-500/20 to-transparent pointer-events-none transition-opacity duration-200 z-20" />
+      )}
+
       <div
         className={`flex items-center justify-center max-w-full max-h-full transition-opacity duration-150 ${
           rendering ? 'opacity-90' : 'opacity-100'
         } ${isRTL ? 'flex-row-reverse' : 'flex-row'} gap-4 sm:gap-6`}
         style={{
-          transform: settings.zoomLevel !== 100 ? `scale(${settings.zoomLevel / 100})` : undefined,
+          transform: `scale(${zoomScale}) translate(${panOffset.x}px, ${panOffset.y}px)`,
           transformOrigin: 'center center',
-          transition: 'transform 0.15s ease-out',
+          transition: 'transform 0.12s ease-out',
         }}
       >
         <div className="relative bg-white shadow-[0_20px_60px_rgba(0,0,0,0.85)] ring-1 ring-white/10 rounded-sm overflow-hidden flex items-center justify-center">
@@ -384,10 +438,13 @@ export default function PdfReader({
         )}
       </div>
 
-      {/* Subtle Page Indicator on Hover/Tap */}
-      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-mono tracking-wider text-stone-300 border border-stone-800/80 pointer-events-none opacity-40 hover:opacity-100 transition-opacity">
-        Page {currentPage} {isDualPage && page2 ? `-${page2}` : ''} / {numPages}
-      </div>
+      {/* Floating Zoom Indicator Pill */}
+      {isZoomed && (
+        <div className="absolute top-4 right-4 z-30 bg-stone-900/90 text-amber-400 font-mono text-xs px-3 py-1.5 rounded-full border border-stone-700 shadow-xl flex items-center gap-1.5">
+          <ZoomIn className="w-3.5 h-3.5" />
+          <span>{Math.round(zoomScale * 100)}% (Double-tap to reset)</span>
+        </div>
+      )}
     </div>
   );
 }

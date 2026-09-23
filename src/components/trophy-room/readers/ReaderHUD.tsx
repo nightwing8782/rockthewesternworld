@@ -74,12 +74,17 @@ export default function ReaderHUD({
         className={`pointer-events-auto bg-stone-950/90 backdrop-blur-md border-b border-stone-800/80 px-4 py-3 flex items-center justify-between transition-transform duration-300 ${
           visible ? 'translate-y-0' : '-translate-y-full'
         }`}
+        style={{
+          paddingTop: 'max(0.75rem, env(safe-area-inset-top))',
+          paddingLeft: 'max(1rem, env(safe-area-inset-left))',
+          paddingRight: 'max(1rem, env(safe-area-inset-right))',
+        }}
       >
         {/* Left: Back Button & Title */}
         <div className="flex items-center space-x-3 min-w-0">
           <button
             onClick={onClose}
-            className="p-2 -ml-2 rounded-full text-stone-300 hover:text-amber-400 hover:bg-stone-800/80 transition-colors focus:outline-none"
+            className="p-2 -ml-2 rounded-full text-stone-300 hover:text-amber-400 hover:bg-stone-800/80 transition-colors focus:outline-none cursor-pointer"
             title="Return to Library"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -100,7 +105,7 @@ export default function ReaderHUD({
           {onToggleOffline && (
             <button
               onClick={onToggleOffline}
-              className={`p-2 rounded-lg border text-xs flex items-center gap-1.5 transition-colors ${
+              className={`p-2 rounded-lg border text-xs flex items-center gap-1.5 transition-colors cursor-pointer ${
                 isOffline
                   ? 'border-emerald-700/60 bg-emerald-950/40 text-emerald-400'
                   : 'border-stone-800 bg-stone-900/60 text-stone-400 hover:text-stone-200'
@@ -124,7 +129,7 @@ export default function ReaderHUD({
           {/* Fullscreen Toggle */}
           <button
             onClick={toggleFullscreen}
-            className="p-2 rounded-lg text-stone-300 hover:text-amber-400 hover:bg-stone-800/80 transition-colors"
+            className="p-2 rounded-lg text-stone-300 hover:text-amber-400 hover:bg-stone-800/80 transition-colors cursor-pointer"
             title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen Mode'}
           >
             {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
@@ -133,7 +138,7 @@ export default function ReaderHUD({
           {/* Settings Modal Trigger */}
           <button
             onClick={onOpenSettings}
-            className="p-2 rounded-lg text-stone-300 hover:text-amber-400 hover:bg-stone-800/80 transition-colors"
+            className="p-2 rounded-lg text-stone-300 hover:text-amber-400 hover:bg-stone-800/80 transition-colors cursor-pointer"
             title="Reader Display Settings"
           >
             <Settings className="w-5 h-5" />
@@ -146,6 +151,11 @@ export default function ReaderHUD({
         className={`pointer-events-auto bg-stone-950/95 backdrop-blur-md border-t border-stone-800/80 px-4 py-3 sm:py-4 transition-transform duration-300 ${
           visible ? 'translate-y-0' : 'translate-y-full'
         }`}
+        style={{
+          paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
+          paddingLeft: 'max(1rem, env(safe-area-inset-left))',
+          paddingRight: 'max(1rem, env(safe-area-inset-right))',
+        }}
       >
         <div className="max-w-4xl mx-auto space-y-3">
           {/* Quick Toolbar (Direction, Dual Page, Amber Slider) */}
@@ -158,10 +168,10 @@ export default function ReaderHUD({
                     readingDirection: settings.readingDirection === 'ltr' ? 'rtl' : 'ltr',
                   })
                 }
-                className="px-2.5 py-1 rounded bg-stone-900 border border-stone-800 text-stone-300 hover:border-amber-600/60 font-mono text-[11px] tracking-wider uppercase flex items-center gap-1.5 transition-colors"
-                title="Switch Reading Direction"
+                className="px-2.5 py-1 rounded bg-stone-900 border border-stone-800 text-stone-300 hover:border-amber-600/60 font-mono text-[11px] tracking-wider uppercase flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Switch Reading Direction (LTR Western vs RTL Manga)"
               >
-                <span>{settings.readingDirection.toUpperCase()}</span>
+                <span>{settings.readingDirection === 'rtl' ? '⛩️ RTL MANGA' : '🦸 LTR COMIC'}</span>
               </button>
 
               {book.format !== 'epub' && (
