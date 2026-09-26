@@ -1,23 +1,7 @@
 import type { Metadata } from 'next';
-import { Cinzel, Source_Serif_4 } from 'next/font/google';
 import Script from 'next/script';
 import { GoogleAnalytics } from '@next/third-parties/google';
 import './globals.css';
-
-const cinzel = Cinzel({
-  subsets: ['latin'],
-  variable: '--font-cinzel',
-  display: 'swap',
-  weight: ['500', '600', '700', '800', '900'],
-});
-
-const sourceSerif = Source_Serif_4({
-  subsets: ['latin'],
-  variable: '--font-source-serif',
-  display: 'swap',
-  weight: ['400', '600', '700'],
-  style: ['normal', 'italic'],
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://rockthewesternworld.com'),
@@ -72,10 +56,11 @@ export default function RootLayout({
   };
 
   return (
-    <html
-      lang="en"
-      className={`${cinzel.variable} ${sourceSerif.variable} h-full`}
-    >
+    <html lang="en" className="h-full">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      </head>
       <body className="min-h-full flex flex-col font-serif bg-[#FAF8F5] text-[#242120] antialiased [text-rendering:optimizeLegibility]">
         <script
           type="application/ld+json"
