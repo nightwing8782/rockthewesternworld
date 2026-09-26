@@ -36,6 +36,7 @@ export default function ReviewCraftPanel({
   const [isSearching, setIsSearching] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isChangingSelection, setIsChangingSelection] = useState(false);
+  const [seoFeedback, setSeoFeedback] = useState<string | null>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const isReview = ['book_review', 'comic_review', 'music_review', 'podcast_review'].includes(entryType);
@@ -45,6 +46,7 @@ export default function ReviewCraftPanel({
     setSearchResults([]);
     setIsDropdownOpen(false);
     setIsChangingSelection(false);
+    setSeoFeedback(null);
   }, [entryType]);
 
   if (!isReview) return null;
@@ -200,8 +202,6 @@ export default function ReviewCraftPanel({
     }
     return metadata.author || metadata.writer || metadata.artist || metadata.creator || '';
   };
-
-  const [seoFeedback, setSeoFeedback] = useState<string | null>(null);
 
   const handleGenerateSeoTitleAndExcerpt = () => {
     const seriesTitle = metadata.series || metadata.title || metadata.podcastName || '';
