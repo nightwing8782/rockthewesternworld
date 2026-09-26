@@ -1828,10 +1828,8 @@ export default function JournalStudioPage() {
                 }}
                 onApplyTemplate={handleApplyTemplate}
                 onAutoTitle={(suggested) => {
-                  if (!title.trim()) {
-                    setTitle(suggested);
-                    setSaveStatus('unsaved');
-                  }
+                  setTitle(suggested);
+                  setSaveStatus('unsaved');
                 }}
               />
 
@@ -1848,8 +1846,23 @@ export default function JournalStudioPage() {
                     ? 'Review Headline...'
                     : 'Headline of the Entry...'
                 }
-                className="w-full font-display font-black text-2xl sm:text-4xl text-[#1C1917] placeholder:text-[#9C9589] bg-transparent border-none outline-none py-3 mb-2 tracking-tight"
+                className="w-full font-display font-black text-2xl sm:text-4xl text-[#1C1917] placeholder:text-[#9C9589] bg-transparent border-none outline-none py-3 mb-1 tracking-tight"
               />
+
+              {/* Editorial Deck / SEO Subtitle Input */}
+              <div className="mb-3">
+                <input
+                  type="text"
+                  value={metadata.deck || metadata.excerpt || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setMetadata((prev) => ({ ...prev, deck: val, excerpt: val }));
+                    setSaveStatus('unsaved');
+                  }}
+                  placeholder="Editorial Deck & SEO Excerpt (renders below headline on broadsheet and in search cards)..."
+                  className="w-full font-serif italic text-sm sm:text-base text-[#57534E] placeholder:text-[#A8A29E] bg-transparent border-b border-[#E5DFC5] focus:border-[#1E40AF] outline-none pb-2 transition-colors"
+                />
+              </div>
 
               {/* Broadsheet Reading Canvas */}
               <TipTapEditor

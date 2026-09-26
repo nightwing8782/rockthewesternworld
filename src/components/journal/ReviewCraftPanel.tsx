@@ -201,6 +201,8 @@ export default function ReviewCraftPanel({
     return metadata.author || metadata.writer || metadata.artist || metadata.creator || '';
   };
 
+  const [seoFeedback, setSeoFeedback] = useState<string | null>(null);
+
   const handleGenerateSeoTitleAndExcerpt = () => {
     const seriesTitle = metadata.series || metadata.title || metadata.podcastName || '';
     const issueNum = metadata.issueNumber ? `#${metadata.issueNumber}` : '';
@@ -258,6 +260,9 @@ export default function ReviewCraftPanel({
         deck: generatedExcerpt,
       }, true);
     }
+
+    setSeoFeedback(`Applied: "${generatedTitle}"`);
+    setTimeout(() => setSeoFeedback(null), 4500);
   };
 
   const handleApplyThreeActTemplate = () => {
@@ -378,6 +383,19 @@ export default function ReviewCraftPanel({
           </button>
         </div>
       </div>
+
+      {/* SEO Generation Confirmation Toast */}
+      {seoFeedback && (
+        <div className="p-2.5 bg-emerald-50 border border-emerald-300 rounded text-xs text-emerald-900 font-serif flex items-center gap-2 animate-in fade-in duration-200">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <span className="font-bold font-display uppercase tracking-wider text-[10px] text-emerald-800 block">
+              SEO Headline &amp; Deck Applied to Canvas
+            </span>
+            <span className="truncate block font-semibold">{seoFeedback}</span>
+          </div>
+        </div>
+      )}
 
       {/* Selected Confirmation Card OR Search Input */}
       {isWorkSelected && !isChangingSelection ? (
