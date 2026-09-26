@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   Loader2,
   FileText,
+  Sparkles,
 } from 'lucide-react';
 
 interface ReviewCraftPanelProps {
@@ -188,13 +189,101 @@ export default function ReviewCraftPanel({
   };
 
   const getSelectedCreator = () => {
+    if (entryType === 'comic_review') {
+      const parts = [];
+      if (metadata.writer) parts.push(`${metadata.writer} (Writer)`);
+      if (metadata.artist) parts.push(`${metadata.artist} (Art)`);
+      if (metadata.inker) parts.push(`${metadata.inker} (Inks)`);
+      if (metadata.colorist) parts.push(`${metadata.colorist} (Colors)`);
+      if (metadata.letterer) parts.push(`${metadata.letterer} (Letters)`);
+      if (parts.length > 0) return parts.join(' • ');
+    }
     return metadata.author || metadata.writer || metadata.artist || metadata.creator || '';
+  };
+
+  const handleGenerateSeoTitleAndExcerpt = () => {
+    const seriesTitle = metadata.series || metadata.title || metadata.podcastName || '';
+    const issueNum = metadata.issueNumber ? `#${metadata.issueNumber}` : '';
+    const writer = metadata.writer || metadata.author || '';
+    const artist = metadata.artist || '';
+    const publisher = metadata.publisher || metadata.network || metadata.label || '';
+    const year = metadata.year ? `(${metadata.year})` : '';
+
+    let generatedTitle = '';
+    let generatedExcerpt = '';
+
+    if (entryType === 'comic_review') {
+      const artScore = metadata.artRating || 0;
+      const storyScore = metadata.storyRating || 0;
+      const overall = metadata.rating || 0;
+
+      if (artScore === 5 && artist) {
+        generatedTitle = `${artist}’s Visual Triumph: ${seriesTitle} ${issueNum} Review ${publisher ? `(${publisher} ${metadata.year || ''})` : year}`.trim();
+      } else if (writer && artist) {
+        generatedTitle = `${seriesTitle} ${issueNum} Comic Review: ${writer} and ${artist} Deliver for ${publisher || 'Fans'}`.trim();
+      } else if (writer) {
+        generatedTitle = `${seriesTitle} ${issueNum} Review: ${writer}’s Run ${publisher ? `at ${publisher}` : ''}`.trim();
+      } else {
+        generatedTitle = `${seriesTitle} ${issueNum} Comic Review ${year}`.trim();
+      }
+
+      // Build creator credits line
+      const credits = [];
+      if (writer) credits.push(`Writer: ${writer}`);
+      if (artist) credits.push(`Art: ${artist}`);
+      if (metadata.inker) credits.push(`Inks: ${metadata.inker}`);
+      if (metadata.colorist) credits.push(`Colors: ${metadata.colorist}`);
+      if (metadata.letterer) credits.push(`Letters: ${metadata.letterer}`);
+      const creditsStr = credits.join(' · ');
+
+      generatedExcerpt = `Complete critical review of ${seriesTitle} ${issueNum} ${publisher ? `(${publisher} ${metadata.year || ''})` : ''}. ${creditsStr ? `[${creditsStr}]. ` : ''}${storyScore ? `Story: ${storyScore}/5, ` : ''}${artScore ? `Art: ${artScore}/5. ` : ''}${overall ? `Overall Verdict: ${overall}/5.` : ''}`.trim();
+    } else if (entryType === 'book_review') {
+      generatedTitle = `Review: ${seriesTitle} by ${writer} ${year}`.trim();
+      generatedExcerpt = `Critical analysis and review of ${seriesTitle} by ${writer}${publisher ? ` (${publisher})` : ''}.`;
+    } else if (entryType === 'music_review') {
+      generatedTitle = `Album Review: ${seriesTitle} — ${metadata.artist || 'Artist'}`.trim();
+      generatedExcerpt = `Sonic review and breakdown of ${seriesTitle} by ${metadata.artist || 'Artist'}${publisher ? ` (${publisher})` : ''}.`;
+    } else if (entryType === 'podcast_review') {
+      generatedTitle = `Podcast Review: ${seriesTitle}`.trim();
+      generatedExcerpt = `Audio analysis and critical evaluation of ${seriesTitle}${metadata.creator ? ` hosted by ${metadata.creator}` : ''}.`;
+    }
+
+    if (generatedTitle && onAutoTitle) {
+      onAutoTitle(generatedTitle);
+    }
+    if (generatedExcerpt) {
+      onMetadataChange({
+        kicker: entryType === 'comic_review' ? 'OFF THE COMIC RACK' : entryType === 'book_review' ? 'A LITERAL CORNER' : 'CULTURAL CRITIQUE',
+        excerpt: generatedExcerpt,
+        deck: generatedExcerpt,
+      }, true);
+    }
   };
 
   const handleApplyThreeActTemplate = () => {
     let template = '';
     if (entryType === 'comic_review') {
-      template = `<h2>The Script &amp; Narrative</h2><p>Examine the narrative arc, dialogue, pacing, and thematic ambition of the writing...</p><h2>The Visuals &amp; Paneling</h2><p>Evaluate the linework, panel sequencing, color palette, and visual rhythm of the art...</p><h2>The Complete Work</h2><p>Deliver your overarching assessment, standout moments, and critical verdict...</p>`;
+      const credits = [];
+      if (metadata.series) credits.push(`<strong>Series / Work:</strong> ${metadata.series} ${metadata.issueNumber ? `#${metadata.issueNumber}` : ''}`);
+      if (metadata.writer) credits.push(`<strong>Writer:</strong> ${metadata.writer}`);
+      if (metadata.artist) credits.push(`<strong>Penciller / Artist:</strong> ${metadata.artist}`);
+      if (metadata.inker) credits.push(`<strong>Inker:</strong> ${metadata.inker}`);
+      if (metadata.colorist) credits.push(`<strong>Colorist:</strong> ${metadata.colorist}`);
+      if (metadata.letterer) credits.push(`<strong>Letterer:</strong> ${metadata.letterer}`);
+      if (metadata.publisher) credits.push(`<strong>Publisher:</strong> ${metadata.publisher} ${metadata.year ? `(${metadata.year})` : ''}`);
+      if (metadata.accessibility) credits.push(`<strong>Accessibility:</strong> ${metadata.accessibility}`);
+      
+      const scores = [];
+      if (metadata.storyRating) scores.push(`Story: ${metadata.storyRating}/5`);
+      if (metadata.artRating) scores.push(`Art: ${metadata.artRating}/5`);
+      if (metadata.rating) scores.push(`Overall Verdict: ${metadata.rating}/5`);
+      if (scores.length > 0) credits.push(`<strong>Craft Scores:</strong> ${scores.join(' · ')}`);
+
+      const creditsBlock = credits.length > 0
+        ? `<blockquote><p>${credits.join('<br/>')}</p></blockquote><p></p>`
+        : '';
+
+      template = `${creditsBlock}<h2>The Script &amp; Narrative Craft ${metadata.storyRating ? `(${metadata.storyRating}/5)` : ''}</h2><p>Examine the narrative arc, dialogue, character dynamics, and thematic pacing...</p><h2>Visual Storytelling, Line Art &amp; Color ${metadata.artRating ? `(${metadata.artRating}/5)` : ''}</h2><p>Evaluate the linework, panel sequencing, inking, color saturation, and visual mood...</p><h2>Critical Verdict &amp; Cultural Resonance ${metadata.rating ? `(${metadata.rating}/5)` : ''}</h2><p>Synthesize the complete work, standalone accessibility, and deliver your overarching assessment...</p>`;
     } else if (entryType === 'book_review') {
       template = `<h2>The Voice &amp; Prose</h2><p>Analyze the sentence craft, stylistic texture, authorial voice, and register of the work...</p><h2>Narrative &amp; Thematic Arc</h2><p>Explore the architecture of the plot, characters, and philosophical inquiries...</p><h2>The Complete Work</h2><p>Synthesize the book's lasting impression and deliver your critical verdict...</p>`;
     } else if (entryType === 'music_review') {
@@ -267,15 +356,27 @@ export default function ReviewCraftPanel({
           </span>
         </div>
 
-        <button
-          type="button"
-          onClick={handleApplyThreeActTemplate}
-          className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#1C1917] hover:bg-[#1E40AF] text-[#FAF8F5] rounded text-[11px] font-display uppercase tracking-wider font-bold transition-colors self-start sm:self-auto shadow-2xs cursor-pointer"
-          title="Insert 3-act review headings into editor"
-        >
-          <FileText className="w-3.5 h-3.5" />
-          <span>Apply 3-Act Structure</span>
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={handleGenerateSeoTitleAndExcerpt}
+            className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#FAF8F5] hover:bg-[#FAF8F5] text-[#1E40AF] border border-[#BFDBFE] rounded text-[11px] font-display uppercase tracking-wider font-bold transition-colors shadow-2xs cursor-pointer"
+            title="Generate optimized editorial headline, SEO slug, and GEO excerpts based on craft ledger"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+            <span>⚡ Generate SEO Title &amp; Excerpt</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleApplyThreeActTemplate}
+            className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#1C1917] hover:bg-[#1E40AF] text-[#FAF8F5] rounded text-[11px] font-display uppercase tracking-wider font-bold transition-colors shadow-2xs cursor-pointer"
+            title="Insert 3-act review headings and full creative team credits into editor"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Apply 3-Act Structure</span>
+          </button>
+        </div>
       </div>
 
       {/* Selected Confirmation Card OR Search Input */}
@@ -477,6 +578,42 @@ export default function ReviewCraftPanel({
               value={metadata.artist || ''}
               onChange={(e) => onMetadataChange({ artist: e.target.value })}
               placeholder="e.g. Sam Kieth, Mike Dringenberg"
+              className="w-full text-xs font-serif bg-[#FAF8F5] border border-[#DDD5C7] rounded px-2.5 py-1.5 text-[#1C1917]"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-display font-bold uppercase tracking-widest text-[#44403C] mb-1">
+              Inker (if separate)
+            </label>
+            <input
+              type="text"
+              value={metadata.inker || ''}
+              onChange={(e) => onMetadataChange({ inker: e.target.value })}
+              placeholder="e.g. Klaus Janson"
+              className="w-full text-xs font-serif bg-[#FAF8F5] border border-[#DDD5C7] rounded px-2.5 py-1.5 text-[#1C1917]"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-display font-bold uppercase tracking-widest text-[#44403C] mb-1">
+              Colorist
+            </label>
+            <input
+              type="text"
+              value={metadata.colorist || ''}
+              onChange={(e) => onMetadataChange({ colorist: e.target.value })}
+              placeholder="e.g. Lynn Varley, Jordie Bellaire"
+              className="w-full text-xs font-serif bg-[#FAF8F5] border border-[#DDD5C7] rounded px-2.5 py-1.5 text-[#1C1917]"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-display font-bold uppercase tracking-widest text-[#44403C] mb-1">
+              Letterer
+            </label>
+            <input
+              type="text"
+              value={metadata.letterer || ''}
+              onChange={(e) => onMetadataChange({ letterer: e.target.value })}
+              placeholder="e.g. Todd Klein, Chris Eliopoulos"
               className="w-full text-xs font-serif bg-[#FAF8F5] border border-[#DDD5C7] rounded px-2.5 py-1.5 text-[#1C1917]"
             />
           </div>

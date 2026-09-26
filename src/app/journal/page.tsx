@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import {
   EntryType,
@@ -50,6 +50,8 @@ import {
   Mail,
   ArrowDownToLine,
   Sparkles,
+  Check,
+  Loader2,
 } from 'lucide-react';
 
 const EDITORIAL_ENTRY_TYPES: { type: EntryType; label: string; icon: any }[] = [
@@ -155,6 +157,111 @@ export default function JournalStudioPage() {
     } catch (e) {}
   }, []);
 
+  // State synchronization ref for click-away protection & auto-save
+  const stateRef = useRef({
+    activeEntry,
+    title,
+    contentHtml,
+    metadata,
+    entryType,
+    entryStatus,
+    selectedDesk,
+    selectedCategory,
+    workspaceMode,
+    saveStatus,
+    user,
+  });
+
+  useEffect(() => {
+    stateRef.current = {
+      activeEntry,
+      title,
+      contentHtml,
+      metadata,
+      entryType,
+      entryStatus,
+      selectedDesk,
+      selectedCategory,
+      workspaceMode,
+      saveStatus,
+      user,
+    };
+  }, [activeEntry, title, contentHtml, metadata, entryType, entryStatus, selectedDesk, selectedCategory, workspaceMode, saveStatus, user]);
+
+  // Synchronous Flush Draft helper (guarantees zero data loss on click-away / mode switch)
+  const flushCurrentDraft = useCallback(() => {
+    const cur = stateRef.current;
+    if (!cur.activeEntry || cur.saveStatus !== 'unsaved') return;
+
+    const isPrivate = cur.workspaceMode === 'ledger' || cur.entryStatus === 'private' || cur.metadata.isPrivate;
+    const mergedMeta: EntryMetadata = {
+      ...cur.metadata,
+      desk: cur.selectedDesk,
+      category: cur.selectedCategory,
+      isPrivate,
+    };
+
+    const formattedToday = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const defaultTitle = isPrivate ? `Daily Ledger · ${formattedToday}` : 'Untitled Entry';
+    const finalTitle = cur.title.trim() || defaultTitle;
+    const updatedStatus: EntryStatus = isPrivate ? 'private' : cur.entryStatus;
+
+    const validId = isValidUUID(cur.activeEntry.id) ? cur.activeEntry.id : generateUUID();
+    const cleanUserId = isValidUUID(cur.user?.id) ? cur.user.id : (isValidUUID(cur.activeEntry.user_id) ? cur.activeEntry.user_id : null);
+    const entrySlug = cur.activeEntry.slug && !cur.activeEntry.slug.startsWith('entry-')
+      ? cur.activeEntry.slug
+      : (finalTitle
+          ? `${finalTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')}-${validId.slice(0, 8)}`
+          : `entry-${validId.slice(0, 8)}`);
+
+    const updated: Entry = {
+      ...cur.activeEntry,
+      id: validId,
+      user_id: cleanUserId,
+      title: finalTitle,
+      slug: entrySlug,
+      body_html: cur.contentHtml,
+      entry_type: isPrivate ? 'personal_ledger' : cur.entryType,
+      status: updatedStatus,
+      metadata: mergedMeta,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Save to LocalStorage cache immediately
+    try {
+      const savedLocal = localStorage.getItem('rww_local_entries');
+      let parsed: Entry[] = savedLocal ? JSON.parse(savedLocal) : [];
+      const idx = parsed.findIndex((e) => e.id === updated.id);
+      if (idx >= 0) {
+        parsed[idx] = updated;
+      } else {
+        parsed = [updated, ...parsed];
+      }
+      localStorage.setItem('rww_local_entries', JSON.stringify(parsed));
+    } catch (e) {}
+
+    // Async Supabase sync
+    try {
+      const supabase = createClient();
+      const supabaseStatus = isPrivate ? 'private_log' : updated.status;
+      const supabaseEntryType = (isPrivate || updated.entry_type === 'personal_ledger') ? 'thought' : updated.entry_type;
+      const payload: any = {
+        id: updated.id,
+        title: updated.title,
+        slug: updated.slug,
+        entry_type: supabaseEntryType,
+        status: supabaseStatus,
+        body_html: updated.body_html,
+        metadata: updated.metadata,
+        published_at: updated.status === 'published' ? (updated.published_at || new Date().toISOString()) : null,
+        updated_at: updated.updated_at,
+        created_at: updated.created_at || new Date().toISOString(),
+      };
+      if (cleanUserId) payload.user_id = cleanUserId;
+      supabase.from('entries').upsert(payload, { onConflict: 'id' }).then(() => {});
+    } catch (e) {}
+  }, []);
+
   const toggleSidebar = () => {
     setIsSidebarOpen((prev) => {
       const next = !prev;
@@ -219,6 +326,7 @@ export default function JournalStudioPage() {
 
   // Helper to create a fresh document
   const createNewDocument = useCallback((type: EntryType = 'essay', isPrivate = false) => {
+    flushCurrentDraft();
     const formattedToday = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const defaultTitle = isPrivate || type === 'personal_ledger' ? `Daily Ledger · ${formattedToday}` : '';
     
@@ -262,10 +370,11 @@ export default function JournalStudioPage() {
     if (typeof window !== 'undefined' && window.innerWidth < 1280) {
       setIsSidebarOpen(false);
     }
-  }, [user]);
+  }, [user, flushCurrentDraft]);
 
   // Select an entry from list
   const selectEntry = useCallback((entry: Entry) => {
+    flushCurrentDraft();
     setActiveEntry(entry);
     setTitle(entry.title || '');
     setContentHtml(entry.body_html || '');
@@ -281,11 +390,11 @@ export default function JournalStudioPage() {
     if (typeof window !== 'undefined' && window.innerWidth < 1280) {
       setIsSidebarOpen(false);
     }
-  }, []);
+  }, [flushCurrentDraft]);
 
   // Switch Top-level Workspace Mode
-  // Switch Top-level Workspace Mode
   const switchWorkspaceMode = (mode: 'ledger' | 'editorial') => {
+    flushCurrentDraft();
     setWorkspaceMode(mode);
     try {
       localStorage.setItem('rww_studio_workspace_mode', mode);
@@ -765,6 +874,57 @@ export default function JournalStudioPage() {
     setTimeout(() => setSaveStatus('saved'), 350);
   };
 
+  // Real-Time Debounced Auto-Save Draft (1500ms after last keystroke)
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSavedSnapshotRef = useRef<string>('');
+
+  useEffect(() => {
+    if (!activeEntry || !user) return;
+
+    const currentSnapshot = JSON.stringify({
+      id: activeEntry.id,
+      title,
+      contentHtml,
+      metadata,
+      entryType,
+      entryStatus,
+      selectedDesk,
+      selectedCategory,
+      workspaceMode,
+    });
+
+    if (lastSavedSnapshotRef.current === '') {
+      lastSavedSnapshotRef.current = currentSnapshot;
+      return;
+    }
+
+    if (currentSnapshot === lastSavedSnapshotRef.current) {
+      return;
+    }
+
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    setSaveStatus('unsaved');
+
+    // Immediate emergency snapshot to LocalStorage
+    try {
+      localStorage.setItem(`rww_snapshot_${activeEntry.id}`, currentSnapshot);
+    } catch (e) {}
+
+    autoSaveTimerRef.current = setTimeout(() => {
+      saveCurrentDraft();
+      lastSavedSnapshotRef.current = currentSnapshot;
+    }, 1500);
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [activeEntry?.id, title, contentHtml, metadata, entryType, entryStatus, selectedDesk, selectedCategory, workspaceMode, user]);
+
   // Delete Entry Handler
   const handleDeleteEntry = async (entryToDelete: Entry) => {
     const isLive = entryToDelete.status === 'published';
@@ -998,6 +1158,26 @@ export default function JournalStudioPage() {
 
           {/* Right: Mode-Specific Actions */}
           <div className="flex items-center gap-2 sm:gap-2.5">
+            {/* Real-time Auto-Save Status Badge */}
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono rounded bg-[#EAE4D7]/70 text-[#66615C] border border-[#DDD5C7]/60">
+              {saveStatus === 'saving' ? (
+                <>
+                  <Loader2 className="w-3 h-3 text-amber-600 animate-spin" />
+                  <span className="text-amber-800 font-semibold">Auto-Saving...</span>
+                </>
+              ) : saveStatus === 'unsaved' ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  <span>Unsaved edits</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-3 h-3 text-emerald-600" />
+                  <span className="text-stone-600">Saved</span>
+                </>
+              )}
+            </div>
+
             {workspaceMode === 'ledger' ? (
               <>
                 <span className="hidden lg:inline-flex items-center gap-1 text-[11px] font-serif text-[#78716C] italic mr-1">

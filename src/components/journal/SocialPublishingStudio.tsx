@@ -58,6 +58,28 @@ export default function SocialPublishingStudio({
     year: 'numeric',
   });
 
+  // Construct comprehensive creative team line
+  const buildCreatorCreditLine = () => {
+    if (entryType === 'comic_review') {
+      const parts: string[] = [];
+      if (metadata.writer) parts.push(`Words: ${metadata.writer}`);
+      if (metadata.artist) parts.push(`Art: ${metadata.artist}`);
+      if (metadata.inker) parts.push(`Inks: ${metadata.inker}`);
+      if (metadata.colorist) parts.push(`Colors: ${metadata.colorist}`);
+      if (metadata.letterer) parts.push(`Letters: ${metadata.letterer}`);
+      if (parts.length > 0) return parts.join(' · ');
+    } else if (entryType === 'book_review') {
+      if (metadata.author) return `By ${metadata.author}${metadata.translator ? ` (Trans. ${metadata.translator})` : ''}`;
+    } else if (entryType === 'music_review') {
+      if (metadata.artist) return `By ${metadata.artist}`;
+    } else if (entryType === 'podcast_review') {
+      if (metadata.creator) return `Host: ${metadata.creator}`;
+    }
+    return '';
+  };
+
+  const creatorCreditLine = buildCreatorCreditLine();
+
   // Copy helper
   const copyToClipboard = async (text: string, type: string) => {
     try {
@@ -69,9 +91,14 @@ export default function SocialPublishingStudio({
     }
   };
 
-  // Pre-formatted social blurbs
-  const blueskyText = `“${displayTitle}”\n\n${excerpt.slice(0, 180)}${excerpt.length > 180 ? '...' : ''}\n\n${postUrl}`;
-  const xText = `“${displayTitle}” — ${kicker}\n\n${postUrl}`;
+  // Pre-formatted social blurbs with full creative team credits
+  const blueskyText = creatorCreditLine
+    ? `“${displayTitle}”\n\n${creatorCreditLine}\n${excerpt.slice(0, 150)}${excerpt.length > 150 ? '...' : ''}\n\n${postUrl}`
+    : `“${displayTitle}”\n\n${excerpt.slice(0, 180)}${excerpt.length > 180 ? '...' : ''}\n\n${postUrl}`;
+
+  const xText = creatorCreditLine
+    ? `“${displayTitle}” [${creatorCreditLine}]\n\n${postUrl}`
+    : `“${displayTitle}” — ${kicker}\n\n${postUrl}`;
 
   // IndexNow direct ping via client-side fetch
   const handleIndexNowPing = async () => {

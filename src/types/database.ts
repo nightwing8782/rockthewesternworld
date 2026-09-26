@@ -91,6 +91,9 @@ export interface ComicMetadata {
   issueNumber?: string;
   writer?: string;
   artist?: string;
+  inker?: string;
+  colorist?: string;
+  letterer?: string;
   publisher?: string;
   year?: number | string;
   issue_count?: number | string;
