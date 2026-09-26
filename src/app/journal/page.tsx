@@ -19,6 +19,7 @@ import DailyPersonalLedger from '@/components/journal/DailyPersonalLedger';
 import PromoteModal from '@/components/journal/PromoteModal';
 import AnalyticsModal from '@/components/journal/AnalyticsModal';
 import DispatchModal from '@/components/journal/DispatchModal';
+import SocialPublishingStudio from '@/components/journal/SocialPublishingStudio';
 import Link from 'next/link';
 import {
   Lock,
@@ -1688,6 +1689,19 @@ export default function JournalStudioPage() {
                   setSaveStatus('unsaved');
                 }}
               />
+
+              {/* Social Card & Search Publishing Studio */}
+              <div className="pt-2">
+                <SocialPublishingStudio
+                  title={title}
+                  slug={activeEntry?.slug || ''}
+                  entryType={entryType}
+                  metadata={metadata}
+                  selectedDesk={selectedDesk}
+                  selectedCategory={selectedCategory}
+                  isLive={isLiveActive}
+                />
+              </div>
             </div>
           )}
         </main>

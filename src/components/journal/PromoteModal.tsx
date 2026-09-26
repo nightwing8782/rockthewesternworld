@@ -42,6 +42,7 @@ export default function PromoteModal({
   const [kicker, setKicker] = useState(metadata.kicker || 'EDITORIAL DISPATCH');
   const [excerpt, setExcerpt] = useState(metadata.excerpt || '');
   const [broadcastToDispatch, setBroadcastToDispatch] = useState(false);
+  const [pingIndexNow, setPingIndexNow] = useState(true);
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishSuccess, setPublishSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -81,6 +82,29 @@ export default function PromoteModal({
 
       if (error) {
         console.warn('Supabase publish warning (saving locally):', error.message);
+      }
+
+      // If IndexNow enabled, trigger instant search engine notification
+      if (pingIndexNow) {
+        try {
+          const host = 'rockthewesternworld.com';
+          const key = 'rockthewesternworld';
+          const postUrl = `https://${host}/${slug.trim()}`;
+          await fetch('https://api.indexnow.org/indexnow', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8',
+            },
+            body: JSON.stringify({
+              host,
+              key,
+              keyLocation: `https://${host}/${key}.txt`,
+              urlList: [postUrl],
+            }),
+          });
+        } catch (e) {
+          console.warn('IndexNow auto-ping notice:', e);
+        }
       }
 
       setPublishSuccess(true);
@@ -204,6 +228,24 @@ export default function PromoteModal({
                 rows={2}
                 className="w-full text-xs bg-[#F3EFEA] border border-[#E5DFC5] rounded px-3 py-1.5 text-[#1C1917]"
               />
+            </div>
+
+            {/* Instant IndexNow Search Engine Ping */}
+            <div className="p-3 bg-[#F2ECE1] border border-[#DDD5C7] rounded">
+              <label className="flex items-center gap-2.5 cursor-pointer text-xs font-serif text-[#1C1917]">
+                <input
+                  type="checkbox"
+                  checked={pingIndexNow}
+                  onChange={(e) => setPingIndexNow(e.target.checked)}
+                  className="w-4 h-4 rounded text-[#1E40AF] focus:ring-[#1E40AF]"
+                />
+                <div className="flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-[#1E40AF]" />
+                  <span className="font-display font-bold uppercase tracking-wider text-[11px]">
+                    Instantly ping Bing, DuckDuckGo &amp; Yandex (IndexNow)
+                  </span>
+                </div>
+              </label>
             </div>
 
             {/* Newsletter Dispatch Checkbox */}
