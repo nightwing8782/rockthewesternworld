@@ -105,7 +105,24 @@ export default async function BlogPostPage({ params }: PageProps) {
   const postUrl = `${siteUrl}/${slug}`;
   const authorObj = {
     '@type': 'Person',
-    name: 'Dan Billings',
+    name: metadata.author || 'Dan Billings',
+    url: siteUrl,
+    jobTitle: 'Editor & Essayist',
+  };
+
+  const publisherObj = {
+    '@type': 'Organization',
+    name: 'Rock The Western World',
+    url: siteUrl,
+    logo: {
+      '@type': 'ImageObject',
+      url: `${siteUrl}/favicon.svg`,
+    },
+  };
+
+  const isPartOfObj = {
+    '@type': 'Periodical',
+    name: 'Rock The Western World',
     url: siteUrl,
   };
 
@@ -124,10 +141,23 @@ export default async function BlogPostPage({ params }: PageProps) {
     acquireLicensePage: metadata.credit_source_url || undefined,
   } : undefined;
 
+  const commonProps = {
+    '@context': 'https://schema.org',
+    inLanguage: 'en-US',
+    isAccessibleForFree: true,
+    author: authorObj,
+    publisher: publisherObj,
+    isPartOf: isPartOfObj,
+    datePublished: published_at || updated_at,
+    dateModified: updated_at || published_at,
+    mainEntityOfPage: { '@type': 'WebPage', '@id': postUrl },
+    description: metadata.excerpt || metadata.deck || undefined,
+  };
+
   switch (entry_type) {
     case 'comic_review':
       jsonLd = {
-        '@context': 'https://schema.org',
+        ...commonProps,
         '@type': 'Review',
         itemReviewed: {
           '@type': 'Book',
@@ -138,16 +168,14 @@ export default async function BlogPostPage({ params }: PageProps) {
           image: imageObject || metadata.coverUrl || undefined,
         },
         reviewRating: metadata.rating ? { '@type': 'Rating', ratingValue: metadata.rating, bestRating: '5' } : undefined,
-        author: authorObj,
         headline: title,
-        datePublished: published_at || updated_at,
         url: postUrl,
       };
       break;
 
     case 'book_review':
       jsonLd = {
-        '@context': 'https://schema.org',
+        ...commonProps,
         '@type': 'Review',
         itemReviewed: {
           '@type': 'Book',
@@ -158,16 +186,14 @@ export default async function BlogPostPage({ params }: PageProps) {
           image: imageObject || metadata.coverUrl || undefined,
         },
         reviewRating: metadata.rating ? { '@type': 'Rating', ratingValue: metadata.rating, bestRating: '5' } : undefined,
-        author: authorObj,
         headline: title,
-        datePublished: published_at || updated_at,
         url: postUrl,
       };
       break;
 
     case 'music_review':
       jsonLd = {
-        '@context': 'https://schema.org',
+        ...commonProps,
         '@type': 'Review',
         itemReviewed: {
           '@type': 'MusicAlbum',
@@ -177,16 +203,14 @@ export default async function BlogPostPage({ params }: PageProps) {
           image: imageObject || metadata.coverUrl || undefined,
         },
         reviewRating: metadata.rating ? { '@type': 'Rating', ratingValue: metadata.rating, bestRating: '5' } : undefined,
-        author: authorObj,
         headline: title,
-        datePublished: published_at || updated_at,
         url: postUrl,
       };
       break;
 
     case 'podcast_review':
       jsonLd = {
-        '@context': 'https://schema.org',
+        ...commonProps,
         '@type': 'Review',
         itemReviewed: {
           '@type': 'PodcastSeries',
@@ -195,22 +219,17 @@ export default async function BlogPostPage({ params }: PageProps) {
           image: imageObject || metadata.artworkUrl || metadata.coverUrl || undefined,
         },
         reviewRating: metadata.rating ? { '@type': 'Rating', ratingValue: metadata.rating, bestRating: '5' } : undefined,
-        author: authorObj,
         headline: title,
-        datePublished: published_at || updated_at,
         url: postUrl,
       };
       break;
 
     default:
       jsonLd = {
-        '@context': 'https://schema.org',
+        ...commonProps,
         '@type': 'BlogPosting',
         headline: title,
-        author: authorObj,
-        datePublished: published_at || updated_at,
         image: imageObject || undefined,
-        mainEntityOfPage: { '@type': 'WebPage', '@id': postUrl },
       };
       break;
   }

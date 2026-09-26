@@ -12,6 +12,21 @@ export default function robots(): MetadataRoute.Robots {
         allow: '/',
         disallow: ['/api/', '/_next/'],
       },
+      {
+        userAgent: [
+          'GPTBot',
+          'OAI-SearchBot',
+          'PerplexityBot',
+          'ClaudeBot',
+          'anthropic-ai',
+          'Applebot-Extended',
+          'Google-Extended',
+          'Amazonbot',
+          'cohere-ai',
+        ],
+        allow: '/',
+        disallow: ['/api/', '/_next/'],
+      },
     ],
     sitemap: `${baseUrl}/sitemap.xml`,
   };

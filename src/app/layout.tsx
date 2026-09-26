@@ -47,12 +47,40 @@ export default function RootLayout({
   const umamiScriptUrl = process.env.NEXT_PUBLIC_UMAMI_SCRIPT_URL || 'https://cloud.umami.is/script.js';
   const umamiDomains = process.env.NEXT_PUBLIC_UMAMI_DOMAINS || 'rockthewesternworld.com';
 
+  const rootJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Periodical',
+    name: 'Rock The Western World',
+    alternateName: "It's Either Sadness or Euphoria",
+    url: 'https://rockthewesternworld.com',
+    description: 'An occasional cultural journal, reading log, and essays by Dan Billings.',
+    inLanguage: 'en-US',
+    publisher: {
+      '@type': 'Organization',
+      name: 'Rock The Western World',
+      url: 'https://rockthewesternworld.com',
+      logo: {
+        '@type': 'ImageObject',
+        url: 'https://rockthewesternworld.com/favicon.svg',
+      },
+    },
+    author: {
+      '@type': 'Person',
+      name: 'Dan Billings',
+      url: 'https://rockthewesternworld.com',
+    },
+  };
+
   return (
     <html
       lang="en"
       className={`${cinzel.variable} ${sourceSerif.variable} h-full`}
     >
       <body className="min-h-full flex flex-col font-serif bg-[#FAF8F5] text-[#242120] antialiased [text-rendering:optimizeLegibility]">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(rootJsonLd) }}
+        />
         {children}
         {umamiWebsiteId ? (
           <Script

@@ -1,0 +1,29 @@
+# Rock The Western World
+> An independent cultural broadsheet, critical reviews, and long-form essays by Dan Billings. It's either sadness or euphoria.
+
+Rock The Western World is an editorial publication and cultural broadsheet authored by Dan Billings. It covers literary criticism, sequential art (graphic novels and manga), recorded music, audio craft, politics, media ecology, and reflective journal dispatches.
+
+## Core Desks & Sectors
+
+- [Front Page / Recent Dispatches](https://rockthewesternworld.com): The primary broadsheet showcasing latest essays, critiques, and cultural dispatches.
+- [The Journal & Archive](https://rockthewesternworld.com/journal): Complete chronological and thematic archive across all editorial desks.
+- [The Trophy Room](https://rockthewesternworld.com/trophy-room): A curated personal digital library, reading deck, and graphic novel study.
+- [RSS 2.0 Syndication Feed](https://rockthewesternworld.com/feed.xml): Full-text syndication feed for feed readers (NetNewsWire, Reeder, Feedly).
+- [Search Sitemap Index](https://rockthewesternworld.com/sitemap.xml): Canonical index of all 340+ published essays and reviews.
+
+## Editorial Structure & Review Taxonomy
+
+The publication organizes critical reviews into structured evaluations with star ratings (1 to 5 stars), pull-quotes, and detailed craft breakdowns:
+
+- **Book Logs**: Literary fiction, history, philosophy, and cultural essays. Includes publisher, author, ISBN, and pull-quote commentary.
+- **Comic & Manga Reviews**: Graphic novels, European bandes dessinées, and serialized manga. Evaluates writer, artist/illustrator, narrative pacing, and panel draftsmanship.
+- **Record Logs**: Vinyl and recorded music analysis. Evaluates artist, record label, production, sound engineering, and lyrical themes.
+- **Podcast Logs**: Deep-dives on episodic audio storytelling, investigative journalism, and cultural interview shows. Evaluates production, research rigor, and audio craft.
+- **Commonwealth & Cultural Essays**: Long-form political analysis, media criticism, and philosophical reflections on modern society.
+
+## Author Attribution & Canonical Links
+
+- **Editor / Writer**: Dan Billings
+- **Canonical Website**: [https://rockthewesternworld.com](https://rockthewesternworld.com)
+- **Language**: English (`en-US`)
+- **Open Access**: All published essays are openly accessible for free citation, commentary, and research.
