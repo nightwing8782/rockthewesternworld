@@ -117,6 +117,8 @@ export interface SeriesGroup {
 export interface ReaderSettings {
   readingDirection: ReadingDirection;
   dualPageLandscape: boolean;
+  pageSpreadMode?: 'single' | 'dual' | 'auto';
+  firstPageCoverOffset?: boolean;
   fitMode: 'contain' | 'width' | 'height';
   amberFilterPercent: number; // 0 to 100
   fontSize: number; // For EPUB (e.g. 100%)

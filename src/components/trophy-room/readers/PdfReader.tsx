@@ -119,10 +119,33 @@ export default function PdfReader({
   }, [fileBlob]);
 
   // Determine if dual page is active
-  const isLandscape = windowSize.width > windowSize.height && windowSize.width >= 768;
-  const isDualPage = settings.dualPageLandscape && isLandscape;
-  const page1 = currentPage;
-  const page2 = isDualPage && page1 + 1 <= numPages ? page1 + 1 : null;
+  const spreadMode = settings.pageSpreadMode || (settings.dualPageLandscape ? 'auto' : 'single');
+  const isAutoDual = spreadMode === 'auto' && (windowSize.width > windowSize.height || windowSize.width >= 768);
+  const isDualPage = spreadMode === 'dual' || isAutoDual;
+  const isRTL = settings.readingDirection === 'rtl';
+  const coverOffset = settings.firstPageCoverOffset !== false;
+
+  const isSoloCover = isDualPage && coverOffset && currentPage === 1;
+
+  let spreadLeftPage: number | null = null;
+  let spreadRightPage: number | null = null;
+
+  if (isDualPage && !isSoloCover) {
+    const pairStart = coverOffset
+      ? (currentPage % 2 === 0 ? currentPage : currentPage - 1)
+      : (currentPage % 2 === 1 ? currentPage : currentPage - 1);
+    const nextInPair = pairStart + 1 <= numPages ? pairStart + 1 : null;
+
+    if (isRTL) {
+      spreadRightPage = pairStart;
+      spreadLeftPage = nextInPair;
+    } else {
+      spreadLeftPage = pairStart;
+      spreadRightPage = nextInPair;
+    }
+  } else {
+    spreadLeftPage = currentPage;
+  }
 
   const renderTask1Ref = useRef<any>(null);
   const renderTask2Ref = useRef<any>(null);
@@ -152,51 +175,53 @@ export default function PdfReader({
       const availableWidth = Math.max(300, containerWidth - 24);
       const availableHeight = Math.max(300, containerHeight - 24);
 
-      const targetWidth = isDualPage ? availableWidth / 2 - 8 : availableWidth;
+      const targetWidth = isDualPage && !isSoloCover ? availableWidth / 2 - 8 : availableWidth;
       const targetHeight = availableHeight;
 
       const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 3) : 1;
 
-      // Render First Page
-      const p1 = await pdfDoc.getPage(page1);
-      const vp1Unscaled = p1.getViewport({ scale: 1.0 });
+      // Render Left Page (or Single Page)
+      if (spreadLeftPage && spreadLeftPage <= numPages) {
+        const p1 = await pdfDoc.getPage(spreadLeftPage);
+        const vp1Unscaled = p1.getViewport({ scale: 1.0 });
 
-      let scale1 = 1.0;
-      if (settings.fitMode === 'width') {
-        scale1 = (targetWidth / vp1Unscaled.width) * (settings.zoomLevel / 100);
-      } else if (settings.fitMode === 'height') {
-        scale1 = (targetHeight / vp1Unscaled.height) * (settings.zoomLevel / 100);
-      } else {
-        scale1 = Math.min(targetWidth / vp1Unscaled.width, targetHeight / vp1Unscaled.height) * (settings.zoomLevel / 100);
-      }
+        let scale1 = 1.0;
+        if (settings.fitMode === 'width') {
+          scale1 = (targetWidth / vp1Unscaled.width) * (settings.zoomLevel / 100);
+        } else if (settings.fitMode === 'height') {
+          scale1 = (targetHeight / vp1Unscaled.height) * (settings.zoomLevel / 100);
+        } else {
+          scale1 = Math.min(targetWidth / vp1Unscaled.width, targetHeight / vp1Unscaled.height) * (settings.zoomLevel / 100);
+        }
 
-      const scaledScale1 = Math.max(0.2, scale1) * dpr;
-      const vp1 = p1.getViewport({ scale: scaledScale1 });
-      const c1 = canvasRef1.current;
-      if (c1) {
-        c1.width = Math.floor(vp1.width);
-        c1.height = Math.floor(vp1.height);
-        c1.style.width = `${Math.floor(vp1.width / dpr)}px`;
-        c1.style.height = `${Math.floor(vp1.height / dpr)}px`;
+        const scaledScale1 = Math.max(0.2, scale1) * dpr;
+        const vp1 = p1.getViewport({ scale: scaledScale1 });
+        const c1 = canvasRef1.current;
+        if (c1) {
+          c1.width = Math.floor(vp1.width);
+          c1.height = Math.floor(vp1.height);
+          c1.style.width = `${Math.floor(vp1.width / dpr)}px`;
+          c1.style.height = `${Math.floor(vp1.height / dpr)}px`;
 
-        const ctx1 = c1.getContext('2d');
-        if (ctx1) {
-          ctx1.fillStyle = '#ffffff';
-          ctx1.fillRect(0, 0, c1.width, c1.height);
+          const ctx1 = c1.getContext('2d');
+          if (ctx1) {
+            ctx1.fillStyle = '#ffffff';
+            ctx1.fillRect(0, 0, c1.width, c1.height);
 
-          const renderTask = (p1 as any).render({
-            canvasContext: ctx1,
-            viewport: vp1,
-            canvas: c1,
-          });
-          renderTask1Ref.current = renderTask;
-          await renderTask.promise;
+            const renderTask = (p1 as any).render({
+              canvasContext: ctx1,
+              viewport: vp1,
+              canvas: c1,
+            });
+            renderTask1Ref.current = renderTask;
+            await renderTask.promise;
+          }
         }
       }
 
-      // Render Second Page if dual-mode active
-      if (page2 && canvasRef2.current) {
-        const p2 = await pdfDoc.getPage(page2);
+      // Render Right Page if dual-mode active
+      if (spreadRightPage && spreadRightPage <= numPages && isDualPage && !isSoloCover && canvasRef2.current) {
+        const p2 = await pdfDoc.getPage(spreadRightPage);
         const vp2Unscaled = p2.getViewport({ scale: 1.0 });
 
         let scale2 = 1.0;
@@ -237,16 +262,13 @@ export default function PdfReader({
     } finally {
       setRendering(false);
     }
-  }, [pdfDoc, page1, page2, isDualPage, settings.fitMode, settings.zoomLevel]);
+  }, [pdfDoc, spreadLeftPage, spreadRightPage, isDualPage, isSoloCover, numPages, settings.fitMode, settings.zoomLevel]);
 
   useEffect(() => {
     renderCurrentPages();
   }, [renderCurrentPages]);
 
   // Navigation handlers
-  const step = isDualPage ? 2 : 1;
-  const isRTL = settings.readingDirection === 'rtl';
-
   const triggerTapFlash = (side: 'left' | 'right') => {
     setTapFlash(side);
     setTimeout(() => setTapFlash(null), 250);
@@ -258,14 +280,27 @@ export default function PdfReader({
       setPanOffset({ x: 0, y: 0 });
       return;
     }
-    if (currentPage + step <= numPages) {
-      triggerTapFlash('right');
-      onPageChange(currentPage + step, numPages);
-    } else if (currentPage < numPages) {
-      triggerTapFlash('right');
-      onPageChange(numPages, numPages);
+    if (currentPage >= numPages) return;
+    triggerTapFlash(isRTL ? 'left' : 'right');
+
+    if (isDualPage) {
+      if (coverOffset) {
+        if (currentPage === 1) {
+          onPageChange(2, numPages);
+        } else {
+          const pairStart = currentPage % 2 === 0 ? currentPage : currentPage - 1;
+          const target = Math.min(numPages, pairStart + 2);
+          onPageChange(target, numPages);
+        }
+      } else {
+        const pairStart = currentPage % 2 === 1 ? currentPage : currentPage - 1;
+        const target = Math.min(numPages, pairStart + 2);
+        onPageChange(target, numPages);
+      }
+    } else {
+      onPageChange(Math.min(numPages, currentPage + 1), numPages);
     }
-  }, [currentPage, step, numPages, isZoomed, onPageChange]);
+  }, [currentPage, numPages, isDualPage, coverOffset, isRTL, isZoomed, onPageChange]);
 
   const prevPage = useCallback(() => {
     if (isZoomed) {
@@ -273,14 +308,27 @@ export default function PdfReader({
       setPanOffset({ x: 0, y: 0 });
       return;
     }
-    if (currentPage - step >= 1) {
-      triggerTapFlash('left');
-      onPageChange(currentPage - step, numPages);
-    } else if (currentPage > 1) {
-      triggerTapFlash('left');
-      onPageChange(1, numPages);
+    if (currentPage <= 1) return;
+    triggerTapFlash(isRTL ? 'right' : 'left');
+
+    if (isDualPage) {
+      if (coverOffset) {
+        if (currentPage <= 2) {
+          onPageChange(1, numPages);
+        } else {
+          const pairStart = currentPage % 2 === 0 ? currentPage : currentPage - 1;
+          const target = pairStart <= 2 ? 1 : pairStart - 2;
+          onPageChange(Math.max(1, target), numPages);
+        }
+      } else {
+        const pairStart = currentPage % 2 === 1 ? currentPage : currentPage - 1;
+        const target = Math.max(1, pairStart - 2);
+        onPageChange(target, numPages);
+      }
+    } else {
+      onPageChange(Math.max(1, currentPage - 1), numPages);
     }
-  }, [currentPage, step, numPages, isZoomed, onPageChange]);
+  }, [currentPage, numPages, isDualPage, coverOffset, isRTL, isZoomed, onPageChange]);
 
   // Double-tap zoom toggle
   const handleDoubleTap = useCallback((clientX: number, clientY: number) => {
@@ -414,7 +462,7 @@ export default function PdfReader({
       <div
         className={`flex items-center justify-center max-w-full max-h-full transition-opacity duration-150 ${
           rendering ? 'opacity-90' : 'opacity-100'
-        } ${isRTL ? 'flex-row-reverse' : 'flex-row'} gap-4 sm:gap-6`}
+        } flex-row gap-2 sm:gap-4`}
         style={{
           transform: `scale(${zoomScale}) translate(${panOffset.x}px, ${panOffset.y}px)`,
           transformOrigin: 'center center',
@@ -428,7 +476,7 @@ export default function PdfReader({
           />
         </div>
 
-        {isDualPage && page2 && (
+        {isDualPage && !isSoloCover && spreadRightPage && (
           <div className="relative bg-white shadow-[0_20px_60px_rgba(0,0,0,0.85)] ring-1 ring-white/10 rounded-sm overflow-hidden flex items-center justify-center">
             <canvas
               ref={canvasRef2}

@@ -47,12 +47,15 @@ export default function EpubReader({
 
         if (isCancelled) return;
 
+        // Determine initial spread
+        const isDual = settings.pageSpreadMode === 'dual' || (settings.pageSpreadMode !== 'single' && settings.dualPageLandscape);
+
         // Render to viewer container
         const rendition = book.renderTo(viewerRef.current, {
           width: '100%',
           height: '100%',
           flow: 'paginated',
-          spread: settings.dualPageLandscape ? 'auto' : 'none',
+          spread: isDual ? 'auto' : 'none',
         });
         renditionRef.current = rendition;
 
@@ -148,6 +151,15 @@ export default function EpubReader({
       applyTheme(renditionRef.current, settings);
     }
   }, [settings.epubTheme, settings.fontSize, settings.fontFamily]);
+
+  useEffect(() => {
+    if (renditionRef.current) {
+      const isDual = settings.pageSpreadMode === 'dual' || (settings.pageSpreadMode !== 'single' && settings.dualPageLandscape);
+      try {
+        renditionRef.current.spread(isDual ? 'auto' : 'none');
+      } catch (e) {}
+    }
+  }, [settings.pageSpreadMode, settings.dualPageLandscape]);
 
   const nextPage = useCallback(() => {
     if (renditionRef.current) {

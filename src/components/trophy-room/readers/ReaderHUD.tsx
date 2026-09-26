@@ -161,7 +161,7 @@ export default function ReaderHUD({
           {/* Quick Toolbar (Direction, Dual Page, Amber Slider) */}
           <div className="flex items-center justify-between gap-4 text-xs">
             {/* Quick Layout Buttons */}
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 flex-wrap gap-y-1">
               <button
                 onClick={() =>
                   onUpdateSettings({
@@ -174,22 +174,42 @@ export default function ReaderHUD({
                 <span>{settings.readingDirection === 'rtl' ? '⛩️ RTL MANGA' : '🦸 LTR COMIC'}</span>
               </button>
 
+              <button
+                onClick={() => {
+                  const currentMode = settings.pageSpreadMode || (settings.dualPageLandscape ? 'dual' : 'single');
+                  const nextMode = currentMode === 'dual' ? 'single' : 'dual';
+                  onUpdateSettings({
+                    pageSpreadMode: nextMode,
+                    dualPageLandscape: nextMode === 'dual',
+                  });
+                }}
+                className={`px-2.5 py-1 rounded border font-mono text-[11px] tracking-wider uppercase flex items-center gap-1.5 transition-colors cursor-pointer ${
+                  (settings.pageSpreadMode === 'dual' || (!settings.pageSpreadMode && settings.dualPageLandscape))
+                    ? 'bg-amber-950/50 border-amber-600/60 text-amber-300'
+                    : 'bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200'
+                }`}
+                title="Toggle 1-Page vs 2-Page Spread"
+              >
+                <Columns className="w-3.5 h-3.5" />
+                <span>
+                  {(settings.pageSpreadMode === 'dual' || (!settings.pageSpreadMode && settings.dualPageLandscape))
+                    ? '📖 2-Page'
+                    : '📄 1-Page'}
+                </span>
+              </button>
+
               {book.format !== 'epub' && (
                 <button
-                  onClick={() =>
-                    onUpdateSettings({
-                      dualPageLandscape: !settings.dualPageLandscape,
-                    })
-                  }
-                  className={`px-2.5 py-1 rounded border font-mono text-[11px] tracking-wider uppercase flex items-center gap-1.5 transition-colors ${
-                    settings.dualPageLandscape
-                      ? 'bg-amber-950/50 border-amber-600/60 text-amber-300'
-                      : 'bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200'
-                  }`}
-                  title="Toggle 2-Page Spread in Landscape"
+                  onClick={() => {
+                    const fits = ['contain', 'width', 'height'] as const;
+                    const nextIdx = (fits.indexOf(settings.fitMode || 'contain') + 1) % fits.length;
+                    onUpdateSettings({ fitMode: fits[nextIdx] });
+                  }}
+                  className="hidden sm:flex px-2 py-1 rounded bg-stone-900 border border-stone-800 text-stone-400 hover:text-stone-200 font-mono text-[11px] tracking-wider uppercase items-center gap-1 transition-colors cursor-pointer"
+                  title="Cycle image fit mode"
                 >
-                  <Columns className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">2-Page</span>
+                  <Square className="w-3 h-3" />
+                  <span>Fit: {settings.fitMode || 'contain'}</span>
                 </button>
               )}
             </div>

@@ -69,9 +69,11 @@ export default function CbzReader({
     };
   }, []);
 
-  const isLandscape = windowSize.width > windowSize.height && windowSize.width >= 768;
-  const isDualPageActive = settings.dualPageLandscape && isLandscape;
+  const spreadMode = settings.pageSpreadMode || (settings.dualPageLandscape ? 'auto' : 'single');
+  const isAutoDual = spreadMode === 'auto' && (windowSize.width > windowSize.height || windowSize.width >= 768);
+  const isDualPageActive = spreadMode === 'dual' || isAutoDual;
   const isRtl = settings.readingDirection === 'rtl';
+  const coverOffset = settings.firstPageCoverOffset !== false;
 
   // Cleanup all allocated Object URLs on unmount
   const cleanupAllUrls = useCallback(() => {
@@ -229,8 +231,6 @@ export default function CbzReader({
   }, [currentPage, totalPages, isDualPageActive, loadPage]);
 
   // Page Navigation Handlers
-  const stepSize = isDualPageActive && currentPage > 1 ? 2 : 1;
-
   const triggerTapFlash = (side: 'left' | 'right') => {
     setTapFlash(side);
     setTimeout(() => setTapFlash(null), 250);
@@ -242,12 +242,27 @@ export default function CbzReader({
       setPanOffset({ x: 0, y: 0 });
       return;
     }
-    if (currentPage < totalPages) {
-      triggerTapFlash('right');
-      const target = Math.min(totalPages, currentPage + stepSize);
-      onPageChange(target, totalPages);
+    if (currentPage >= totalPages) return;
+    triggerTapFlash(isRtl ? 'left' : 'right');
+
+    if (isDualPageActive) {
+      if (coverOffset) {
+        if (currentPage === 1) {
+          onPageChange(2, totalPages);
+        } else {
+          const pairStart = currentPage % 2 === 0 ? currentPage : currentPage - 1;
+          const target = Math.min(totalPages, pairStart + 2);
+          onPageChange(target, totalPages);
+        }
+      } else {
+        const pairStart = currentPage % 2 === 1 ? currentPage : currentPage - 1;
+        const target = Math.min(totalPages, pairStart + 2);
+        onPageChange(target, totalPages);
+      }
+    } else {
+      onPageChange(Math.min(totalPages, currentPage + 1), totalPages);
     }
-  }, [currentPage, totalPages, stepSize, isZoomed, onPageChange]);
+  }, [currentPage, totalPages, isDualPageActive, coverOffset, isRtl, isZoomed, onPageChange]);
 
   const prevPage = useCallback(() => {
     if (isZoomed) {
@@ -255,12 +270,27 @@ export default function CbzReader({
       setPanOffset({ x: 0, y: 0 });
       return;
     }
-    if (currentPage > 1) {
-      triggerTapFlash('left');
-      const target = Math.max(1, currentPage - stepSize);
-      onPageChange(target, totalPages);
+    if (currentPage <= 1) return;
+    triggerTapFlash(isRtl ? 'right' : 'left');
+
+    if (isDualPageActive) {
+      if (coverOffset) {
+        if (currentPage <= 2) {
+          onPageChange(1, totalPages);
+        } else {
+          const pairStart = currentPage % 2 === 0 ? currentPage : currentPage - 1;
+          const target = pairStart <= 2 ? 1 : pairStart - 2;
+          onPageChange(Math.max(1, target), totalPages);
+        }
+      } else {
+        const pairStart = currentPage % 2 === 1 ? currentPage : currentPage - 1;
+        const target = Math.max(1, pairStart - 2);
+        onPageChange(target, totalPages);
+      }
+    } else {
+      onPageChange(Math.max(1, currentPage - 1), totalPages);
     }
-  }, [currentPage, totalPages, stepSize, isZoomed, onPageChange]);
+  }, [currentPage, totalPages, isDualPageActive, coverOffset, isRtl, isZoomed, onPageChange]);
 
   // Double-tap to toggle zoom (1x <-> 2.2x)
   const handleDoubleTap = useCallback((clientX: number, clientY: number) => {
@@ -342,18 +372,42 @@ export default function CbzReader({
     );
   }
 
-  // Dual Page Spreads
-  const isSoloCover = currentPage === 1;
-  const page1Index = currentPage;
-  const page2Index = isDualPageActive && !isSoloCover && currentPage + 1 <= totalPages ? currentPage + 1 : null;
+  // Dual Page Spreads Calculation
+  const isSoloCover = isDualPageActive && coverOffset && currentPage === 1;
 
-  const page1Url = pageUrls[page1Index];
-  const page2Url = page2Index ? pageUrls[page2Index] : null;
+  let spreadLeftIndex: number | null = null;
+  let spreadRightIndex: number | null = null;
+
+  if (isDualPageActive && !isSoloCover) {
+    const pairStart = coverOffset
+      ? (currentPage % 2 === 0 ? currentPage : currentPage - 1)
+      : (currentPage % 2 === 1 ? currentPage : currentPage - 1);
+    const nextInPair = pairStart + 1 <= totalPages ? pairStart + 1 : null;
+
+    if (isRtl) {
+      spreadRightIndex = pairStart;
+      spreadLeftIndex = nextInPair;
+    } else {
+      spreadLeftIndex = pairStart;
+      spreadRightIndex = nextInPair;
+    }
+  }
+
+  const leftUrl = spreadLeftIndex ? pageUrls[spreadLeftIndex] : null;
+  const rightUrl = spreadRightIndex ? pageUrls[spreadRightIndex] : null;
+  const singleUrl = pageUrls[currentPage];
+
+  // Image sizing classes based on fitMode
+  const getImageFitClass = () => {
+    if (settings.fitMode === 'width') return 'w-full h-auto max-h-none object-contain';
+    if (settings.fitMode === 'height') return 'h-full w-auto max-w-none object-contain';
+    return 'max-h-full max-w-full object-contain';
+  };
 
   return (
     <div
       ref={containerRef}
-      className="relative h-[100dvh] w-full bg-[#0a0c10] overflow-hidden select-none touch-none overscroll-none flex items-center justify-center cursor-default"
+      className="relative h-[100dvh] w-full bg-[#0a0c10] overflow-hidden select-none touch-none overscroll-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex items-center justify-center cursor-default"
       style={{
         paddingTop: 'env(safe-area-inset-top)',
         paddingBottom: 'env(safe-area-inset-bottom)',
@@ -371,65 +425,59 @@ export default function CbzReader({
 
       {/* Zoom / Page Display Container */}
       <div
-        className="w-full h-full flex items-center justify-center transition-transform duration-100 ease-out"
+        className="w-full h-full flex items-center justify-center transition-transform duration-100 ease-out overflow-hidden"
         style={{
           transform: `scale(${zoomScale}) translate(${panOffset.x}px, ${panOffset.y}px)`,
           transformOrigin: 'center center',
         }}
       >
-        {isDualPageActive && !isSoloCover && page2Url ? (
-          /* Dual-Page Landscape Spread */
+        {isDualPageActive && !isSoloCover ? (
+          /* Dual-Page Spread Canvas */
           <div className="w-full h-full flex items-center justify-center gap-1 max-w-full max-h-full px-2">
-            {isRtl ? (
-              <>
-                {/* Manga RTL: Page 3 on Left, Page 2 on Right */}
-                <div className="flex-1 h-full flex items-center justify-end overflow-hidden">
-                  <img
-                    src={page2Url}
-                    alt={`Page ${page2Index}`}
-                    className="max-h-full max-w-full object-contain shadow-2xl rounded-sm"
-                    draggable={false}
-                  />
-                </div>
-                <div className="flex-1 h-full flex items-center justify-start overflow-hidden">
-                  <img
-                    src={page1Url}
-                    alt={`Page ${page1Index}`}
-                    className="max-h-full max-w-full object-contain shadow-2xl rounded-sm"
-                    draggable={false}
-                  />
-                </div>
-              </>
-            ) : (
-              <>
-                {/* Western LTR: Page 2 on Left, Page 3 on Right */}
-                <div className="flex-1 h-full flex items-center justify-end overflow-hidden">
-                  <img
-                    src={page1Url}
-                    alt={`Page ${page1Index}`}
-                    className="max-h-full max-w-full object-contain shadow-2xl rounded-sm"
-                    draggable={false}
-                  />
-                </div>
-                <div className="flex-1 h-full flex items-center justify-start overflow-hidden">
-                  <img
-                    src={page2Url}
-                    alt={`Page ${page2Index}`}
-                    className="max-h-full max-w-full object-contain shadow-2xl rounded-sm"
-                    draggable={false}
-                  />
-                </div>
-              </>
-            )}
+            {/* Left Slot */}
+            <div className="flex-1 h-full flex items-center justify-end overflow-hidden">
+              {leftUrl ? (
+                <img
+                  src={leftUrl}
+                  alt={`Page ${spreadLeftIndex}`}
+                  className={`${getImageFitClass()} shadow-2xl rounded-sm`}
+                  draggable={false}
+                />
+              ) : (
+                spreadLeftIndex && (
+                  <div className="flex items-center justify-center text-stone-600 font-mono text-xs">
+                    <Loader2 className="w-5 h-5 animate-spin text-amber-500" />
+                  </div>
+                )
+              )}
+            </div>
+
+            {/* Right Slot */}
+            <div className="flex-1 h-full flex items-center justify-start overflow-hidden">
+              {rightUrl ? (
+                <img
+                  src={rightUrl}
+                  alt={`Page ${spreadRightIndex}`}
+                  className={`${getImageFitClass()} shadow-2xl rounded-sm`}
+                  draggable={false}
+                />
+              ) : (
+                spreadRightIndex && (
+                  <div className="flex items-center justify-center text-stone-600 font-mono text-xs">
+                    <Loader2 className="w-5 h-5 animate-spin text-amber-500" />
+                  </div>
+                )
+              )}
+            </div>
           </div>
         ) : (
           /* Single Page (Portrait / Solo Cover) */
           <div className="w-full h-full flex items-center justify-center p-1 sm:p-2">
-            {page1Url ? (
+            {singleUrl ? (
               <img
-                src={page1Url}
+                src={singleUrl}
                 alt={`Page ${currentPage}`}
-                className="max-h-full max-w-full object-contain shadow-2xl rounded-sm pointer-events-none"
+                className={`${getImageFitClass()} shadow-2xl rounded-sm pointer-events-none`}
                 draggable={false}
               />
             ) : (

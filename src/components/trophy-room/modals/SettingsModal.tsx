@@ -97,38 +97,69 @@ export default function SettingsModal({
             </div>
           </div>
 
-          {/* Dual Page Mode (Comics / PDFs) */}
-          {format !== 'epub' && (
-            <div className="space-y-2 bg-white p-4 rounded-2xl border-2 border-[#111827] shadow-[3px_3px_0_#111827]">
-              <label className="text-xs font-black uppercase tracking-wider text-[#111827]">
-                Landscape Display Spread
-              </label>
-              <div className="grid grid-cols-2 gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => onUpdateSettings({ dualPageLandscape: false })}
-                  className={`py-2 px-3 rounded-xl border-2 border-[#111827] text-xs font-black uppercase tracking-wider transition-all ${
-                    !settings.dualPageLandscape
-                      ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757]'
-                      : 'bg-white text-slate-700 hover:bg-slate-100 shadow-[2px_2px_0_#111827]'
-                  }`}
-                >
-                  Single Page
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onUpdateSettings({ dualPageLandscape: true })}
-                  className={`py-2 px-3 rounded-xl border-2 border-[#111827] text-xs font-black uppercase tracking-wider transition-all ${
-                    settings.dualPageLandscape
-                      ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757]'
-                      : 'bg-white text-slate-700 hover:bg-slate-100 shadow-[2px_2px_0_#111827]'
-                  }`}
-                >
-                  2-Page Spread
-                </button>
-              </div>
+          {/* Page Spread Mode */}
+          <div className="space-y-3 bg-white p-4 rounded-2xl border-2 border-[#111827] shadow-[3px_3px_0_#111827]">
+            <label className="text-xs font-black uppercase tracking-wider text-[#111827] flex items-center justify-between">
+              <span>Page Layout & Spread</span>
+              <span className="text-[10px] text-stone-500 font-mono lowercase">
+                {settings.pageSpreadMode || (settings.dualPageLandscape ? 'dual' : 'single')}
+              </span>
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => onUpdateSettings({ pageSpreadMode: 'single', dualPageLandscape: false })}
+                className={`py-2 px-2 rounded-xl border-2 border-[#111827] text-xs font-black uppercase tracking-wider transition-all ${
+                  (settings.pageSpreadMode === 'single' || (!settings.pageSpreadMode && !settings.dualPageLandscape))
+                    ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757]'
+                    : 'bg-white text-slate-700 hover:bg-slate-100 shadow-[2px_2px_0_#111827]'
+                }`}
+              >
+                Single Page
+              </button>
+              <button
+                type="button"
+                onClick={() => onUpdateSettings({ pageSpreadMode: 'dual', dualPageLandscape: true })}
+                className={`py-2 px-2 rounded-xl border-2 border-[#111827] text-xs font-black uppercase tracking-wider transition-all ${
+                  (settings.pageSpreadMode === 'dual' || (!settings.pageSpreadMode && settings.dualPageLandscape))
+                    ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757]'
+                    : 'bg-white text-slate-700 hover:bg-slate-100 shadow-[2px_2px_0_#111827]'
+                }`}
+              >
+                2-Page Spread
+              </button>
+              <button
+                type="button"
+                onClick={() => onUpdateSettings({ pageSpreadMode: 'auto' })}
+                className={`py-2 px-2 rounded-xl border-2 border-[#111827] text-xs font-black uppercase tracking-wider transition-all ${
+                  settings.pageSpreadMode === 'auto'
+                    ? 'bg-[#111827] text-[#FFDE59] shadow-[2px_2px_0_#FF4757]'
+                    : 'bg-white text-slate-700 hover:bg-slate-100 shadow-[2px_2px_0_#111827]'
+                }`}
+              >
+                Auto (Landscape)
+              </button>
             </div>
-          )}
+
+            {/* First Page Cover Offset Toggle */}
+            <div className="pt-2 border-t border-stone-200 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-stone-900">First Page as Cover</p>
+                <p className="text-[10px] text-stone-500 font-serif">Display Page 1 solo, then pair 2-3, 4-5 in spreads</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onUpdateSettings({ firstPageCoverOffset: settings.firstPageCoverOffset === false ? true : false })}
+                className={`px-3 py-1 rounded-lg border-2 border-[#111827] text-xs font-black uppercase tracking-wider transition-all ${
+                  settings.firstPageCoverOffset !== false
+                    ? 'bg-[#2ED573] text-[#111827] shadow-[2px_2px_0_#111827]'
+                    : 'bg-stone-200 text-stone-600'
+                }`}
+              >
+                {settings.firstPageCoverOffset !== false ? 'Enabled' : 'Disabled'}
+              </button>
+            </div>
+          </div>
 
           {/* Fit Mode */}
           {format !== 'epub' && (

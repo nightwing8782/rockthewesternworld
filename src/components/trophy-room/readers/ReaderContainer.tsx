@@ -42,6 +42,42 @@ export default function ReaderContainer({
   const [totalPages, setTotalPages] = useState<number>(book.page_count || 1);
   const [currentCfi, setCurrentCfi] = useState<string | null>(book.progress?.current_cfi || null);
 
+  // Prevent browser viewport scrolling and bounce on iPad/Safari/Chrome while reader is mounted
+  useEffect(() => {
+    const originalOverflow = document.documentElement.style.overflow;
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalTouchAction = document.body.style.touchAction;
+    const originalOverscroll = (document.body.style as any).overscrollBehavior;
+
+    document.documentElement.style.overflow = 'hidden';
+    (document.documentElement.style as any).overscrollBehavior = 'none';
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+    (document.body.style as any).overscrollBehavior = 'none';
+
+    return () => {
+      document.documentElement.style.overflow = originalOverflow;
+      (document.documentElement.style as any).overscrollBehavior = originalOverscroll;
+      document.body.style.overflow = originalBodyOverflow;
+      document.body.style.touchAction = originalTouchAction;
+      (document.body.style as any).overscrollBehavior = originalOverscroll;
+    };
+  }, []);
+
+  // Compute effective settings with book metadata intelligence
+  const effectiveSettings: ReaderSettings = {
+    ...settings,
+    readingDirection:
+      settings.readingDirection ||
+      book.reading_direction ||
+      (book.medium === 'manga' ? 'rtl' : 'ltr'),
+    pageSpreadMode:
+      settings.pageSpreadMode ||
+      (settings.dualPageLandscape ? 'auto' : 'single'),
+    firstPageCoverOffset:
+      settings.firstPageCoverOffset !== undefined ? settings.firstPageCoverOffset : true,
+  };
+
   // Hide HUD timer
   const hudTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -155,9 +191,9 @@ export default function ReaderContainer({
   );
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center overflow-hidden select-none">
+    <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center overflow-hidden select-none touch-none overscroll-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden w-screen h-[100dvh]">
       {/* Amber Night Filter Overlay */}
-      <AmberOverlay percent={settings.amberFilterPercent} />
+      <AmberOverlay percent={effectiveSettings.amberFilterPercent} />
 
       {/* Loading State */}
       {loadingFile && (
@@ -188,14 +224,14 @@ export default function ReaderContainer({
 
       {/* Active Reader */}
       {!loadingFile && !fileError && fileBlob && (
-        <div className="w-full h-full relative">
+        <div className="w-full h-full relative overflow-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {book.format === 'cbz' && (
             <CbzReader
               fileBlob={fileBlob}
               currentPage={currentPage}
               onPageChange={handlePageChange}
               onToggleHUD={toggleHUD}
-              settings={settings}
+              settings={effectiveSettings}
             />
           )}
 
@@ -207,7 +243,7 @@ export default function ReaderContainer({
               onPageChange={handlePageChange}
               onProgressUpdate={handleEpubProgress}
               onToggleHUD={toggleHUD}
-              settings={settings}
+              settings={effectiveSettings}
             />
           )}
 
@@ -217,7 +253,7 @@ export default function ReaderContainer({
               currentPage={currentPage}
               onPageChange={handlePageChange}
               onToggleHUD={toggleHUD}
-              settings={settings}
+              settings={effectiveSettings}
             />
           )}
         </div>
@@ -233,7 +269,7 @@ export default function ReaderContainer({
           onPageChange={(p) => handlePageChange(p, totalPages)}
           onClose={onClose}
           onOpenSettings={() => setIsSettingsOpen(true)}
-          settings={settings}
+          settings={effectiveSettings}
           onUpdateSettings={onUpdateSettings}
           isOffline={isOffline}
           onToggleOffline={onToggleOffline}
@@ -244,7 +280,7 @@ export default function ReaderContainer({
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
-        settings={settings}
+        settings={effectiveSettings}
         onUpdateSettings={onUpdateSettings}
         format={book.format}
       />
