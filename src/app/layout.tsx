@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Cinzel, Source_Serif_4 } from 'next/font/google';
 import Script from 'next/script';
+import { GoogleAnalytics } from '@next/third-parties/google';
 import './globals.css';
 
 const cinzel = Cinzel({
@@ -19,8 +20,14 @@ const sourceSerif = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://rockthewesternworld.com'),
   title: "Rock The Western World | It's Either Sadness or Euphoria",
   description: 'An occasional cultural journal, reading log, and essays by Dan Billings.',
+  alternates: {
+    types: {
+      'application/rss+xml': '/feed.xml',
+    },
+  },
   icons: {
     icon: [
       { url: '/favicon.svg', type: 'image/svg+xml' },
@@ -35,6 +42,7 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const gaId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || 'G-1SHX13PF3Y';
   const umamiWebsiteId = process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID;
   const umamiScriptUrl = process.env.NEXT_PUBLIC_UMAMI_SCRIPT_URL || 'https://cloud.umami.is/script.js';
   const umamiDomains = process.env.NEXT_PUBLIC_UMAMI_DOMAINS || 'rockthewesternworld.com';
@@ -55,6 +63,7 @@ export default function RootLayout({
             strategy="afterInteractive"
           />
         ) : null}
+        {gaId ? <GoogleAnalytics gaId={gaId} /> : null}
       </body>
     </html>
   );

@@ -3,7 +3,7 @@ export async function generateStaticParams() {
 
   // 1. Fetch only published entries from Supabase
   try {
-    const supabase = await createClient();
+    const supabase = createStaticClient();
     const { data } = await supabase
       .from('entries')
       .select('slug')
@@ -33,10 +33,11 @@ export async function generateStaticParams() {
 }
 
 import { notFound } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createStaticClient } from '@/lib/supabase/server';
 import { Entry } from '@/types/database';
 import Masthead from '@/components/navigation/Masthead';
 import ArticleHeroImage from '@/components/article/ArticleHeroImage';
+import CommentsSection from '@/components/article/CommentsSection';
 import Link from 'next/link';
 import { ArrowLeft, Star, Book, BookOpen, Music, Radio, ChevronRight } from 'lucide-react';
 import type { Metadata } from 'next';
@@ -50,7 +51,7 @@ interface PageProps {
 async function getPost(slug: string): Promise<Entry | null> {
   // 1. Check Supabase strictly for published status
   try {
-    const supabase = await createClient();
+    const supabase = createStaticClient();
     const { data, error } = await supabase
       .from('entries')
       .select('*')
@@ -430,6 +431,9 @@ export default async function BlogPostPage({ params }: PageProps) {
             ◆ ◆ ◆
           </div>
         </div>
+
+        {/* Reader Discussion & Comments */}
+        <CommentsSection slug={slug} title={title || ''} />
       </div>
     </article>
   );
