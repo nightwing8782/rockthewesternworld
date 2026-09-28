@@ -337,13 +337,13 @@ export default function LedgerHierarchyTree({
       {/* 1. TOP PINNED ANNUAL HORIZON: COMPASS & ROADMAP */}
       <div
         onClick={() => onSelectCompass(selectedYear)}
-        className={`p-2.5 rounded-xl border flex items-center justify-between gap-2.5 transition-all cursor-pointer shadow-2xs group ${
+        className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 transition-all cursor-pointer shadow-2xs group ${
           activeHorizon === 'compass'
             ? 'bg-[#1C1917] border-[#1C1917] text-[#FAF8F5]'
             : 'bg-[#FAF8F5] hover:bg-[#F2ECE1] border-[#DDD5C7] text-[#1C1917]'
         }`}
       >
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           <div
             className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
               activeHorizon === 'compass' ? 'bg-amber-500 text-stone-900' : 'bg-amber-100 text-[#B45309]'
@@ -351,16 +351,16 @@ export default function LedgerHierarchyTree({
           >
             <Compass className="w-3.5 h-3.5" />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <span
-              className={`text-[9px] font-display uppercase tracking-widest font-black block leading-none ${
+              className={`text-[9px] font-display uppercase tracking-widest font-black block leading-tight ${
                 activeHorizon === 'compass' ? 'text-amber-400' : 'text-[#B45309]'
               }`}
             >
               Annual Compass
             </span>
-            <span className="font-display font-bold text-xs truncate">
-              {selectedYear} Passion Roadmap
+            <span className="font-display font-bold text-xs truncate block text-inherit">
+              {selectedYear} Roadmap
             </span>
           </div>
         </div>
@@ -372,7 +372,7 @@ export default function LedgerHierarchyTree({
               : 'bg-amber-50 text-[#B45309] border-amber-200'
           }`}
         >
-          North Star
+          Annual
         </span>
       </div>
 
@@ -396,11 +396,11 @@ export default function LedgerHierarchyTree({
                     : 'bg-[#F2ECE1]/70 hover:bg-[#EAE4D7] text-[#1C1917]'
                 }`}
               >
-                <div className="flex items-center gap-1.5 min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
                   <button
                     type="button"
                     onClick={(e) => toggleMonth(month.monthKey, e)}
-                    className={`p-0.5 rounded hover:bg-black/10 transition-transform cursor-pointer ${
+                    className={`p-0.5 rounded hover:bg-black/10 transition-transform cursor-pointer shrink-0 ${
                       isMonthActive ? 'text-white' : 'text-[#78716C]'
                     }`}
                   >
@@ -412,7 +412,7 @@ export default function LedgerHierarchyTree({
                   </button>
 
                   <Target className={`w-3.5 h-3.5 shrink-0 ${isMonthActive ? 'text-amber-200' : 'text-[#B45309]'}`} />
-                  <span className="font-display font-bold text-xs uppercase tracking-wider truncate">
+                  <span className="font-display font-bold text-xs uppercase tracking-wider truncate block min-w-0 flex-1">
                     {month.monthLabel}
                   </span>
                 </div>
@@ -424,7 +424,7 @@ export default function LedgerHierarchyTree({
                       : 'bg-stone-200/70 text-stone-700 border-stone-300'
                   }`}
                 >
-                  Horizon
+                  Month
                 </span>
               </div>
 
@@ -449,11 +449,11 @@ export default function LedgerHierarchyTree({
                               : 'bg-[#FAF8F5] hover:bg-[#F2ECE1] text-[#44403C]'
                           }`}
                         >
-                          <div className="flex items-center gap-1.5 min-w-0">
+                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
                             <button
                               type="button"
                               onClick={(e) => toggleWeek(week.weekKey, e)}
-                              className={`p-0.5 rounded hover:bg-black/10 transition-transform cursor-pointer ${
+                              className={`p-0.5 rounded hover:bg-black/10 transition-transform cursor-pointer shrink-0 ${
                                 isWeekActive ? 'text-white' : 'text-[#78716C]'
                               }`}
                             >
@@ -465,16 +465,18 @@ export default function LedgerHierarchyTree({
                             </button>
 
                             <Calendar className={`w-3 h-3 shrink-0 ${isWeekActive ? 'text-blue-200' : 'text-[#1E40AF]'}`} />
-                            <span className="font-display font-semibold text-[11px] truncate">
-                              {week.weekLabel.split(' · ')[0]}
-                            </span>
-                            <span
-                              className={`text-[10px] font-serif truncate ${
-                                isWeekActive ? 'text-blue-100' : 'text-[#78716C]'
-                              }`}
-                            >
-                              {week.weekLabel.split(' · ')[1] || ''}
-                            </span>
+                            <div className="min-w-0 flex-1 flex items-baseline gap-1 overflow-hidden">
+                              <span className="font-display font-semibold text-[11px] shrink-0">
+                                {week.weekLabel.split(' · ')[0]}
+                              </span>
+                              <span
+                                className={`text-[10px] font-serif truncate ${
+                                  isWeekActive ? 'text-blue-100' : 'text-[#78716C]'
+                                }`}
+                              >
+                                {week.weekLabel.split(' · ')[1] ? `· ${week.weekLabel.split(' · ')[1]}` : ''}
+                              </span>
+                            </div>
                           </div>
 
                           <span
