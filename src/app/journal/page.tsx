@@ -45,6 +45,7 @@ import ReflectionPromptBar from '@/components/journal/ReflectionPromptBar';
 import EditorialPhotographyAccordion from '@/components/journal/EditorialPhotographyAccordion';
 import DailyPersonalLedger from '@/components/journal/DailyPersonalLedger';
 import LedgerHorizonNav from '@/components/journal/ledger/LedgerHorizonNav';
+import LedgerHierarchyTree from '@/components/journal/ledger/LedgerHierarchyTree';
 import CompassRoadmapView from '@/components/journal/ledger/CompassRoadmapView';
 import MonthlyHorizonView from '@/components/journal/ledger/MonthlyHorizonView';
 import WeeklyRhythmView from '@/components/journal/ledger/WeeklyRhythmView';
@@ -1816,20 +1817,20 @@ export default function JournalStudioPage() {
               <div className="space-y-2">
                 <button
                   onClick={() => createNewDocument('personal_ledger', true)}
-                  className="w-full py-2.5 px-3 bg-[#B45309] hover:bg-[#92400E] text-[#FAF8F5] rounded text-xs font-display uppercase tracking-wider font-bold flex items-center justify-center gap-2 transition-colors shadow-xs cursor-pointer"
+                  className="w-full py-2.5 px-3 bg-[#B45309] hover:bg-[#92400E] text-[#FAF8F5] rounded-xl text-xs font-display uppercase tracking-wider font-bold flex items-center justify-center gap-2 transition-colors shadow-xs cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>+ New Daily Ledger</span>
+                  <span>New Daily Check-in</span>
                 </button>
               </div>
             ) : (
               <div>
                 <button
                   onClick={() => createNewDocument('essay', false)}
-                  className="w-full py-2.5 px-3 bg-[#1C1917] hover:bg-[#1E40AF] text-[#FAF8F5] rounded text-xs font-display uppercase tracking-wider font-bold flex items-center justify-center gap-2 transition-colors shadow-xs cursor-pointer"
+                  className="w-full py-2.5 px-3 bg-[#1C1917] hover:bg-[#1E40AF] text-[#FAF8F5] rounded-xl text-xs font-display uppercase tracking-wider font-bold flex items-center justify-center gap-2 transition-colors shadow-xs cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>+ New Broadsheet Draft</span>
+                  <span>New Broadsheet Draft</span>
                 </button>
               </div>
             )}
@@ -1874,8 +1875,8 @@ export default function JournalStudioPage() {
             {workspaceMode === 'ledger' && (
               <div className="flex items-center justify-between px-1 border-b border-[#E5DFC5] pb-2">
                 <div className="flex items-center gap-1.5 text-[10px] font-display uppercase tracking-[0.2em] text-[#B45309] font-bold">
-                  <BookOpen className="w-3.5 h-3.5" />
-                  <span>Ledger Archive</span>
+                  <Compass className="w-3.5 h-3.5" />
+                  <span>Horizon Timeline</span>
                 </div>
                 <span className="text-[10px] font-serif text-[#78716C] italic font-semibold">
                   {privateEntries.length} {privateEntries.length === 1 ? 'entry' : 'entries'}
@@ -1899,97 +1900,45 @@ export default function JournalStudioPage() {
               />
             </div>
 
-            {/* Document List */}
+            {/* Document Hierarchy Tree (Ledger) vs Cards (Editorial) */}
             <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 max-h-[calc(100vh-280px)]">
-              {visibleSidebarList.length > 0 ? (
+              {workspaceMode === 'ledger' ? (
+                <LedgerHierarchyTree
+                  entries={privateEntries}
+                  activeHorizon={ledgerHorizon}
+                  selectedDateKey={selectedDateKey}
+                  selectedWeekKey={selectedWeekKey}
+                  selectedMonthKey={selectedMonthKey}
+                  selectedYear={selectedYear}
+                  searchFilter={searchFilter}
+                  onSelectCompass={(year) => {
+                    setSelectedYear(year);
+                    setLedgerHorizon('compass');
+                    loadHorizonDocument('compass', selectedDateKey, selectedWeekKey, selectedMonthKey, year);
+                  }}
+                  onSelectMonth={(mKey) => {
+                    setSelectedMonthKey(mKey);
+                    const [y] = mKey.split('-').map(Number);
+                    setSelectedYear(y);
+                    setLedgerHorizon('monthly');
+                    loadHorizonDocument('monthly', selectedDateKey, selectedWeekKey, mKey, y);
+                  }}
+                  onSelectWeek={(wKey) => {
+                    setSelectedWeekKey(wKey);
+                    setLedgerHorizon('weekly');
+                    loadHorizonDocument('weekly', selectedDateKey, wKey, selectedMonthKey, selectedYear);
+                  }}
+                  onSelectDay={(dKey, entry) => {
+                    setSelectedDateKey(dKey);
+                    setLedgerHorizon('daily');
+                    if (entry) selectEntry(entry);
+                    else loadHorizonDocument('daily', dKey, selectedWeekKey, selectedMonthKey, selectedYear);
+                  }}
+                  onDeleteEntry={handleDeleteEntry}
+                />
+              ) : visibleSidebarList.length > 0 ? (
                 visibleSidebarList.map((entry, idx) => {
                   const isActive = activeEntry?.slug === entry.slug || activeEntry?.id === entry.id;
-
-                  if (workspaceMode === 'ledger') {
-                    const entryDate = entry.created_at || entry.published_at;
-                    const formattedDate = formatDateSafe(entryDate, 'Recent Entry', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    });
-                    const horizonType = entry.metadata?.horizon || 'daily';
-                    const energyVal = entry.metadata?.energy || entry.metadata?.ledger?.energy;
-                    const brightSpot = entry.metadata?.triad?.bright_spot || entry.metadata?.ledger?.triad?.bright_spot;
-                    const habitsObj = entry.metadata?.habits || entry.metadata?.ledger?.habits || {};
-                    const doneHabitsCount = Object.values(habitsObj).filter(Boolean).length;
-
-                    const renderHorizonBadge = () => {
-                      if (horizonType === 'compass') {
-                        return <span className="text-[8px] font-display uppercase tracking-wider text-purple-900 bg-purple-100 px-1.5 py-0.5 rounded font-bold">🧭 Compass</span>;
-                      }
-                      if (horizonType === 'monthly') {
-                        return <span className="text-[8px] font-display uppercase tracking-wider text-amber-900 bg-amber-100 px-1.5 py-0.5 rounded font-bold">🎯 Month</span>;
-                      }
-                      if (horizonType === 'weekly') {
-                        return <span className="text-[8px] font-display uppercase tracking-wider text-blue-900 bg-blue-100 px-1.5 py-0.5 rounded font-bold">📅 Week</span>;
-                      }
-                      if (energyVal) {
-                        return <span className="text-[8px] font-display uppercase tracking-wider text-stone-900 bg-stone-200/90 px-1.5 py-0.5 rounded font-bold">☀️ Daily</span>;
-                      }
-                      return (
-                        <span className="text-[8px] font-display uppercase tracking-wider text-amber-800 bg-amber-100/90 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5">
-                          <Shield className="w-2.5 h-2.5" />
-                          <span>Ledger</span>
-                        </span>
-                      );
-                    };
-
-                    return (
-                      <div
-                        key={entry.id || entry.slug || `entry-${idx}`}
-                        onClick={() => selectEntry(entry)}
-                        className={`group p-2.5 rounded cursor-pointer transition-colors border relative ${
-                          isActive
-                            ? 'bg-[#F3EFEA] border-[#B45309] shadow-xs'
-                            : 'border-transparent hover:bg-[#F3EFEA]/60 text-[#66615C]'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] font-display uppercase tracking-wider font-bold text-[#1C1917]">
-                            {formattedDate}
-                          </span>
-                          <div className="flex items-center gap-1">
-                            {doneHabitsCount > 0 && (
-                              <span className="text-[8px] font-display uppercase tracking-wider text-emerald-900 bg-emerald-100/90 border border-emerald-300/80 px-1.5 py-0.5 rounded font-bold">
-                                ✓ {doneHabitsCount}/4
-                              </span>
-                            )}
-                            {renderHorizonBadge()}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteEntry(entry);
-                              }}
-                              className="p-1 text-stone-400 hover:text-red-700 active:text-red-800 transition-colors cursor-pointer"
-                              title="Delete this entry"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                        </div>
-
-                        <h4 className="font-display font-semibold text-xs text-[#1C1917] line-clamp-1 pr-4">
-                          {entry.title || `Check-in · ${formattedDate}`}
-                        </h4>
-
-                        {brightSpot ? (
-                          <p className="line-clamp-1 italic text-xs text-stone-500 mt-1">
-                            ✦ {brightSpot}
-                          </p>
-                        ) : (
-                          <p className="line-clamp-1 italic text-xs text-stone-400 mt-1">
-                            {entry.body_html?.replace(/<[^>]*>/g, '').trim() || 'No reflection recorded.'}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  }
 
                   // Editorial mode card
                   return (
