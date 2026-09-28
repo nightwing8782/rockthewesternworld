@@ -11,11 +11,44 @@ import {
   DeskType,
   EntryStatus,
 } from '@/types/database';
+import {
+  LedgerHorizon,
+  CompassMetadata,
+  MonthlyMetadata,
+  WeeklyMetadata,
+  DailyLedgerMetadata,
+  PersonalLedgerMetadata,
+} from '@/types/journal';
+import {
+  formatDateKey,
+  formatMonthKey,
+  formatWeekKey,
+  getISOWeekNumber,
+  getAdjacentMonth,
+  getAdjacentWeek,
+  getDaysInMonth,
+  getWeekDates,
+  getMonthLabel,
+  getWeekLabel,
+  aggregateMonthlyHabitHeatmap,
+  aggregateMonthlyWins,
+  aggregateWeeklyWins,
+  getDaySlug,
+  getWeekSlug,
+  getMonthSlug,
+  getCompassSlug,
+} from '@/lib/journal/dateMath';
+
 import TipTapEditor from '@/components/journal/TipTapEditor';
 import ReviewCraftPanel from '@/components/journal/ReviewCraftPanel';
 import ReflectionPromptBar from '@/components/journal/ReflectionPromptBar';
 import EditorialPhotographyAccordion from '@/components/journal/EditorialPhotographyAccordion';
 import DailyPersonalLedger from '@/components/journal/DailyPersonalLedger';
+import LedgerHorizonNav from '@/components/journal/ledger/LedgerHorizonNav';
+import CompassRoadmapView from '@/components/journal/ledger/CompassRoadmapView';
+import MonthlyHorizonView from '@/components/journal/ledger/MonthlyHorizonView';
+import WeeklyRhythmView from '@/components/journal/ledger/WeeklyRhythmView';
+import DailyLedgerView from '@/components/journal/ledger/DailyLedgerView';
 import PromoteModal from '@/components/journal/PromoteModal';
 import AnalyticsModal from '@/components/journal/AnalyticsModal';
 import DispatchModal from '@/components/journal/DispatchModal';
@@ -36,7 +69,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   MoreVertical,
-  Copy,
   Shield,
   Feather,
   Book,
@@ -46,12 +78,13 @@ import {
   FileEdit,
   ExternalLink,
   RotateCcw,
-  Archive,
   Mail,
-  ArrowDownToLine,
-  Sparkles,
-  Check,
   Loader2,
+  Check,
+  Calendar,
+  Target,
+  Sparkles,
+  Compass,
 } from 'lucide-react';
 
 const EDITORIAL_ENTRY_TYPES: { type: EntryType; label: string; icon: any }[] = [
@@ -113,11 +146,18 @@ export default function JournalStudioPage() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
 
-  // Top-Level Studio Workspace: 'ledger' (Personal Private Atelier) vs 'editorial' (Broadsheet Publishing)
+  // Top-Level Studio Workspace: 'ledger' (Personal Passion Planner Atelier) vs 'editorial' (Broadsheet Publishing)
   const [workspaceMode, setWorkspaceMode] = useState<'ledger' | 'editorial'>('ledger');
 
   // Drawer / Sidebar Collapse State
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  // Four Temporal Horizons State
+  const [ledgerHorizon, setLedgerHorizon] = useState<LedgerHorizon>('daily');
+  const [selectedDateKey, setSelectedDateKey] = useState<string>(() => formatDateKey(new Date()));
+  const [selectedWeekKey, setSelectedWeekKey] = useState<string>(() => formatWeekKey(new Date()));
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string>(() => formatMonthKey(new Date()));
+  const [selectedYear, setSelectedYear] = useState<number>(() => new Date().getFullYear());
 
   // Archive Lists
   const [draftEntries, setDraftEntries] = useState<Entry[]>([]);
@@ -154,6 +194,10 @@ export default function JournalStudioPage() {
       if (savedMode === 'ledger' || savedMode === 'editorial') {
         setWorkspaceMode(savedMode);
       }
+      const savedHorizon = localStorage.getItem('rww_ledger_horizon') as LedgerHorizon;
+      if (savedHorizon && ['daily', 'weekly', 'monthly', 'compass'].includes(savedHorizon)) {
+        setLedgerHorizon(savedHorizon);
+      }
     } catch (e) {}
   }, []);
 
@@ -170,6 +214,11 @@ export default function JournalStudioPage() {
     workspaceMode,
     saveStatus,
     user,
+    ledgerHorizon,
+    selectedDateKey,
+    selectedWeekKey,
+    selectedMonthKey,
+    selectedYear,
   });
 
   useEffect(() => {
@@ -185,8 +234,30 @@ export default function JournalStudioPage() {
       workspaceMode,
       saveStatus,
       user,
+      ledgerHorizon,
+      selectedDateKey,
+      selectedWeekKey,
+      selectedMonthKey,
+      selectedYear,
     };
-  }, [activeEntry, title, contentHtml, metadata, entryType, entryStatus, selectedDesk, selectedCategory, workspaceMode, saveStatus, user]);
+  }, [
+    activeEntry,
+    title,
+    contentHtml,
+    metadata,
+    entryType,
+    entryStatus,
+    selectedDesk,
+    selectedCategory,
+    workspaceMode,
+    saveStatus,
+    user,
+    ledgerHorizon,
+    selectedDateKey,
+    selectedWeekKey,
+    selectedMonthKey,
+    selectedYear,
+  ]);
 
   // Synchronous Flush Draft helper (guarantees zero data loss on click-away / mode switch)
   const flushCurrentDraft = useCallback(() => {
@@ -324,6 +395,25 @@ export default function JournalStudioPage() {
     setUser(null);
   };
 
+  // Select an entry from list
+  const selectEntry = useCallback((entry: Entry) => {
+    flushCurrentDraft();
+    setActiveEntry(entry);
+    setTitle(entry.title || '');
+    setContentHtml(entry.body_html || '');
+    setEntryType(entry.entry_type || (entry.status === 'private' ? 'personal_ledger' : 'essay'));
+    setEntryStatus(entry.status || 'draft');
+    const desk = entry.metadata?.desk || 'commonwealth';
+    const cat = (entry.metadata?.category as SubCategory) || 'Dan Reads the News';
+    setSelectedDesk(desk);
+    setSelectedCategory(cat);
+    setMetadata(entry.metadata || { desk, category: cat, isPrivate: entry.status === 'private' });
+    setSaveStatus('saved');
+    if (typeof window !== 'undefined' && window.innerWidth < 1280) {
+      setIsSidebarOpen(false);
+    }
+  }, [flushCurrentDraft]);
+
   // Helper to create a fresh document
   const createNewDocument = useCallback((type: EntryType = 'essay', isPrivate = false) => {
     flushCurrentDraft();
@@ -334,6 +424,8 @@ export default function JournalStudioPage() {
       desk: 'commonwealth',
       category: 'Dan Reads the News',
       isPrivate,
+      horizon: 'daily',
+      dateKey: formatDateKey(new Date()),
       habits: {},
       triad: { bright_spot: '', calibration: '', working_thought: '' },
       energy: null as any,
@@ -345,7 +437,7 @@ export default function JournalStudioPage() {
       entry_type: type,
       status: isPrivate ? 'private' : 'draft',
       title: defaultTitle,
-      slug: null,
+      slug: isPrivate ? getDaySlug(formatDateKey(new Date())) : null,
       body_json: null,
       body_html: '',
       metadata: freshMetadata,
@@ -366,409 +458,13 @@ export default function JournalStudioPage() {
     if (!isPrivate) {
       setEditorialTab('drafts');
     }
-    // Auto-close mobile drawer when starting a new document so canvas is immediately active
     if (typeof window !== 'undefined' && window.innerWidth < 1280) {
       setIsSidebarOpen(false);
     }
   }, [user, flushCurrentDraft]);
 
-  // Select an entry from list
-  const selectEntry = useCallback((entry: Entry) => {
-    flushCurrentDraft();
-    setActiveEntry(entry);
-    setTitle(entry.title || '');
-    setContentHtml(entry.body_html || '');
-    setEntryType(entry.entry_type || (entry.status === 'private' ? 'personal_ledger' : 'essay'));
-    setEntryStatus(entry.status || 'draft');
-    const desk = entry.metadata?.desk || 'commonwealth';
-    const cat = (entry.metadata?.category as SubCategory) || 'Dan Reads the News';
-    setSelectedDesk(desk);
-    setSelectedCategory(cat);
-    setMetadata(entry.metadata || { desk, category: cat, isPrivate: entry.status === 'private' });
-    setSaveStatus('saved');
-    // Auto-close mobile drawer when an entry is selected
-    if (typeof window !== 'undefined' && window.innerWidth < 1280) {
-      setIsSidebarOpen(false);
-    }
-  }, [flushCurrentDraft]);
-
-  // Switch Top-level Workspace Mode
-  const switchWorkspaceMode = (mode: 'ledger' | 'editorial') => {
-    flushCurrentDraft();
-    setWorkspaceMode(mode);
-    try {
-      localStorage.setItem('rww_studio_workspace_mode', mode);
-    } catch (e) {}
-
-    if (mode === 'ledger') {
-      // Find today's ledger entry
-      const todayStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      const existingLedger = privateEntries.find((e) => {
-        if (!e.created_at) return false;
-        const d = new Date(e.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        return d === todayStr || (e.title && e.title.includes(todayStr));
-      });
-
-      if (existingLedger) {
-        selectEntry(existingLedger);
-      } else {
-        createNewDocument('personal_ledger', true);
-      }
-    } else {
-      // Find latest working draft only (do not auto-open published broadsheet pieces)
-      const latestDraft = draftEntries[0];
-      if (latestDraft) {
-        selectEntry(latestDraft);
-      } else {
-        createNewDocument('essay', false);
-      }
-    }
-  };
-
-  // Load Drafts, Published, and Private entries with Cross-Device Cloud Sync
-  useEffect(() => {
-    if (!user) return;
-
-    // 1. Local Cache Load + Non-UUID Auto-Migration + Database Mapping
-    const savedLocal = localStorage.getItem('rww_local_entries');
-    let parsedLocal: Entry[] = [];
-    if (savedLocal) {
-      try {
-        const rawLocal: any[] = JSON.parse(savedLocal);
-        let hasMigrated = false;
-        parsedLocal = rawLocal.map((item) => {
-          const isPriv = item.status === 'private_log' || item.status === 'private' || item.metadata?.isPrivate;
-          let id = item.id;
-          if (!isValidUUID(id)) {
-            hasMigrated = true;
-            id = generateUUID();
-          }
-          return {
-            ...item,
-            id,
-            status: isPriv ? 'private' : (item.status || 'draft'),
-            entry_type: (isPriv || item.entry_type === 'personal_ledger') ? 'personal_ledger' : (item.entry_type || 'essay'),
-            slug: item.slug || `entry-${id.slice(0, 8)}`,
-            user_id: isValidUUID(user?.id) ? user.id : (isValidUUID(item.user_id) ? item.user_id : null),
-            metadata: {
-              ...(item.metadata || {}),
-              isPrivate: isPriv,
-            },
-          };
-        });
-
-        if (hasMigrated) {
-          localStorage.setItem('rww_local_entries', JSON.stringify(parsedLocal));
-        }
-
-        const drafts = parsedLocal.filter((e) => e.status === 'draft');
-        const privates = parsedLocal.filter((e) => e.status === 'private');
-        setDraftEntries(drafts);
-        setPrivateEntries(privates);
-
-        // Upload any local entries to Supabase using schema-valid fields
-        const supabase = createClient();
-        parsedLocal.forEach(async (item) => {
-          try {
-            const isPriv = item.status === 'private' || item.metadata?.isPrivate;
-            const payload: any = {
-              id: item.id,
-              title: item.title || 'Untitled Entry',
-              slug: item.slug || `entry-${item.id.slice(0, 8)}`,
-              entry_type: isPriv ? 'thought' : (item.entry_type || 'essay'),
-              status: isPriv ? 'private_log' : (item.status || 'draft'),
-              body_html: item.body_html || '',
-              metadata: item.metadata || {},
-              published_at: item.status === 'published' ? (item.published_at || new Date().toISOString()) : null,
-              created_at: item.created_at || new Date().toISOString(),
-              updated_at: item.updated_at || new Date().toISOString(),
-            };
-            if (isValidUUID(user?.id)) payload.user_id = user.id;
-            await supabase.from('entries').upsert(payload, { onConflict: 'id' });
-          } catch (err) {}
-        });
-      } catch (e) {}
-    }
-
-    // 2. Fetch WordPress Historical Archive + Supabase Cloud Entries
-    const loadAllStudioEntries = async () => {
-      let historical: Entry[] = [];
-      try {
-        const res = await fetch('/archive/imported-entries.json');
-        if (res.ok) {
-          historical = await res.json();
-        }
-      } catch (e) {}
-
-      try {
-        const supabase = createClient();
-        const { data, error } = await supabase
-          .from('entries')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        const normalizedCloud: Entry[] = (!error && data)
-          ? data.map((e: any) => {
-              const isPriv = e.status === 'private_log' || e.status === 'private' || e.metadata?.isPrivate;
-              return {
-                ...e,
-                status: isPriv ? 'private' : e.status,
-                entry_type: (isPriv || e.entry_type === 'personal_ledger') ? 'personal_ledger' : e.entry_type,
-                metadata: {
-                  ...e.metadata,
-                  isPrivate: isPriv,
-                },
-              };
-            })
-          : [];
-
-        // Combine published entries (Supabase cloud records override static JSON)
-        const publishedMap = new Map<string, Entry>();
-
-        // 1. Add historical archive posts first
-        historical.forEach((item, idx) => {
-          const key = item.slug || item.id || `wp-${idx}`;
-          const isPublished = item.status ? item.status === 'published' : true;
-          if (isPublished) {
-            publishedMap.set(key, {
-              ...item,
-              id: item.id || key,
-              status: 'published',
-            });
-          }
-        });
-
-        // 2. Override with published posts from Supabase cloud
-        const pubFromCloud = normalizedCloud.filter((e) => e.status === 'published');
-        pubFromCloud.forEach((item) => {
-          const key = item.slug || item.id;
-          if (key) {
-            publishedMap.set(key, item);
-          }
-        });
-
-        const mergedPublished = Array.from(publishedMap.values()).sort((a, b) =>
-          (safeTimestamp(b.published_at) || safeTimestamp(b.created_at)) - (safeTimestamp(a.published_at) || safeTimestamp(a.created_at))
-        );
-
-        const priv = normalizedCloud.filter((e) => e.status === 'private');
-        const drafts = normalizedCloud.filter((e) => e.status === 'draft');
-
-        setPublishedEntries(mergedPublished);
-
-        setPrivateEntries((prev) => {
-          const map = new Map<string, Entry>();
-          priv.forEach((p) => map.set(p.id || p.slug || '', p));
-          prev.forEach((p) => {
-            const key = p.id || p.slug || '';
-            if (!map.has(key)) map.set(key, p);
-          });
-          return Array.from(map.values()).sort((a, b) => 
-            safeTimestamp(b.created_at) - safeTimestamp(a.created_at)
-          );
-        });
-
-        setDraftEntries((prev) => {
-          const map = new Map<string, Entry>();
-          drafts.forEach((d) => map.set(d.id || d.slug || '', d));
-          prev.forEach((d) => {
-            const key = d.id || d.slug || '';
-            if (!map.has(key)) map.set(key, d);
-          });
-          return Array.from(map.values()).sort((a, b) => 
-            (safeTimestamp(b.updated_at) || safeTimestamp(b.created_at)) - (safeTimestamp(a.updated_at) || safeTimestamp(a.created_at))
-          );
-        });
-
-        // Update local storage cache with unified list
-        try {
-          const savedLocal = localStorage.getItem('rww_local_entries');
-          const localList: Entry[] = savedLocal ? JSON.parse(savedLocal) : [];
-          const combinedMap = new Map<string, Entry>();
-          normalizedCloud.forEach((e: Entry) => {
-            const k = e.id || e.slug || '';
-            if (k) combinedMap.set(k, e);
-          });
-          localList.forEach((e: Entry) => {
-            const k = e.id || e.slug || '';
-            if (k && !combinedMap.has(k)) combinedMap.set(k, e);
-          });
-          localStorage.setItem('rww_local_entries', JSON.stringify(Array.from(combinedMap.values())));
-        } catch (e) {}
-
-        // Auto-select based on active workspace mode
-        const savedMode = (localStorage.getItem('rww_studio_workspace_mode') || 'ledger') as 'ledger' | 'editorial';
-        if (savedMode === 'ledger') {
-          const todayStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-          const todayLedger = priv.find((e) => {
-            if (!e.created_at) return false;
-            const d = new Date(e.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-            return d === todayStr || (e.title && e.title.includes(todayStr));
-          });
-
-          if (todayLedger) {
-            selectEntry(todayLedger);
-          } else {
-            createNewDocument('personal_ledger', true);
-          }
-        } else {
-          // In Editorial mode: select latest working draft if one exists, otherwise start with a fresh blank piece
-          const latestDraft = drafts[0];
-          if (latestDraft) {
-            selectEntry(latestDraft);
-          } else {
-            createNewDocument('essay', false);
-          }
-        }
-      } catch (e) {}
-    };
-
-    loadAllStudioEntries();
-  }, [user, createNewDocument, selectEntry]);
-
-  const handleDeskChange = (deskId: DeskType) => {
-    setSelectedDesk(deskId);
-    const desk = EDITORIAL_DESKS.find((d) => d.id === deskId);
-    if (desk && desk.categories.length > 0) {
-      setSelectedCategory(desk.categories[0]);
-      setMetadata((prev) => ({ ...prev, desk: deskId, category: desk.categories[0] }));
-    }
-  };
-
-  const handleTypeChange = (newType: EntryType) => {
-    setEntryType(newType);
-    setSaveStatus('unsaved');
-  };
-
-  // Switch Status between Draft and Live in Editorial mode
-  const handleSetEditorialStatus = (newStatus: 'draft' | 'published') => {
-    if (newStatus === 'published' && entryStatus !== 'published') {
-      setIsPromoteOpen(true);
-      return;
-    }
-    setEntryStatus(newStatus);
-    setMetadata((prev) => ({ ...prev, isPrivate: false }));
-    setSaveStatus('unsaved');
-    if (activeEntry) {
-      setActiveEntry((prev) => prev ? { ...prev, status: newStatus, metadata: { ...prev.metadata, isPrivate: false } } : null);
-    }
-  };
-
-  // Unpublish a live piece back to Draft
-  const handleUnpublishToDraft = async () => {
-    if (!activeEntry) return;
-    const confirm = window.confirm(
-      `Unpublish "${activeEntry.title || 'Untitled'}"?\n\nThis will remove it from the public broadsheet and move it to your private Drafts.`
-    );
-    if (!confirm) return;
-
-    setSaveStatus('saving');
-
-    const updated: Entry = {
-      ...activeEntry,
-      status: 'draft',
-      metadata: { ...metadata, isPrivate: false },
-      updated_at: new Date().toISOString(),
-    };
-
-    setActiveEntry(updated);
-    setEntryStatus('draft');
-
-    try {
-      const supabase = createClient();
-      await supabase
-        .from('entries')
-        .update({ status: 'draft', updated_at: updated.updated_at })
-        .match({ id: activeEntry.id });
-    } catch (e) {}
-
-    setPublishedEntries((prev) => prev.filter((p) => p.id !== activeEntry.id && p.slug !== activeEntry.slug));
-    setDraftEntries((prev) => [updated, ...prev.filter((d) => d.id !== activeEntry.id)]);
-
-    try {
-      const savedLocal = localStorage.getItem('rww_local_entries');
-      let parsed: Entry[] = savedLocal ? JSON.parse(savedLocal) : [];
-      parsed = [updated, ...parsed.filter((p) => p.id !== activeEntry.id)];
-      localStorage.setItem('rww_local_entries', JSON.stringify(parsed));
-    } catch (e) {}
-
-    setEditorialTab('drafts');
-    setSaveStatus('saved');
-  };
-
-  // Insert Reflection Prompt as Blockquote into Editor
-  const handleInsertReflectionPrompt = (promptText: string) => {
-    const quoteHtml = `<blockquote><p><em>"${promptText}"</em></p></blockquote><p></p>`;
-    setContentHtml((prev) => quoteHtml + prev);
-    setSaveStatus('unsaved');
-  };
-
-  // Insert Formatted Daily Ledger into Editor Body
-  const handleInsertLedgerIntoBody = () => {
-    const energyMap: Record<string, string> = {
-      high_focused: 'High · Focused',
-      high_scattered: 'High · Scattered',
-      low_reflective: 'Low · Reflective',
-      low_depleted: 'Low · Depleted',
-    };
-    const energyLabel = metadata?.energy ? (energyMap[metadata.energy] || metadata.energy) : '—';
-    const habits = metadata?.habits || {};
-    const triad = metadata?.triad || { bright_spot: '', calibration: '', working_thought: '' };
-    
-    const dateFormatted = formatDateSafe(activeEntry?.created_at, new Date().toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    }), {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-
-    const ledgerHtml = `<blockquote><p><strong>Daily Ledger · ${dateFormatted}</strong><br/><em>Energy:</em> ${energyLabel}<br/><em>Practices:</em> Movement [${habits.movement ? '✓' : ' '}] · Reading [${habits.reading ? '✓' : ' '}] · Writing [${habits.writing ? '✓' : ' '}] · Unplug [${habits.unplug ? '✓' : ' '}]</p><p><strong>+ Bright Spot:</strong> ${triad.bright_spot || '—'}<br/><strong>△ Calibration:</strong> ${triad.calibration || '—'}<br/><strong>• Working Thought:</strong> ${triad.working_thought || '—'}</p></blockquote><p></p>`;
-
-    setContentHtml((prev) => ledgerHtml + prev);
-    setSaveStatus('unsaved');
-  };
-
-  // Explicitly Record / Save Daily Check-in with feedback
-  const handleRecordDailyCheckIn = async () => {
-    const formattedDate = new Date().toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-    const defaultTitle = title.trim() || `Daily Ledger · ${formattedDate}`;
-    if (!title.trim()) {
-      setTitle(defaultTitle);
-    }
-    const updatedMeta = { ...metadata, isPrivate: true };
-    setMetadata(updatedMeta);
-    setEntryStatus('private');
-    if (entryType !== 'personal_ledger') {
-      setEntryType('personal_ledger');
-    }
-    await saveCurrentDraft(updatedMeta, defaultTitle);
-
-    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    setLedgerFeedback(`Check-in recorded at ${timeStr}`);
-    setTimeout(() => {
-      setLedgerFeedback(null);
-    }, 3500);
-  };
-
-  // Apply Review Template
-  const handleApplyTemplate = (templateHtml: string) => {
-    if (!contentHtml.trim() || window.confirm('Apply review structure to canvas? (Existing text will remain beneath).')) {
-      setContentHtml((prev) => templateHtml + (prev ? `<hr/>` + prev : ''));
-      setSaveStatus('unsaved');
-    }
-  };
-
   // Save Current Entry to Supabase and LocalStorage
-  const saveCurrentDraft = async (explicitMeta?: Partial<EntryMetadata>, explicitTitle?: string) => {
+  const saveCurrentDraft = async (explicitMeta?: Partial<EntryMetadata> | Record<string, any>, explicitTitle?: string) => {
     if (!activeEntry) return;
     setSaveStatus('saving');
 
@@ -782,17 +478,27 @@ export default function JournalStudioPage() {
     };
 
     const formattedToday = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const defaultTitle = isPrivate ? `Daily Ledger · ${formattedToday}` : 'Untitled Entry';
+    const defaultTitle = isPrivate ? (activeEntry.title || `Daily Ledger · ${formattedToday}`) : 'Untitled Entry';
     const finalTitle = (explicitTitle !== undefined ? explicitTitle : title).trim() || defaultTitle;
     const updatedStatus: EntryStatus = isPrivate ? 'private' : entryStatus;
 
     const validId = isValidUUID(activeEntry.id) ? activeEntry.id : generateUUID();
     const cleanUserId = isValidUUID(user?.id) ? user.id : (isValidUUID(activeEntry.user_id) ? activeEntry.user_id : null);
-    const entrySlug = activeEntry.slug && !activeEntry.slug.startsWith('entry-')
-      ? activeEntry.slug
-      : (finalTitle
+    
+    // Compute appropriate slug for horizon or editorial piece
+    let entrySlug = activeEntry.slug;
+    if (!entrySlug || entrySlug.startsWith('entry-')) {
+      if (isPrivate) {
+        if (mergedMeta.horizon === 'compass') entrySlug = getCompassSlug(Number(mergedMeta.year) || selectedYear);
+        else if (mergedMeta.horizon === 'monthly') entrySlug = getMonthSlug(String(mergedMeta.monthKey || selectedMonthKey));
+        else if (mergedMeta.horizon === 'weekly') entrySlug = getWeekSlug(String(mergedMeta.weekKey || selectedWeekKey));
+        else entrySlug = getDaySlug(String(mergedMeta.dateKey || selectedDateKey));
+      } else {
+        entrySlug = finalTitle
           ? `${finalTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')}-${validId.slice(0, 8)}`
-          : `entry-${validId.slice(0, 8)}`);
+          : `entry-${validId.slice(0, 8)}`;
+      }
+    }
 
     const updated: Entry = {
       ...activeEntry,
@@ -908,7 +614,6 @@ export default function JournalStudioPage() {
 
     setSaveStatus('unsaved');
 
-    // Immediate emergency snapshot to LocalStorage
     try {
       localStorage.setItem(`rww_snapshot_${activeEntry.id}`, currentSnapshot);
     } catch (e) {}
@@ -925,7 +630,668 @@ export default function JournalStudioPage() {
     };
   }, [activeEntry?.id, title, contentHtml, metadata, entryType, entryStatus, selectedDesk, selectedCategory, workspaceMode, user]);
 
-  // Delete Entry Handler
+  // Load Document for Specific Horizon and Period Key
+  const loadHorizonDocument = useCallback(
+    (
+      targetHorizon: LedgerHorizon,
+      dateKey: string,
+      weekKey: string,
+      monthKey: string,
+      year: number,
+      entriesPool: Entry[] = privateEntries
+    ) => {
+      flushCurrentDraft();
+
+      let targetSlug = '';
+      let match: Entry | undefined;
+
+      if (targetHorizon === 'compass') {
+        targetSlug = getCompassSlug(year);
+        match = entriesPool.find(
+          (e) =>
+            e.slug === targetSlug ||
+            (e.metadata?.horizon === 'compass' && e.metadata?.year === year)
+        );
+        if (match) {
+          selectEntry(match);
+        } else {
+          const freshCompassMeta: CompassMetadata = {
+            horizon: 'compass',
+            year,
+            coreValues: [
+              { value: '', whyImportant: '', howEmbodiedNow: '', actionableSteps: '' },
+              { value: '', whyImportant: '', howEmbodiedNow: '', actionableSteps: '' },
+              { value: '', whyImportant: '', howEmbodiedNow: '', actionableSteps: '' },
+            ],
+            roadmap: { lifetime: [], threeYears: [], oneYear: [], threeMonths: [] },
+            annualGamechanger: { goal: '', vision: '', whyMatters: '' },
+          };
+          const newDoc: Entry = {
+            id: generateUUID(),
+            user_id: isValidUUID(user?.id) ? user.id : null,
+            entry_type: 'personal_ledger',
+            status: 'private',
+            title: `${year} Compass & Roadmap`,
+            slug: targetSlug,
+            body_json: null,
+            body_html: '',
+            metadata: freshCompassMeta as any,
+            published_at: null,
+            created_at: `${year}-01-01T00:00:00.000Z`,
+            updated_at: new Date().toISOString(),
+          };
+          selectEntry(newDoc);
+        }
+      } else if (targetHorizon === 'monthly') {
+        targetSlug = getMonthSlug(monthKey);
+        match = entriesPool.find(
+          (e) =>
+            e.slug === targetSlug ||
+            (e.metadata?.horizon === 'monthly' && e.metadata?.monthKey === monthKey)
+        );
+        if (match) {
+          selectEntry(match);
+        } else {
+          const [y, m] = monthKey.split('-').map(Number);
+          const mLabel = getMonthLabel(y, m);
+          const freshMonthlyMeta: MonthlyMetadata = {
+            horizon: 'monthly',
+            monthKey,
+            monthFocus: '',
+            gamechanger: { title: '', targetDate: '', whyWin: '', challenges: '', subtasks: [] },
+            quads: { peopleToSee: [], placesToGo: [], thingsToLearn: [] },
+            projects: { personal: [], work: [] },
+            reflection: {
+              rating: 8,
+              accomplishments: '',
+              lessons: '',
+              memorableMoments: '',
+              focusesNextMonth: '',
+              domains: { mental: 4, physical: 4, finances: 4, passions: 4, relationships: 4, selfCare: 4 },
+            },
+          };
+          const newDoc: Entry = {
+            id: generateUUID(),
+            user_id: isValidUUID(user?.id) ? user.id : null,
+            entry_type: 'personal_ledger',
+            status: 'private',
+            title: `${mLabel} · Horizon Focus`,
+            slug: targetSlug,
+            body_json: null,
+            body_html: '',
+            metadata: freshMonthlyMeta as any,
+            published_at: null,
+            created_at: `${monthKey}-01T00:00:00.000Z`,
+            updated_at: new Date().toISOString(),
+          };
+          selectEntry(newDoc);
+        }
+      } else if (targetHorizon === 'weekly') {
+        targetSlug = getWeekSlug(weekKey);
+        match = entriesPool.find(
+          (e) =>
+            e.slug === targetSlug ||
+            (e.metadata?.horizon === 'weekly' && e.metadata?.weekKey === weekKey)
+        );
+        if (match) {
+          selectEntry(match);
+        } else {
+          const wLabel = getWeekLabel(weekKey);
+          const freshWeeklyMeta: WeeklyMetadata = {
+            horizon: 'weekly',
+            weekKey,
+            monthKey,
+            weekFocus: '',
+            goodThings: [],
+            tasks: { personal: [], work: [] },
+            infiniteSpace: '',
+          };
+          const newDoc: Entry = {
+            id: generateUUID(),
+            user_id: isValidUUID(user?.id) ? user.id : null,
+            entry_type: 'personal_ledger',
+            status: 'private',
+            title: `${wLabel} · Weekly Rhythm`,
+            slug: targetSlug,
+            body_json: null,
+            body_html: '',
+            metadata: freshWeeklyMeta as any,
+            published_at: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          selectEntry(newDoc);
+        }
+      } else {
+        // Daily Ledger
+        targetSlug = getDaySlug(dateKey);
+        match = entriesPool.find((e) => {
+          if (e.slug === targetSlug) return true;
+          if (e.metadata?.dateKey === dateKey) return true;
+          if (e.created_at) {
+            const dKey = formatDateKey(new Date(e.created_at));
+            return dKey === dateKey;
+          }
+          return false;
+        });
+
+        if (match) {
+          selectEntry(match);
+        } else {
+          const targetD = new Date(dateKey + 'T12:00:00');
+          const formattedD = !isNaN(targetD.getTime())
+            ? targetD.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : dateKey;
+          const freshDailyMeta: DailyLedgerMetadata = {
+            entry_type: 'personal_ledger',
+            horizon: 'daily',
+            dateKey,
+            weekKey,
+            monthKey,
+            todayFocus: '',
+            gamechangerStep: '',
+            todayLearned: '',
+            dayInOneWord: '',
+            mood: 0,
+            energy: null,
+            habits: {},
+            triad: { bright_spot: '', calibration: '', working_thought: '' },
+          };
+          const newDoc: Entry = {
+            id: generateUUID(),
+            user_id: isValidUUID(user?.id) ? user.id : null,
+            entry_type: 'personal_ledger',
+            status: 'private',
+            title: `Daily Ledger · ${formattedD}`,
+            slug: targetSlug,
+            body_json: null,
+            body_html: '',
+            metadata: freshDailyMeta as any,
+            published_at: null,
+            created_at: new Date(dateKey + 'T12:00:00').toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          selectEntry(newDoc);
+        }
+      }
+    },
+    [user, selectEntry, flushCurrentDraft, privateEntries]
+  );
+
+  // Switch Top-level Workspace Mode
+  const switchWorkspaceMode = (mode: 'ledger' | 'editorial') => {
+    flushCurrentDraft();
+    setWorkspaceMode(mode);
+    try {
+      localStorage.setItem('rww_studio_workspace_mode', mode);
+    } catch (e) {}
+
+    if (mode === 'ledger') {
+      loadHorizonDocument(ledgerHorizon, selectedDateKey, selectedWeekKey, selectedMonthKey, selectedYear);
+    } else {
+      const latestDraft = draftEntries[0];
+      if (latestDraft) {
+        selectEntry(latestDraft);
+      } else {
+        createNewDocument('essay', false);
+      }
+    }
+  };
+
+  // Change Active Horizon (Daily, Weekly, Monthly, Compass)
+  const handleHorizonChange = (nextHorizon: LedgerHorizon) => {
+    setLedgerHorizon(nextHorizon);
+    try {
+      localStorage.setItem('rww_ledger_horizon', nextHorizon);
+    } catch (e) {}
+    loadHorizonDocument(nextHorizon, selectedDateKey, selectedWeekKey, selectedMonthKey, selectedYear);
+  };
+
+  // Horizon Period Navigation (Prev / Next)
+  const handlePrevPeriod = () => {
+    if (ledgerHorizon === 'compass') {
+      const nextY = selectedYear - 1;
+      setSelectedYear(nextY);
+      loadHorizonDocument('compass', selectedDateKey, selectedWeekKey, selectedMonthKey, nextY);
+    } else if (ledgerHorizon === 'monthly') {
+      const nextM = getAdjacentMonth(selectedMonthKey, -1);
+      setSelectedMonthKey(nextM);
+      const [y] = nextM.split('-').map(Number);
+      setSelectedYear(y);
+      loadHorizonDocument('monthly', selectedDateKey, selectedWeekKey, nextM, y);
+    } else if (ledgerHorizon === 'weekly') {
+      const nextW = getAdjacentWeek(selectedWeekKey, -1);
+      setSelectedWeekKey(nextW);
+      loadHorizonDocument('weekly', selectedDateKey, nextW, selectedMonthKey, selectedYear);
+    } else {
+      // Daily
+      const cur = new Date(selectedDateKey + 'T12:00:00');
+      cur.setDate(cur.getDate() - 1);
+      const nextD = formatDateKey(cur);
+      const nextW = formatWeekKey(cur);
+      const nextM = formatMonthKey(cur);
+      const nextY = cur.getFullYear();
+      setSelectedDateKey(nextD);
+      setSelectedWeekKey(nextW);
+      setSelectedMonthKey(nextM);
+      setSelectedYear(nextY);
+      loadHorizonDocument('daily', nextD, nextW, nextM, nextY);
+    }
+  };
+
+  const handleNextPeriod = () => {
+    if (ledgerHorizon === 'compass') {
+      const nextY = selectedYear + 1;
+      setSelectedYear(nextY);
+      loadHorizonDocument('compass', selectedDateKey, selectedWeekKey, selectedMonthKey, nextY);
+    } else if (ledgerHorizon === 'monthly') {
+      const nextM = getAdjacentMonth(selectedMonthKey, 1);
+      setSelectedMonthKey(nextM);
+      const [y] = nextM.split('-').map(Number);
+      setSelectedYear(y);
+      loadHorizonDocument('monthly', selectedDateKey, selectedWeekKey, nextM, y);
+    } else if (ledgerHorizon === 'weekly') {
+      const nextW = getAdjacentWeek(selectedWeekKey, 1);
+      setSelectedWeekKey(nextW);
+      loadHorizonDocument('weekly', selectedDateKey, nextW, selectedMonthKey, selectedYear);
+    } else {
+      // Daily
+      const cur = new Date(selectedDateKey + 'T12:00:00');
+      cur.setDate(cur.getDate() + 1);
+      const nextD = formatDateKey(cur);
+      const nextW = formatWeekKey(cur);
+      const nextM = formatMonthKey(cur);
+      const nextY = cur.getFullYear();
+      setSelectedDateKey(nextD);
+      setSelectedWeekKey(nextW);
+      setSelectedMonthKey(nextM);
+      setSelectedYear(nextY);
+      loadHorizonDocument('daily', nextD, nextW, nextM, nextY);
+    }
+  };
+
+  // Snap to Current Today / Week / Month / Year
+  const handleSnapCurrent = () => {
+    const now = new Date();
+    const dKey = formatDateKey(now);
+    const wKey = formatWeekKey(now);
+    const mKey = formatMonthKey(now);
+    const yKey = now.getFullYear();
+    setSelectedDateKey(dKey);
+    setSelectedWeekKey(wKey);
+    setSelectedMonthKey(mKey);
+    setSelectedYear(yKey);
+    loadHorizonDocument(ledgerHorizon, dKey, wKey, mKey, yKey);
+  };
+
+  // Jump directly to Daily from Heatmap / Weekly matrix
+  const handleJumpToDaily = (targetDateKey: string) => {
+    const targetDate = new Date(targetDateKey + 'T12:00:00');
+    if (!isNaN(targetDate.getTime())) {
+      setSelectedDateKey(targetDateKey);
+      setSelectedWeekKey(formatWeekKey(targetDate));
+      setSelectedMonthKey(formatMonthKey(targetDate));
+      setSelectedYear(targetDate.getFullYear());
+      setLedgerHorizon('daily');
+      loadHorizonDocument('daily', targetDateKey, formatWeekKey(targetDate), formatMonthKey(targetDate), targetDate.getFullYear());
+    }
+  };
+
+  // Direct toggle of daily habit from Weekly Rhythm matrix
+  const handleToggleDailyHabitFromWeek = (targetDateKey: string, habitId: string) => {
+    const targetSlug = getDaySlug(targetDateKey);
+    const existing = privateEntries.find(
+      (e) => e.slug === targetSlug || e.metadata?.dateKey === targetDateKey
+    );
+
+    let updatedEntry: Entry;
+    if (existing) {
+      const existingHabits = existing.metadata?.habits || existing.metadata?.ledger?.habits || {};
+      const newHabits = { ...existingHabits, [habitId]: !existingHabits[habitId] };
+      updatedEntry = {
+        ...existing,
+        metadata: {
+          ...existing.metadata,
+          habits: newHabits,
+        },
+        updated_at: new Date().toISOString(),
+      };
+    } else {
+      const targetD = new Date(targetDateKey + 'T12:00:00');
+      const formattedD = targetD.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const freshMeta: DailyLedgerMetadata = {
+        entry_type: 'personal_ledger',
+        horizon: 'daily',
+        dateKey: targetDateKey,
+        habits: { [habitId]: true },
+        triad: { bright_spot: '', calibration: '', working_thought: '' },
+        energy: null,
+      };
+      updatedEntry = {
+        id: generateUUID(),
+        user_id: isValidUUID(user?.id) ? user.id : null,
+        entry_type: 'personal_ledger',
+        status: 'private',
+        title: `Daily Ledger · ${formattedD}`,
+        slug: targetSlug,
+        body_json: null,
+        body_html: '',
+        metadata: freshMeta as any,
+        published_at: null,
+        created_at: new Date(targetDateKey + 'T12:00:00').toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+    }
+
+    // Update Private Entries List
+    setPrivateEntries((prev) => [updatedEntry, ...prev.filter((e) => e.id !== updatedEntry.id && e.slug !== updatedEntry.slug)]);
+
+    // Save to LocalStorage & Supabase
+    try {
+      const savedLocal = localStorage.getItem('rww_local_entries');
+      let parsed: Entry[] = savedLocal ? JSON.parse(savedLocal) : [];
+      parsed = [updatedEntry, ...parsed.filter((p) => p.id !== updatedEntry.id && p.slug !== updatedEntry.slug)];
+      localStorage.setItem('rww_local_entries', JSON.stringify(parsed));
+    } catch (e) {}
+
+    try {
+      const supabase = createClient();
+      supabase.from('entries').upsert({
+        id: updatedEntry.id,
+        title: updatedEntry.title,
+        slug: updatedEntry.slug,
+        entry_type: 'thought',
+        status: 'private_log',
+        body_html: updatedEntry.body_html || '',
+        metadata: updatedEntry.metadata,
+        created_at: updatedEntry.created_at,
+        updated_at: updatedEntry.updated_at,
+        user_id: isValidUUID(user?.id) ? user.id : null,
+      }, { onConflict: 'id' }).then(() => {});
+    } catch (e) {}
+  };
+
+  // Load Drafts, Published, and Private entries with Cross-Device Cloud Sync
+  useEffect(() => {
+    if (!user) return;
+
+    // 1. Local Cache Load + Auto-Migration
+    const savedLocal = localStorage.getItem('rww_local_entries');
+    let parsedLocal: Entry[] = [];
+    if (savedLocal) {
+      try {
+        const rawLocal: any[] = JSON.parse(savedLocal);
+        let hasMigrated = false;
+        parsedLocal = rawLocal.map((item) => {
+          const isPriv = item.status === 'private_log' || item.status === 'private' || item.metadata?.isPrivate;
+          let id = item.id;
+          if (!isValidUUID(id)) {
+            hasMigrated = true;
+            id = generateUUID();
+          }
+          return {
+            ...item,
+            id,
+            status: isPriv ? 'private' : (item.status || 'draft'),
+            entry_type: (isPriv || item.entry_type === 'personal_ledger') ? 'personal_ledger' : (item.entry_type || 'essay'),
+            slug: item.slug || `entry-${id.slice(0, 8)}`,
+            user_id: isValidUUID(user?.id) ? user.id : (isValidUUID(item.user_id) ? item.user_id : null),
+            metadata: {
+              ...(item.metadata || {}),
+              isPrivate: isPriv,
+            },
+          };
+        });
+
+        if (hasMigrated) {
+          localStorage.setItem('rww_local_entries', JSON.stringify(parsedLocal));
+        }
+
+        const drafts = parsedLocal.filter((e) => e.status === 'draft');
+        const privates = parsedLocal.filter((e) => e.status === 'private');
+        setDraftEntries(drafts);
+        setPrivateEntries(privates);
+      } catch (e) {}
+    }
+
+    // 2. Fetch WordPress Historical Archive + Supabase Cloud Entries
+    const loadAllStudioEntries = async () => {
+      let historical: Entry[] = [];
+      try {
+        const res = await fetch('/archive/imported-entries.json');
+        if (res.ok) {
+          historical = await res.json();
+        }
+      } catch (e) {}
+
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from('entries')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        const normalizedCloud: Entry[] = (!error && data)
+          ? data.map((e: any) => {
+              const isPriv = e.status === 'private_log' || e.status === 'private' || e.metadata?.isPrivate;
+              return {
+                ...e,
+                status: isPriv ? 'private' : e.status,
+                entry_type: (isPriv || e.entry_type === 'personal_ledger') ? 'personal_ledger' : e.entry_type,
+                metadata: {
+                  ...e.metadata,
+                  isPrivate: isPriv,
+                },
+              };
+            })
+          : [];
+
+        const publishedMap = new Map<string, Entry>();
+        historical.forEach((item, idx) => {
+          const key = item.slug || item.id || `wp-${idx}`;
+          const isPublished = item.status ? item.status === 'published' : true;
+          if (isPublished) {
+            publishedMap.set(key, { ...item, id: item.id || key, status: 'published' });
+          }
+        });
+
+        const pubFromCloud = normalizedCloud.filter((e) => e.status === 'published');
+        pubFromCloud.forEach((item) => {
+          const key = item.slug || item.id;
+          if (key) publishedMap.set(key, item);
+        });
+
+        const mergedPublished = Array.from(publishedMap.values()).sort((a, b) =>
+          (safeTimestamp(b.published_at) || safeTimestamp(b.created_at)) - (safeTimestamp(a.published_at) || safeTimestamp(a.created_at))
+        );
+
+        const priv = normalizedCloud.filter((e) => e.status === 'private');
+        const drafts = normalizedCloud.filter((e) => e.status === 'draft');
+
+        setPublishedEntries(mergedPublished);
+
+        const mergedPrivatesMap = new Map<string, Entry>();
+        priv.forEach((p) => mergedPrivatesMap.set(p.id || p.slug || '', p));
+        parsedLocal.filter((p) => p.status === 'private').forEach((p) => {
+          const k = p.id || p.slug || '';
+          if (!mergedPrivatesMap.has(k)) mergedPrivatesMap.set(k, p);
+        });
+        const combinedPrivates = Array.from(mergedPrivatesMap.values()).sort((a, b) =>
+          safeTimestamp(b.created_at) - safeTimestamp(a.created_at)
+        );
+        setPrivateEntries(combinedPrivates);
+
+        setDraftEntries((prev) => {
+          const map = new Map<string, Entry>();
+          drafts.forEach((d) => map.set(d.id || d.slug || '', d));
+          prev.forEach((d) => {
+            const key = d.id || d.slug || '';
+            if (!map.has(key)) map.set(key, d);
+          });
+          return Array.from(map.values()).sort((a, b) => 
+            (safeTimestamp(b.updated_at) || safeTimestamp(b.created_at)) - (safeTimestamp(a.updated_at) || safeTimestamp(a.created_at))
+          );
+        });
+
+        // Initial Horizon Document Selection
+        const savedMode = (localStorage.getItem('rww_studio_workspace_mode') || 'ledger') as 'ledger' | 'editorial';
+        const savedHorizon = (localStorage.getItem('rww_ledger_horizon') || 'daily') as LedgerHorizon;
+        if (savedMode === 'ledger') {
+          const now = new Date();
+          loadHorizonDocument(
+            savedHorizon,
+            formatDateKey(now),
+            formatWeekKey(now),
+            formatMonthKey(now),
+            now.getFullYear(),
+            combinedPrivates
+          );
+        } else {
+          const latestDraft = drafts[0];
+          if (latestDraft) selectEntry(latestDraft);
+          else createNewDocument('essay', false);
+        }
+      } catch (e) {}
+    };
+
+    loadAllStudioEntries();
+  }, [user]);
+
+  const handleDeskChange = (deskId: DeskType) => {
+    setSelectedDesk(deskId);
+    const desk = EDITORIAL_DESKS.find((d) => d.id === deskId);
+    if (desk && desk.categories.length > 0) {
+      setSelectedCategory(desk.categories[0]);
+      setMetadata((prev) => ({ ...prev, desk: deskId, category: desk.categories[0] }));
+    }
+  };
+
+  const handleTypeChange = (newType: EntryType) => {
+    setEntryType(newType);
+    setSaveStatus('unsaved');
+  };
+
+  const handleSetEditorialStatus = (newStatus: 'draft' | 'published') => {
+    if (newStatus === 'published' && entryStatus !== 'published') {
+      setIsPromoteOpen(true);
+      return;
+    }
+    setEntryStatus(newStatus);
+    setMetadata((prev) => ({ ...prev, isPrivate: false }));
+    setSaveStatus('unsaved');
+    if (activeEntry) {
+      setActiveEntry((prev) => prev ? { ...prev, status: newStatus, metadata: { ...prev.metadata, isPrivate: false } } : null);
+    }
+  };
+
+  const handleUnpublishToDraft = async () => {
+    if (!activeEntry) return;
+    const confirm = window.confirm(
+      `Unpublish "${activeEntry.title || 'Untitled'}"?\n\nThis will remove it from the public broadsheet and move it to your private Drafts.`
+    );
+    if (!confirm) return;
+
+    setSaveStatus('saving');
+
+    const updated: Entry = {
+      ...activeEntry,
+      status: 'draft',
+      metadata: { ...metadata, isPrivate: false },
+      updated_at: new Date().toISOString(),
+    };
+
+    setActiveEntry(updated);
+    setEntryStatus('draft');
+
+    try {
+      const supabase = createClient();
+      await supabase
+        .from('entries')
+        .update({ status: 'draft', updated_at: updated.updated_at })
+        .match({ id: activeEntry.id });
+    } catch (e) {}
+
+    setPublishedEntries((prev) => prev.filter((p) => p.id !== activeEntry.id && p.slug !== activeEntry.slug));
+    setDraftEntries((prev) => [updated, ...prev.filter((d) => d.id !== activeEntry.id)]);
+
+    try {
+      const savedLocal = localStorage.getItem('rww_local_entries');
+      let parsed: Entry[] = savedLocal ? JSON.parse(savedLocal) : [];
+      parsed = [updated, ...parsed.filter((p) => p.id !== activeEntry.id)];
+      localStorage.setItem('rww_local_entries', JSON.stringify(parsed));
+    } catch (e) {}
+
+    setEditorialTab('drafts');
+    setSaveStatus('saved');
+  };
+
+  const handleInsertReflectionPrompt = (promptText: string) => {
+    const quoteHtml = `<blockquote><p><em>"${promptText}"</em></p></blockquote><p></p>`;
+    setContentHtml((prev) => quoteHtml + prev);
+    setSaveStatus('unsaved');
+  };
+
+  const handleInsertLedgerIntoBody = () => {
+    const energyMap: Record<string, string> = {
+      high_focused: 'High · Focused',
+      high_scattered: 'High · Scattered',
+      low_reflective: 'Low · Reflective',
+      low_depleted: 'Low · Depleted',
+    };
+    const energyLabel = metadata?.energy ? (energyMap[metadata.energy] || metadata.energy) : '—';
+    const habits = metadata?.habits || {};
+    const triad = metadata?.triad || { bright_spot: '', calibration: '', working_thought: '' };
+    
+    const dateFormatted = formatDateSafe(activeEntry?.created_at, new Date().toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }), {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+
+    const ledgerHtml = `<blockquote><p><strong>Daily Ledger · ${dateFormatted}</strong><br/><em>Energy:</em> ${energyLabel}<br/><em>Practices:</em> Movement [${habits.movement ? '✓' : ' '}] · Reading [${habits.reading ? '✓' : ' '}] · Writing [${habits.writing ? '✓' : ' '}] · Unplug [${habits.unplug ? '✓' : ' '}]</p><p><strong>+ Bright Spot:</strong> ${triad.bright_spot || '—'}<br/><strong>△ Calibration:</strong> ${triad.calibration || '—'}<br/><strong>• Working Thought:</strong> ${triad.working_thought || '—'}</p></blockquote><p></p>`;
+
+    setContentHtml((prev) => ledgerHtml + prev);
+    setSaveStatus('unsaved');
+  };
+
+  const handleRecordDailyCheckIn = async () => {
+    const formattedDate = new Date().toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+    const defaultTitle = title.trim() || `Daily Ledger · ${formattedDate}`;
+    if (!title.trim()) {
+      setTitle(defaultTitle);
+    }
+    const updatedMeta = { ...metadata, isPrivate: true };
+    setMetadata(updatedMeta);
+    setEntryStatus('private');
+    if (entryType !== 'personal_ledger') {
+      setEntryType('personal_ledger');
+    }
+    await saveCurrentDraft(updatedMeta, defaultTitle);
+
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    setLedgerFeedback(`Check-in recorded at ${timeStr}`);
+    setTimeout(() => {
+      setLedgerFeedback(null);
+    }, 3500);
+  };
+
+  const handleApplyTemplate = (templateHtml: string) => {
+    if (!contentHtml.trim() || window.confirm('Apply review structure to canvas? (Existing text will remain beneath).')) {
+      setContentHtml((prev) => templateHtml + (prev ? `<hr/>` + prev : ''));
+      setSaveStatus('unsaved');
+    }
+  };
+
   const handleDeleteEntry = async (entryToDelete: Entry) => {
     const isLive = entryToDelete.status === 'published';
     const isLedger = entryToDelete.status === 'private';
@@ -934,7 +1300,7 @@ export default function JournalStudioPage() {
     const promptMessage = isLive
       ? `Permanently delete live published piece "${itemTitle}"?\n\nThis will remove it from the live broadsheet and database.`
       : isLedger
-      ? `Delete this daily ledger entry from your private archive?`
+      ? `Delete this ledger entry from your private archive?`
       : `Permanently delete draft "${itemTitle}"? This cannot be undone.`;
 
     const confirmed = window.confirm(promptMessage);
@@ -967,9 +1333,7 @@ export default function JournalStudioPage() {
 
     if (activeEntry?.id === entryToDelete.id || activeEntry?.slug === entryToDelete.slug) {
       if (workspaceMode === 'ledger') {
-        const remaining = privateEntries.filter((e) => e.id !== entryToDelete.id && e.slug !== entryToDelete.slug);
-        if (remaining.length > 0) selectEntry(remaining[0]);
-        else createNewDocument('personal_ledger', true);
+        loadHorizonDocument(ledgerHorizon, selectedDateKey, selectedWeekKey, selectedMonthKey, selectedYear);
       } else {
         const remaining = draftEntries.filter((e) => e.id !== entryToDelete.id && e.slug !== entryToDelete.slug);
         if (remaining.length > 0) selectEntry(remaining[0]);
@@ -1005,6 +1369,88 @@ export default function JournalStudioPage() {
       return titleMatch || catMatch || bodyMatch || brightMatch || calibMatch || thoughtMatch;
     });
   }, [workspaceMode, editorialTab, privateEntries, draftEntries, publishedEntries, searchFilter]);
+
+  // Two-Way Roll-Up Aggregations
+  const selectedMonthParsed = useMemo(() => {
+    const [y, m] = selectedMonthKey.split('-').map(Number);
+    return { year: y || new Date().getFullYear(), month: m || new Date().getMonth() + 1 };
+  }, [selectedMonthKey]);
+
+  const activeMonthlyEntry = useMemo(() => {
+    return privateEntries.find(
+      (e) =>
+        e.slug === getMonthSlug(selectedMonthKey) ||
+        (e.metadata?.horizon === 'monthly' && e.metadata?.monthKey === selectedMonthKey)
+    );
+  }, [privateEntries, selectedMonthKey]);
+
+  const activeWeeklyEntry = useMemo(() => {
+    return privateEntries.find(
+      (e) =>
+        e.slug === getWeekSlug(selectedWeekKey) ||
+        (e.metadata?.horizon === 'weekly' && e.metadata?.weekKey === selectedWeekKey)
+    );
+  }, [privateEntries, selectedWeekKey]);
+
+  // Inherited North Star Cascades
+  const parentGamechangerTitle = activeMonthlyEntry?.metadata?.gamechanger?.title || activeMonthlyEntry?.metadata?.monthFocus;
+  const parentGamechangerTarget = activeMonthlyEntry?.metadata?.gamechanger?.targetDate;
+  const parentWeekFocus = activeWeeklyEntry?.metadata?.weekFocus;
+
+  // Monthly Aggregations
+  const monthlyHabitHeatmap = useMemo(() => {
+    return aggregateMonthlyHabitHeatmap(privateEntries, selectedMonthParsed.year, selectedMonthParsed.month);
+  }, [privateEntries, selectedMonthParsed]);
+
+  const monthlyWins = useMemo(() => {
+    return aggregateMonthlyWins(privateEntries, selectedMonthKey);
+  }, [privateEntries, selectedMonthKey]);
+
+  // Weekly Aggregations
+  const weekDates = useMemo(() => {
+    return getWeekDates(selectedWeekKey);
+  }, [selectedWeekKey]);
+
+  const weeklyWins = useMemo(() => {
+    return aggregateWeeklyWins(privateEntries, selectedWeekKey);
+  }, [privateEntries, selectedWeekKey]);
+
+  const weeklyHabitMatrix = useMemo(() => {
+    const matrix: { [habitId: string]: { [dateKey: string]: boolean } } = {
+      movement: {},
+      reading: {},
+      writing: {},
+      unplug: {},
+    };
+
+    weekDates.forEach((d) => {
+      const match = privateEntries.find((e) => {
+        if (e.slug === getDaySlug(d.dateKey)) return true;
+        if (e.metadata?.dateKey === d.dateKey) return true;
+        if (e.created_at) {
+          return formatDateKey(new Date(e.created_at)) === d.dateKey;
+        }
+        return false;
+      });
+
+      if (match) {
+        const habits = match.metadata?.habits || match.metadata?.ledger?.habits || {};
+        ['movement', 'reading', 'writing', 'unplug'].forEach((h) => {
+          if (habits[h]) matrix[h][d.dateKey] = true;
+        });
+      }
+    });
+
+    return matrix;
+  }, [privateEntries, weekDates]);
+
+  // Monthly Subtask Goal Progress %
+  const monthlyGoalProgress = useMemo(() => {
+    const subtasks = activeMonthlyEntry?.metadata?.gamechanger?.subtasks || [];
+    if (subtasks.length === 0) return 0;
+    const done = subtasks.filter((s: any) => s.done).length;
+    return Math.round((done / subtasks.length) * 100);
+  }, [activeMonthlyEntry]);
 
   if (authLoading) {
     return (
@@ -1135,10 +1581,10 @@ export default function JournalStudioPage() {
                     ? 'bg-[#B45309] text-white shadow-2xs'
                     : 'text-[#66615C] hover:text-[#1C1917]'
                 }`}
-                title="Personal Private Atelier (Habits, Reflections, Daily Ledger)"
+                title="Personal Private Atelier (Passion Planner Horizons, Habits, Daily Ledger)"
               >
-                <BookOpen className="w-3.5 h-3.5" />
-                <span>Daily Ledger</span>
+                <Compass className="w-3.5 h-3.5" />
+                <span>Passion Ledger</span>
               </button>
               <button
                 type="button"
@@ -1222,7 +1668,6 @@ export default function JournalStudioPage() {
                   </button>
                 </div>
 
-                {/* Primary Save Button */}
                 <button
                   onClick={() => saveCurrentDraft()}
                   className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 bg-[#1C1917] hover:bg-[#1E40AF] text-[#FAF8F5] rounded text-[11px] sm:text-xs font-display uppercase tracking-widest font-bold transition-colors cursor-pointer shadow-xs shrink-0"
@@ -1231,7 +1676,6 @@ export default function JournalStudioPage() {
                   <span>{isLiveActive ? 'Update Live' : 'Save Draft'}</span>
                 </button>
 
-                {/* Promote Button */}
                 {!isLiveActive && (
                   <button
                     onClick={() => setIsPromoteOpen(true)}
@@ -1242,16 +1686,6 @@ export default function JournalStudioPage() {
                     <span className="sm:hidden">Promote</span>
                   </button>
                 )}
-
-                {/* Dispatch Broadcast */}
-                <button
-                  onClick={() => setIsDispatchOpen(true)}
-                  className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[#44403C] hover:text-[#1E40AF] hover:bg-[#F2ECE1] transition-colors text-xs font-display uppercase tracking-wider font-bold cursor-pointer shrink-0"
-                  title="Broadcast Newsletter to Subscribers"
-                >
-                  <Mail className="w-3.5 h-3.5 text-[#B45309]" />
-                  <span>The Dispatch</span>
-                </button>
               </>
             )}
 
@@ -1379,7 +1813,7 @@ export default function JournalStudioPage() {
           >
             {/* Action Buttons based on Active Mode */}
             {workspaceMode === 'ledger' ? (
-              <div>
+              <div className="space-y-2">
                 <button
                   onClick={() => createNewDocument('personal_ledger', true)}
                   className="w-full py-2.5 px-3 bg-[#B45309] hover:bg-[#92400E] text-[#FAF8F5] rounded text-xs font-display uppercase tracking-wider font-bold flex items-center justify-center gap-2 transition-colors shadow-xs cursor-pointer"
@@ -1478,29 +1912,31 @@ export default function JournalStudioPage() {
                       day: 'numeric',
                       year: 'numeric',
                     });
+                    const horizonType = entry.metadata?.horizon || 'daily';
                     const energyVal = entry.metadata?.energy || entry.metadata?.ledger?.energy;
                     const brightSpot = entry.metadata?.triad?.bright_spot || entry.metadata?.ledger?.triad?.bright_spot;
                     const habitsObj = entry.metadata?.habits || entry.metadata?.ledger?.habits || {};
                     const doneHabitsCount = Object.values(habitsObj).filter(Boolean).length;
 
-                    const renderEnergyBadge = (energy?: string | null) => {
-                      switch (energy) {
-                        case 'high_focused':
-                          return <span className="text-[8px] font-display uppercase tracking-wider text-amber-950 bg-amber-200/90 px-1.5 py-0.5 rounded font-bold">⚡ Focused</span>;
-                        case 'high_scattered':
-                          return <span className="text-[8px] font-display uppercase tracking-wider text-orange-950 bg-orange-200/90 px-1.5 py-0.5 rounded font-bold">🌀 Scattered</span>;
-                        case 'low_reflective':
-                          return <span className="text-[8px] font-display uppercase tracking-wider text-blue-950 bg-blue-200/90 px-1.5 py-0.5 rounded font-bold">🌱 Reflective</span>;
-                        case 'low_depleted':
-                          return <span className="text-[8px] font-display uppercase tracking-wider text-stone-900 bg-stone-200/90 px-1.5 py-0.5 rounded font-bold">🔋 Depleted</span>;
-                        default:
-                          return (
-                            <span className="text-[8px] font-display uppercase tracking-wider text-amber-800 bg-amber-100/90 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5">
-                              <Shield className="w-2.5 h-2.5" />
-                              <span>Ledger</span>
-                            </span>
-                          );
+                    const renderHorizonBadge = () => {
+                      if (horizonType === 'compass') {
+                        return <span className="text-[8px] font-display uppercase tracking-wider text-purple-900 bg-purple-100 px-1.5 py-0.5 rounded font-bold">🧭 Compass</span>;
                       }
+                      if (horizonType === 'monthly') {
+                        return <span className="text-[8px] font-display uppercase tracking-wider text-amber-900 bg-amber-100 px-1.5 py-0.5 rounded font-bold">🎯 Month</span>;
+                      }
+                      if (horizonType === 'weekly') {
+                        return <span className="text-[8px] font-display uppercase tracking-wider text-blue-900 bg-blue-100 px-1.5 py-0.5 rounded font-bold">📅 Week</span>;
+                      }
+                      if (energyVal) {
+                        return <span className="text-[8px] font-display uppercase tracking-wider text-stone-900 bg-stone-200/90 px-1.5 py-0.5 rounded font-bold">☀️ Daily</span>;
+                      }
+                      return (
+                        <span className="text-[8px] font-display uppercase tracking-wider text-amber-800 bg-amber-100/90 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5">
+                          <Shield className="w-2.5 h-2.5" />
+                          <span>Ledger</span>
+                        </span>
+                      );
                     };
 
                     return (
@@ -1523,7 +1959,7 @@ export default function JournalStudioPage() {
                                 ✓ {doneHabitsCount}/4
                               </span>
                             )}
-                            {renderEnergyBadge(energyVal)}
+                            {renderHorizonBadge()}
                             <button
                               type="button"
                               onClick={(e) => {
@@ -1617,88 +2053,122 @@ export default function JournalStudioPage() {
         )}
 
         {/* Center Canvas */}
-        <main className="flex-1 max-w-[680px] mx-auto w-full pb-48 px-1 sm:px-0">
+        <main
+          className={`flex-1 mx-auto w-full pb-48 px-1 sm:px-0 transition-all ${
+            workspaceMode === 'ledger' && ledgerHorizon !== 'daily'
+              ? 'max-w-5xl'
+              : 'max-w-[720px]'
+          }`}
+        >
           {/* ========================================================= */}
-          {/* WORKSPACE MODE 1: DAILY PERSONAL LEDGER */}
+          {/* WORKSPACE MODE 1: PASSION PLANNER LEDGER (4 HORIZONS) */}
           {/* ========================================================= */}
           {workspaceMode === 'ledger' && (
             <div className="space-y-6">
-              {/* Daily Personal Ledger Interactive Module */}
-              <div className="space-y-2.5">
-                <DailyPersonalLedger
-                  metadata={metadata}
+              {/* Dynamic Horizon Navigation Bar */}
+              <LedgerHorizonNav
+                activeHorizon={ledgerHorizon}
+                onHorizonChange={handleHorizonChange}
+                selectedDateKey={selectedDateKey}
+                selectedWeekKey={selectedWeekKey}
+                selectedMonthKey={selectedMonthKey}
+                selectedYear={selectedYear}
+                onPrevPeriod={handlePrevPeriod}
+                onNextPeriod={handleNextPeriod}
+                onSnapCurrent={handleSnapCurrent}
+                saveStatus={saveStatus}
+                monthlyGoalProgress={monthlyGoalProgress}
+              />
+
+              {/* HORIZON VIEW 1: COMPASS & ANNUAL ROADMAP */}
+              {ledgerHorizon === 'compass' && (
+                <CompassRoadmapView
+                  metadata={(metadata as unknown) as CompassMetadata}
+                  year={selectedYear}
+                  onUpdateMetadata={(newMeta) => {
+                    setMetadata((prev) => ({ ...prev, ...newMeta }));
+                    saveCurrentDraft(newMeta);
+                  }}
+                />
+              )}
+
+              {/* HORIZON VIEW 2: MONTHLY HORIZON */}
+              {ledgerHorizon === 'monthly' && (
+                <MonthlyHorizonView
+                  metadata={(metadata as unknown) as MonthlyMetadata}
+                  year={selectedMonthParsed.year}
+                  month={selectedMonthParsed.month}
+                  monthLabel={getMonthLabel(selectedMonthParsed.year, selectedMonthParsed.month)}
+                  onUpdateMetadata={(newMeta) => {
+                    setMetadata((prev) => ({ ...prev, ...newMeta }));
+                    saveCurrentDraft(newMeta);
+                  }}
+                  habitHeatmap={monthlyHabitHeatmap}
+                  monthlyWins={monthlyWins}
+                  onSelectDate={handleJumpToDaily}
+                />
+              )}
+
+              {/* HORIZON VIEW 3: WEEKLY RHYTHM */}
+              {ledgerHorizon === 'weekly' && (
+                <WeeklyRhythmView
+                  metadata={(metadata as unknown) as WeeklyMetadata}
+                  weekKey={selectedWeekKey}
+                  weekLabel={getWeekLabel(selectedWeekKey)}
+                  parentGamechangerTitle={parentGamechangerTitle}
+                  parentGamechangerTarget={parentGamechangerTarget}
+                  onUpdateMetadata={(newMeta) => {
+                    setMetadata((prev) => ({ ...prev, ...newMeta }));
+                    saveCurrentDraft(newMeta);
+                  }}
+                  weekDates={weekDates}
+                  weeklyWins={weeklyWins}
+                  weeklyHabitMatrix={weeklyHabitMatrix}
+                  onSelectDate={handleJumpToDaily}
+                  onToggleDailyHabit={handleToggleDailyHabitFromWeek}
+                />
+              )}
+
+              {/* HORIZON VIEW 4: DAILY LEDGER */}
+              {ledgerHorizon === 'daily' && (
+                <DailyLedgerView
+                  metadata={(metadata as unknown) as DailyLedgerMetadata}
+                  dateKey={selectedDateKey}
+                  formattedDate={formatDateSafe(activeEntry?.created_at, new Date().toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric',
+                  }), {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
                   entries={allStudioEntries}
+                  parentGamechangerTitle={parentGamechangerTitle}
+                  parentWeekFocus={parentWeekFocus}
                   onUpdateMetadata={(newMeta) => {
                     setMetadata((prev) => ({ ...prev, ...newMeta }));
                     saveCurrentDraft(newMeta);
                   }}
                   onSelectMemory={(memoryEntry) => selectEntry(memoryEntry)}
+                  title={title}
+                  onChangeTitle={(newTitle) => {
+                    setTitle(newTitle);
+                    setSaveStatus('unsaved');
+                  }}
+                  contentHtml={contentHtml}
+                  onChangeContentHtml={(newHtml) => {
+                    setContentHtml(newHtml);
+                    setSaveStatus('unsaved');
+                  }}
+                  onInsertLedgerIntoBody={handleInsertLedgerIntoBody}
+                  onRecordDailyCheckIn={handleRecordDailyCheckIn}
+                  onInsertPrompt={handleInsertReflectionPrompt}
+                  feedbackMessage={ledgerFeedback}
                 />
-
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                  <div className="flex items-center gap-2">
-                    {ledgerFeedback ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded text-[11px] font-display uppercase tracking-wider font-bold shadow-2xs">
-                        <CheckCircle className="w-3.5 h-3.5 text-emerald-700" />
-                        <span>{ledgerFeedback}</span>
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-serif text-[#78716C] italic">
-                        Autosaved to confidential cloud archive
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleInsertLedgerIntoBody}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#FAF8F5] hover:bg-[#EAE4D7] text-[#44403C] hover:text-[#1C1917] border border-[#DDD5C7] rounded text-[11px] font-display uppercase tracking-wider font-bold transition-colors cursor-pointer shadow-2xs"
-                      title="Insert formatted ledger summary into journal body"
-                    >
-                      <ArrowDownToLine className="w-3.5 h-3.5 text-[#B45309]" />
-                      <span>Insert into Journal</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleRecordDailyCheckIn}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#B45309] hover:bg-[#92400E] active:bg-[#78350F] text-[#FAF8F5] rounded text-[11px] font-display uppercase tracking-wider font-bold transition-colors cursor-pointer shadow-xs"
-                      title="Save habits, energy, and reflection notes to your private ledger"
-                    >
-                      <Save className="w-3.5 h-3.5 text-[#FAF8F5]" />
-                      <span>Record Daily Check-in</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Reflection Prompts Bar */}
-              <ReflectionPromptBar
-                onInsertPrompt={handleInsertReflectionPrompt}
-              />
-
-              {/* Journal Headline */}
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => {
-                  setTitle(e.target.value);
-                  setSaveStatus('unsaved');
-                }}
-                placeholder="Daily Ledger Title / Date..."
-                className="w-full font-display font-black text-2xl sm:text-3xl text-[#1C1917] placeholder:text-[#9C9589] bg-transparent border-none outline-none py-2 tracking-tight"
-              />
-
-              {/* Private Reading/Writing Canvas */}
-              <TipTapEditor
-                initialContent={contentHtml}
-                placeholder="Private, confidential notes, working thoughts, and observations..."
-                onChange={({ html }) => {
-                  setContentHtml(html);
-                  setSaveStatus('unsaved');
-                }}
-              />
+              )}
             </div>
           )}
 
