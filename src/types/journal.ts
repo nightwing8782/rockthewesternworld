@@ -37,6 +37,8 @@ export interface CompassRoadmap {
 export interface CompassMetadata {
   horizon: 'compass';
   year: number;
+  isLocked?: boolean;
+  sealedAt?: string;
   coreValues: CoreValueEntry[];
   roadmap: CompassRoadmap;
   annualGamechanger: {

@@ -332,6 +332,9 @@ export default function LedgerHierarchyTree({
     }
   };
 
+  const compassEntry = entries.find((e) => e.slug === getCompassSlug(selectedYear));
+  const isCompassLocked = !!(compassEntry?.metadata as { isLocked?: boolean } | undefined)?.isLocked;
+
   return (
     <div className="space-y-3 font-serif select-none text-xs">
       {/* 1. TOP PINNED ANNUAL HORIZON: COMPASS & ROADMAP */}
@@ -368,11 +371,15 @@ export default function LedgerHierarchyTree({
         <span
           className={`text-[9px] font-display uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border shrink-0 ${
             activeHorizon === 'compass'
-              ? 'bg-white/10 text-white border-white/20'
+              ? isCompassLocked
+                ? 'bg-red-500/20 text-red-200 border-red-400/40'
+                : 'bg-white/10 text-white border-white/20'
+              : isCompassLocked
+              ? 'bg-red-50 text-[#991B1B] border-red-200'
               : 'bg-amber-50 text-[#B45309] border-amber-200'
           }`}
         >
-          Annual
+          {isCompassLocked ? '🔒 Sealed' : 'Annual'}
         </span>
       </div>
 
