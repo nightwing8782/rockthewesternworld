@@ -78,6 +78,7 @@ import {
   Radio,
   FileEdit,
   ExternalLink,
+  Sun,
   RotateCcw,
   Mail,
   Loader2,
@@ -1816,11 +1817,12 @@ export default function JournalStudioPage() {
             {workspaceMode === 'ledger' ? (
               <div className="space-y-2">
                 <button
-                  onClick={() => createNewDocument('personal_ledger', true)}
+                  type="button"
+                  onClick={handleSnapCurrent}
                   className="w-full py-2.5 px-3 bg-[#B45309] hover:bg-[#92400E] text-[#FAF8F5] rounded-xl text-xs font-display uppercase tracking-wider font-bold flex items-center justify-center gap-2 transition-colors shadow-xs cursor-pointer"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>New Daily Check-in</span>
+                  <Sun className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Today&apos;s Check-in</span>
                 </button>
               </div>
             ) : (

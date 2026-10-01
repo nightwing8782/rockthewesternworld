@@ -22,6 +22,7 @@ import {
   formatMonthKey,
   getMonthLabel,
   getWeekLabel,
+  getWeekDates,
   getDaySlug,
   getWeekSlug,
   getMonthSlug,
@@ -263,12 +264,28 @@ export default function LedgerHierarchyTree({
       }
     });
 
-    // Sort months descending, weeks descending, days descending
+    // Sort months descending, weeks descending, and populate 7 discrete days per week
     const sortedMonths = Array.from(monthsMap.values()).sort((a, b) => b.monthKey.localeCompare(a.monthKey));
     sortedMonths.forEach((m) => {
       m.weeks.sort((a, b) => b.weekKey.localeCompare(a.weekKey));
       m.weeks.forEach((w) => {
-        w.days.sort((a, b) => b.dateKey.localeCompare(a.dateKey));
+        const fullWeekDates = getWeekDates(w.weekKey);
+        const dayMap = new Map<string, DayNode>();
+        w.days.forEach((d) => dayMap.set(d.dateKey, d));
+
+        w.days = fullWeekDates.map((dInfo) => {
+          const existing = dayMap.get(dInfo.dateKey);
+          if (existing) return existing;
+          return {
+            dateKey: dInfo.dateKey,
+            dateStr: dInfo.dateKey,
+            dayLabel: `${dInfo.dayName}, ${dInfo.monthName} ${dInfo.dayNum}`,
+            entry: undefined,
+            brightSpot: undefined,
+            energy: null,
+            habitCount: 0,
+          };
+        });
       });
     });
 
@@ -521,23 +538,36 @@ export default function LedgerHierarchyTree({
                                       }`}
                                     />
                                     <div className="min-w-0 flex-1">
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="font-display font-bold text-[10px] text-[#1C1917] truncate">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span
+                                          className={`font-display font-bold text-[10px] truncate ${
+                                            day.entry ? 'text-[#1C1917]' : 'text-[#78716C]'
+                                          }`}
+                                        >
                                           {day.dayLabel}
                                         </span>
+                                        {day.dateKey === formatDateKey(new Date()) && (
+                                          <span className="text-[7px] font-display uppercase tracking-wider font-bold bg-amber-200 text-amber-950 px-1 py-0.2 rounded border border-amber-300 shrink-0">
+                                            Today
+                                          </span>
+                                        )}
                                         {day.habitCount !== undefined && day.habitCount > 0 && (
-                                          <span className="text-[7px] font-display font-bold uppercase tracking-wider text-emerald-900 bg-emerald-100 px-1 py-0.2 rounded border border-emerald-300/80">
+                                          <span className="text-[7px] font-display font-bold uppercase tracking-wider text-emerald-900 bg-emerald-100 px-1 py-0.2 rounded border border-emerald-300/80 shrink-0">
                                             ✓ {day.habitCount}/4
                                           </span>
                                         )}
                                         {renderEnergyPill(day.energy)}
                                       </div>
 
-                                      {day.brightSpot && (
+                                      {day.brightSpot ? (
                                         <p className="text-[10px] font-serif text-[#78350F] italic truncate mt-0.5 leading-tight">
                                           ✦ {day.brightSpot}
                                         </p>
-                                      )}
+                                      ) : !day.entry ? (
+                                        <p className="text-[9px] font-serif text-stone-400 italic mt-0.5 leading-tight group-hover:text-amber-700">
+                                          Open check-in...
+                                        </p>
+                                      ) : null}
                                     </div>
                                   </div>
 
