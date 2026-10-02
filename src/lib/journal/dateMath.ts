@@ -179,6 +179,16 @@ export interface WeekDayInfo {
 }
 
 /**
+ * Format date as 'YYYY-MM-DD' strictly from UTC components
+ */
+export function formatUTCDateKey(d: Date): string {
+  const year = d.getUTCFullYear();
+  const month = pad2(d.getUTCMonth() + 1);
+  const day = pad2(d.getUTCDate());
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * Get start and end Date objects for an ISO week
  */
 export function getWeekDates(yearOrWeekKey: number | string, maybeWeekNumber?: number): WeekDayInfo[] {
@@ -209,7 +219,7 @@ export function getWeekDates(yearOrWeekKey: number | string, maybeWeekNumber?: n
   for (let i = 0; i < 7; i++) {
     const d = new Date(isoWeekStart);
     d.setUTCDate(isoWeekStart.getUTCDate() + i);
-    const dateKey = formatDateKey(d);
+    const dateKey = formatUTCDateKey(d);
     const dayName = d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' });
     const dayNum = d.getUTCDate();
     weekDays.push({
@@ -226,6 +236,21 @@ export function getWeekDates(yearOrWeekKey: number | string, maybeWeekNumber?: n
   }
 
   return weekDays;
+}
+
+/**
+ * Returns the primary month ('YYYY-MM') that an ISO week belongs to.
+ * Under ISO 8601, a week belongs to the month containing its Thursday (majority 4+ days).
+ */
+export function getPrimaryMonthForWeek(yearOrWeekKey: number | string, maybeWeekNumber?: number): string {
+  const dates = getWeekDates(yearOrWeekKey, maybeWeekNumber);
+  const thursday = dates[3];
+  if (thursday) {
+    const y = thursday.date.getUTCFullYear();
+    const m = pad2(thursday.date.getUTCMonth() + 1);
+    return `${y}-${m}`;
+  }
+  return formatMonthKey(new Date());
 }
 
 /**

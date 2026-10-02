@@ -23,6 +23,7 @@ import {
   getMonthLabel,
   getWeekLabel,
   getWeekDates,
+  getPrimaryMonthForWeek,
   getDaySlug,
   getWeekSlug,
   getMonthSlug,
@@ -52,6 +53,8 @@ interface DayNode {
   brightSpot?: string;
   energy?: string | null;
   habitCount?: number;
+  isCrossMonth?: boolean;
+  crossMonthLabel?: string;
 }
 
 interface WeekNode {
@@ -134,18 +137,45 @@ export default function LedgerHierarchyTree({
     const currentMonthKey = formatMonthKey(now);
     const currentWeekKey = formatWeekKey(now);
 
-    // Ensure current month exists in tree even if no entries yet
-    const [curY, curM] = currentMonthKey.split('-').map(Number);
-    monthsMap.set(currentMonthKey, {
-      monthKey: currentMonthKey,
-      monthLabel: getMonthLabel(curY, curM),
-      year: curY,
-      monthNum: curM,
-      weeks: [],
-      totalDays: 0,
-    });
+    // Helper to get or create a MonthNode
+    const getOrCreateMonth = (mKey: string): MonthNode => {
+      let mNode = monthsMap.get(mKey);
+      if (!mNode) {
+        const [y, m] = mKey.split('-').map(Number);
+        mNode = {
+          monthKey: mKey,
+          monthLabel: getMonthLabel(y, m),
+          year: y,
+          monthNum: m,
+          weeks: [],
+          totalDays: 0,
+        };
+        monthsMap.set(mKey, mNode);
+      }
+      return mNode;
+    };
 
-    // 1. Scan private entries
+    // Helper to get or create a WeekNode under its primary month
+    const getOrCreateWeek = (wKey: string): WeekNode => {
+      const primaryMonthKey = getPrimaryMonthForWeek(wKey);
+      const mNode = getOrCreateMonth(primaryMonthKey);
+      let wNode = mNode.weeks.find((w) => w.weekKey === wKey);
+      if (!wNode) {
+        wNode = {
+          weekKey: wKey,
+          weekLabel: getWeekLabel(wKey),
+          days: [],
+        };
+        mNode.weeks.push(wNode);
+      }
+      return wNode;
+    };
+
+    // Ensure current month and current week exist
+    getOrCreateMonth(currentMonthKey);
+    getOrCreateWeek(currentWeekKey);
+
+    // 1. Scan private entries and group deterministically
     entries.forEach((entry) => {
       const isDaily =
         entry.metadata?.horizon === 'daily' ||
@@ -156,53 +186,16 @@ export default function LedgerHierarchyTree({
       if (isMonthly) {
         const mKey = entry.metadata?.monthKey || (entry.created_at ? formatMonthKey(new Date(entry.created_at)) : '');
         if (mKey) {
-          const [y, m] = mKey.split('-').map(Number);
-          const existing = monthsMap.get(mKey);
-          if (existing) {
-            existing.entry = entry;
-          } else {
-            monthsMap.set(mKey, {
-              monthKey: mKey,
-              monthLabel: getMonthLabel(y, m),
-              year: y,
-              monthNum: m,
-              entry,
-              weeks: [],
-              totalDays: 0,
-            });
-          }
+          const mNode = getOrCreateMonth(mKey);
+          mNode.entry = entry;
         }
       }
 
       if (isWeekly) {
         const wKey = entry.metadata?.weekKey || (entry.created_at ? formatWeekKey(new Date(entry.created_at)) : '');
-        const mKey = entry.metadata?.monthKey || (entry.created_at ? formatMonthKey(new Date(entry.created_at)) : '');
-        if (wKey && mKey) {
-          const [y, m] = mKey.split('-').map(Number);
-          let mNode = monthsMap.get(mKey);
-          if (!mNode) {
-            mNode = {
-              monthKey: mKey,
-              monthLabel: getMonthLabel(y, m),
-              year: y,
-              monthNum: m,
-              weeks: [],
-              totalDays: 0,
-            };
-            monthsMap.set(mKey, mNode);
-          }
-          let wNode = mNode.weeks.find((w) => w.weekKey === wKey);
-          if (!wNode) {
-            wNode = {
-              weekKey: wKey,
-              weekLabel: getWeekLabel(wKey),
-              entry,
-              days: [],
-            };
-            mNode.weeks.push(wNode);
-          } else {
-            wNode.entry = entry;
-          }
+        if (wKey) {
+          const wNode = getOrCreateWeek(wKey);
+          wNode.entry = entry;
         }
       }
 
@@ -211,32 +204,8 @@ export default function LedgerHierarchyTree({
         if (!dKey) return;
 
         const dObj = new Date(dKey + 'T12:00:00');
-        const mKey = formatMonthKey(dObj);
         const wKey = formatWeekKey(dObj);
-        const [y, m] = mKey.split('-').map(Number);
-
-        let mNode = monthsMap.get(mKey);
-        if (!mNode) {
-          mNode = {
-            monthKey: mKey,
-            monthLabel: getMonthLabel(y, m),
-            year: y,
-            monthNum: m,
-            weeks: [],
-            totalDays: 0,
-          };
-          monthsMap.set(mKey, mNode);
-        }
-
-        let wNode = mNode.weeks.find((w) => w.weekKey === wKey);
-        if (!wNode) {
-          wNode = {
-            weekKey: wKey,
-            weekLabel: getWeekLabel(wKey),
-            days: [],
-          };
-          mNode.weeks.push(wNode);
-        }
+        const wNode = getOrCreateWeek(wKey);
 
         const energy = entry.metadata?.energy || entry.metadata?.ledger?.energy || null;
         const brightSpot = entry.metadata?.triad?.bright_spot || entry.metadata?.ledger?.triad?.bright_spot || '';
@@ -247,19 +216,21 @@ export default function LedgerHierarchyTree({
           ? dObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
           : dKey;
 
-        // Check if day already recorded under week
-        const existingDay = wNode.days.find((d) => d.dateKey === dKey);
-        if (!existingDay) {
-          wNode.days.push({
-            dateKey: dKey,
-            dateStr: dKey,
-            dayLabel,
-            entry,
-            brightSpot,
-            energy,
-            habitCount,
-          });
-          mNode.totalDays += 1;
+        // Upsert day under week
+        const existingIdx = wNode.days.findIndex((d) => d.dateKey === dKey);
+        const dayPayload: DayNode = {
+          dateKey: dKey,
+          dateStr: dKey,
+          dayLabel,
+          entry,
+          brightSpot,
+          energy,
+          habitCount,
+        };
+        if (existingIdx >= 0) {
+          wNode.days[existingIdx] = dayPayload;
+        } else {
+          wNode.days.push(dayPayload);
         }
       }
     });
@@ -275,7 +246,14 @@ export default function LedgerHierarchyTree({
 
         w.days = fullWeekDates.map((dInfo) => {
           const existing = dayMap.get(dInfo.dateKey);
-          if (existing) return existing;
+          const isCross = dInfo.dateKey.slice(0, 7) !== m.monthKey;
+          if (existing) {
+            return {
+              ...existing,
+              isCrossMonth: isCross,
+              crossMonthLabel: isCross ? dInfo.monthName : undefined,
+            };
+          }
           return {
             dateKey: dInfo.dateKey,
             dateStr: dInfo.dateKey,
@@ -284,6 +262,8 @@ export default function LedgerHierarchyTree({
             brightSpot: undefined,
             energy: null,
             habitCount: 0,
+            isCrossMonth: isCross,
+            crossMonthLabel: isCross ? dInfo.monthName : undefined,
           };
         });
       });
@@ -546,6 +526,11 @@ export default function LedgerHierarchyTree({
                                         >
                                           {day.dayLabel}
                                         </span>
+                                        {day.isCrossMonth && (
+                                          <span className="text-[7px] font-mono uppercase tracking-wider font-semibold bg-stone-200/90 text-stone-600 px-1 py-0.2 rounded border border-stone-300 shrink-0">
+                                            {day.crossMonthLabel || 'Bridge'}
+                                          </span>
+                                        )}
                                         {day.dateKey === formatDateKey(new Date()) && (
                                           <span className="text-[7px] font-display uppercase tracking-wider font-bold bg-amber-200 text-amber-950 px-1 py-0.2 rounded border border-amber-300 shrink-0">
                                             Today
