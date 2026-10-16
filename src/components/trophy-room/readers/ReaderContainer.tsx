@@ -303,10 +303,12 @@ export default function ReaderContainer({
           setLoadingFile(false);
           resetHudTimer();
 
-          // Save to OPFS for instant subsequent opens
-          saveBookToOpfs(book.id, blob).catch((e) => {
-            console.warn('[ReaderContainer] Could not persist to OPFS cache:', e);
-          });
+          // Save to OPFS for instant subsequent opens (deferred to prioritize initial reader render)
+          setTimeout(() => {
+            saveBookToOpfs(book.id, blob).catch((e) => {
+              console.warn('[ReaderContainer] Could not persist to OPFS cache:', e);
+            });
+          }, 600);
         }
       } catch (err: any) {
         if (!isCancelled) {
@@ -330,14 +332,71 @@ export default function ReaderContainer({
     };
   }, [book.id, book.file_key, retryTrigger, resetHudTimer]);
 
-  // Progress Update Handler
+  // Direction Change Feedback Toast
+  const [directionToast, setDirectionToast] = useState<string | null>(null);
+  const prevDirectionRef = useRef(effectiveSettings.readingDirection);
+
+  useEffect(() => {
+    if (prevDirectionRef.current !== effectiveSettings.readingDirection) {
+      prevDirectionRef.current = effectiveSettings.readingDirection;
+      const isRtl = effectiveSettings.readingDirection === 'rtl';
+      setDirectionToast(
+        isRtl
+          ? '⛩️ Manga Mode (RTL): Tap Left or Swipe Right to Advance'
+          : '🦸 Comic Mode (LTR): Tap Right or Swipe Left to Advance'
+      );
+      const t = setTimeout(() => setDirectionToast(null), 2500);
+      return () => clearTimeout(t);
+    }
+  }, [effectiveSettings.readingDirection]);
+
+  // Global Keyboard Shortcuts
+  useEffect(() => {
+    const handleGlobalKeys = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === 'Escape' || e.key === 'h' || e.key === 'm') {
+        toggleHUD();
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeys);
+    return () => window.removeEventListener('keydown', handleGlobalKeys);
+  }, [toggleHUD]);
+
+  // Progress Update Handler (deterministic functional state updater prevents stale closures)
   const handlePageChange = useCallback(
-    (page: number, total: number = totalPages) => {
+    (page: number, total?: number) => {
+      const safePage = Math.max(1, page);
+      setCurrentPage(safePage);
+      setTotalPages((prevTotal) => {
+        const resolvedTotal = total !== undefined && total > 0 ? total : Math.max(1, prevTotal);
+        onUpdateProgress(book.id, safePage, resolvedTotal, currentCfi);
+        try {
+          localStorage.setItem(
+            `rww_trophy_prog_${book.id}`,
+            JSON.stringify({
+              book_id: book.id,
+              last_page: safePage,
+              total_pages: resolvedTotal,
+              current_cfi: currentCfi,
+              last_read_at: new Date().toISOString(),
+            })
+          );
+        } catch {}
+        return resolvedTotal;
+      });
+      resetHudTimer();
+    },
+    [book.id, currentCfi, onUpdateProgress, resetHudTimer]
+  );
+
+  const handleEpubProgress = useCallback(
+    (percent: number, cfi: string, page: number, total: number) => {
       const safePage = Math.max(1, page);
       const safeTotal = Math.max(1, total);
       setCurrentPage(safePage);
       setTotalPages(safeTotal);
-      onUpdateProgress(book.id, safePage, safeTotal, currentCfi);
+      setCurrentCfi(cfi);
+      onUpdateProgress(book.id, safePage, safeTotal, cfi);
       try {
         localStorage.setItem(
           `rww_trophy_prog_${book.id}`,
@@ -345,29 +404,6 @@ export default function ReaderContainer({
             book_id: book.id,
             last_page: safePage,
             total_pages: safeTotal,
-            current_cfi: currentCfi,
-            last_read_at: new Date().toISOString(),
-          })
-        );
-      } catch {}
-      resetHudTimer();
-    },
-    [book.id, totalPages, currentCfi, onUpdateProgress, resetHudTimer]
-  );
-
-  const handleEpubProgress = useCallback(
-    (percent: number, cfi: string, page: number, total: number) => {
-      setCurrentPage(page);
-      setTotalPages(total);
-      setCurrentCfi(cfi);
-      onUpdateProgress(book.id, page, total, cfi);
-      try {
-        localStorage.setItem(
-          `rww_trophy_prog_${book.id}`,
-          JSON.stringify({
-            book_id: book.id,
-            last_page: page,
-            total_pages: total,
             current_cfi: cfi,
             percent_read: percent,
             last_read_at: new Date().toISOString(),
@@ -381,6 +417,23 @@ export default function ReaderContainer({
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center overflow-hidden select-none touch-none overscroll-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden w-screen h-[100dvh]">
+      {/* Top Edge Hover Rescue Zone for Desktop Mouse Navigation */}
+      <div
+        onMouseEnter={() => {
+          setHudVisible(true);
+          resetHudTimer();
+        }}
+        className="fixed top-0 left-0 right-0 h-8 z-40 cursor-default"
+        aria-hidden="true"
+      />
+
+      {/* Direction Feedback Toast */}
+      {directionToast && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-stone-900/95 text-amber-300 font-mono text-xs px-4 py-2 rounded-full border border-amber-600/60 shadow-2xl backdrop-blur-md pointer-events-none transition-all duration-300 animate-in fade-in slide-in-from-top-2">
+          {directionToast}
+        </div>
+      )}
+
       {/* Amber Night Filter Overlay */}
       <AmberOverlay percent={effectiveSettings.amberFilterPercent} />
 
@@ -490,9 +543,10 @@ export default function ReaderContainer({
           visible={hudVisible}
           currentPage={currentPage}
           totalPages={totalPages}
-          onPageChange={(p) => handlePageChange(p, totalPages)}
+          onPageChange={(p) => handlePageChange(p)}
           onClose={onClose}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          onToggleHUD={toggleHUD}
           settings={effectiveSettings}
           onUpdateSettings={onUpdateSettings}
           isOffline={isOffline}

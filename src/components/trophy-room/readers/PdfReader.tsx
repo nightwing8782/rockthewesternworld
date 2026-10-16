@@ -372,7 +372,7 @@ export default function PdfReader({
       } else if (e.key === 'End') {
         e.preventDefault();
         onPageChange(numPages, numPages);
-      } else if (e.key === 'Escape') {
+      } else if (e.key === 'Escape' || e.key === 'h' || e.key === 'm') {
         onToggleHUD();
       }
     };

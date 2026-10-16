@@ -135,14 +135,63 @@ export function useSwipeGestures(
       }
     };
 
+    let lastTouchEndTime = 0;
+    const wrappedTouchEnd = (e: TouchEvent) => {
+      lastTouchEndTime = Date.now();
+      handleTouchEnd(e);
+    };
+
+    // Desktop Mouse & Pointer Click Handling
+    const handleClick = (e: MouseEvent) => {
+      // Ignore click events triggered by touch interactions within 450ms
+      if (Date.now() - lastTouchEndTime < 450) return;
+
+      // Ignore clicks on buttons, inputs, links, or HUD controls
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('button, input, textarea, a, select, [role="button"], .pointer-events-auto')) {
+        return;
+      }
+
+      const rect = el.getBoundingClientRect();
+      const relativeX = e.clientX - rect.left;
+      const width = rect.width || window.innerWidth;
+      const leftBoundary = width * 0.30;
+      const rightBoundary = width * 0.70;
+
+      if (relativeX < leftBoundary) {
+        if (onTapLeft) onTapLeft();
+        else if (onTapCenter) onTapCenter();
+      } else if (relativeX > rightBoundary) {
+        if (onTapRight) onTapRight();
+        else if (onTapCenter) onTapCenter();
+      } else {
+        if (onTapCenter) onTapCenter();
+      }
+    };
+
+    const handleDblClick = (e: MouseEvent) => {
+      if (Date.now() - lastTouchEndTime < 450) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('button, input, textarea, a, select, [role="button"]')) {
+        return;
+      }
+      if (onDoubleTap) {
+        onDoubleTap(e.clientX, e.clientY);
+      }
+    };
+
     el.addEventListener('touchstart', handleTouchStart, { passive: true });
     el.addEventListener('touchmove', handleTouchMove, { passive: true });
-    el.addEventListener('touchend', handleTouchEnd, { passive: true });
+    el.addEventListener('touchend', wrappedTouchEnd, { passive: true });
+    el.addEventListener('click', handleClick);
+    el.addEventListener('dblclick', handleDblClick);
 
     return () => {
       el.removeEventListener('touchstart', handleTouchStart);
       el.removeEventListener('touchmove', handleTouchMove);
-      el.removeEventListener('touchend', handleTouchEnd);
+      el.removeEventListener('touchend', wrappedTouchEnd);
+      el.removeEventListener('click', handleClick);
+      el.removeEventListener('dblclick', handleDblClick);
     };
   }, [
     elementRef,

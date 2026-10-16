@@ -74,6 +74,7 @@ export default function CbzReader({
   const isDualPageActive = spreadMode === 'dual' || isAutoDual;
   const isRtl = settings.readingDirection === 'rtl';
   const coverOffset = settings.firstPageCoverOffset !== false;
+  const isSoloCover = isDualPageActive && coverOffset && currentPage === 1;
 
   // Cleanup all allocated Object URLs on unmount
   const cleanupAllUrls = useCallback(() => {
@@ -184,33 +185,53 @@ export default function CbzReader({
     let isCancelled = false;
 
     async function syncBuffer() {
-      // Determine pages to keep in memory: [currentPage - 1, currentPage, currentPage + 1, currentPage + 2]
-      const targetPages = new Set<number>();
-      targetPages.add(currentPage);
-      if (currentPage > 1) targetPages.add(currentPage - 1);
-      if (currentPage + 1 <= totalPages) targetPages.add(currentPage + 1);
-      if (currentPage + 2 <= totalPages) targetPages.add(currentPage + 2);
-      if (isDualPageActive && currentPage + 3 <= totalPages) targetPages.add(currentPage + 3);
+      // 1. Identify immediately visible pages
+      const visiblePages: number[] = [currentPage];
+      if (isDualPageActive && !isSoloCover) {
+        const pairStart = coverOffset
+          ? (currentPage % 2 === 0 ? currentPage : currentPage - 1)
+          : (currentPage % 2 === 1 ? currentPage : currentPage - 1);
+        visiblePages[0] = pairStart;
+        if (pairStart + 1 <= totalPages) {
+          visiblePages.push(pairStart + 1);
+        }
+      }
 
-      // Load missing target pages in parallel
-      const loadPromises = Array.from(targetPages).map(async (p) => {
-        const url = await loadPage(p);
-        return { p, url };
-      });
-
-      const loaded = await Promise.all(loadPromises);
+      // Prioritize loading visible pages first for instant display
+      await Promise.all(visiblePages.map((p) => loadPage(p)));
       if (isCancelled) return;
 
-      // Update state
+      // Update state immediately with visible pages
+      const immediateMap: { [pageIndex: number]: string } = {};
+      pageCacheRef.current.forEach((url, p) => {
+        immediateMap[p] = url;
+      });
+      setPageUrls({ ...immediateMap });
+
+      // 2. Pre-fetch surrounding pages sequentially in background
+      const prefetchPages: number[] = [];
+      if (currentPage + 1 <= totalPages && !visiblePages.includes(currentPage + 1)) prefetchPages.push(currentPage + 1);
+      if (currentPage + 2 <= totalPages && !visiblePages.includes(currentPage + 2)) prefetchPages.push(currentPage + 2);
+      if (currentPage > 1 && !visiblePages.includes(currentPage - 1)) prefetchPages.push(currentPage - 1);
+      if (currentPage + 3 <= totalPages) prefetchPages.push(currentPage + 3);
+
+      for (const p of prefetchPages) {
+        if (isCancelled) return;
+        await loadPage(p);
+      }
+
+      if (isCancelled) return;
+
+      // Update full cache map
       const nextMap: { [pageIndex: number]: string } = {};
       pageCacheRef.current.forEach((url, p) => {
         nextMap[p] = url;
       });
       setPageUrls({ ...nextMap });
 
-      // Evict pages that are too far away from view (> 4 pages distance)
+      // Evict pages that are too far away from view (> 12 pages distance)
       pageCacheRef.current.forEach((url, p) => {
-        if (Math.abs(p - currentPage) > 4) {
+        if (Math.abs(p - currentPage) > 12) {
           try {
             URL.revokeObjectURL(url);
           } catch (e) {}
@@ -228,7 +249,7 @@ export default function CbzReader({
     return () => {
       isCancelled = true;
     };
-  }, [currentPage, totalPages, isDualPageActive, loadPage]);
+  }, [currentPage, totalPages, isDualPageActive, isRtl, isSoloCover, coverOffset, loadPage]);
 
   // Page Navigation Handlers
   const triggerTapFlash = (side: 'left' | 'right') => {
@@ -340,7 +361,7 @@ export default function CbzReader({
         e.preventDefault();
         if (isRtl) nextPage();
         else prevPage();
-      } else if (e.key === 'Escape') {
+      } else if (e.key === 'Escape' || e.key === 'h' || e.key === 'm') {
         onToggleHUD();
       }
     };
@@ -373,8 +394,6 @@ export default function CbzReader({
   }
 
   // Dual Page Spreads Calculation
-  const isSoloCover = isDualPageActive && coverOffset && currentPage === 1;
-
   let spreadLeftIndex: number | null = null;
   let spreadRightIndex: number | null = null;
 

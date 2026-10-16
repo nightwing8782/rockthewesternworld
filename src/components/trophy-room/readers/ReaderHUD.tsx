@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Maximize2,
   Minimize2,
 } from 'lucide-react';
@@ -32,6 +33,7 @@ interface ReaderHUDProps {
   onUpdateSettings: (newSettings: Partial<ReaderSettings>) => void;
   isOffline?: boolean;
   onToggleOffline?: () => void;
+  onToggleHUD?: () => void;
 }
 
 export default function ReaderHUD({
@@ -46,6 +48,7 @@ export default function ReaderHUD({
   onUpdateSettings,
   isOffline,
   onToggleOffline,
+  onToggleHUD,
 }: ReaderHUDProps) {
   const [isFullscreen, setIsFullscreen] = React.useState(false);
 
@@ -64,11 +67,24 @@ export default function ReaderHUD({
   const isRTL = settings.readingDirection === 'rtl';
 
   return (
-    <div
-      className={`fixed inset-0 pointer-events-none z-50 flex flex-col justify-between transition-opacity duration-300 ${
-        visible ? 'opacity-100' : 'opacity-0'
-      }`}
-    >
+    <>
+      {/* Floating Restore Trigger (Accessible when HUD is hidden) */}
+      {!visible && onToggleHUD && (
+        <button
+          onClick={onToggleHUD}
+          className="pointer-events-auto fixed top-2 left-1/2 -translate-x-1/2 z-50 px-3 py-1 bg-stone-900/80 hover:bg-stone-800 text-stone-400 hover:text-amber-400 border border-stone-700/60 rounded-full font-mono text-[10px] uppercase tracking-widest backdrop-blur-sm transition-all shadow-lg flex items-center gap-1.5 cursor-pointer opacity-70 hover:opacity-100"
+          title="Restore Reader Controls (Esc / M / H / Hover Top)"
+        >
+          <ChevronDown className="w-3 h-3 text-amber-500 animate-pulse" />
+          <span>Menu</span>
+        </button>
+      )}
+
+      <div
+        className={`fixed inset-0 pointer-events-none z-50 flex flex-col justify-between transition-opacity duration-300 ${
+          visible ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
       {/* Top Header Bar */}
       <header
         className={`pointer-events-auto bg-stone-950/90 backdrop-blur-md border-b border-stone-800/80 px-4 py-3 flex items-center justify-between transition-transform duration-300 ${
@@ -236,16 +252,18 @@ export default function ReaderHUD({
               onClick={() => onPageChange(isRTL ? currentPage + 1 : currentPage - 1)}
               disabled={isRTL ? currentPage >= totalPages : currentPage <= 1}
               className="p-1.5 rounded-md text-stone-300 hover:bg-stone-800 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+              title={isRTL ? 'Next Page' : 'Previous Page'}
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
 
-            <div className="flex-1 relative flex items-center">
+            <div className="flex-1 relative flex items-center" dir={isRTL ? 'rtl' : 'ltr'}>
               <input
                 type="range"
                 min="1"
                 max={Math.max(1, totalPages)}
                 value={currentPage}
+                dir={isRTL ? 'rtl' : 'ltr'}
                 onChange={(e) => onPageChange(parseInt(e.target.value, 10))}
                 className="w-full h-2 bg-stone-800 rounded-lg appearance-none cursor-pointer accent-amber-500 focus:outline-none"
               />
@@ -255,16 +273,20 @@ export default function ReaderHUD({
               onClick={() => onPageChange(isRTL ? currentPage - 1 : currentPage + 1)}
               disabled={isRTL ? currentPage <= 1 : currentPage >= totalPages}
               className="p-1.5 rounded-md text-stone-300 hover:bg-stone-800 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+              title={isRTL ? 'Previous Page' : 'Next Page'}
             >
               <ChevronRight className="w-5 h-5" />
             </button>
 
-            <div className="font-mono text-xs text-stone-300 shrink-0 min-w-[70px] text-right font-semibold tracking-wider">
-              {currentPage} / {totalPages || 1}
+            <div className="font-mono text-xs text-stone-300 shrink-0 min-w-[75px] text-right font-semibold tracking-wider">
+              {(settings.pageSpreadMode === 'dual' || (!settings.pageSpreadMode && settings.dualPageLandscape)) && currentPage < totalPages && book.format !== 'epub'
+                ? `${currentPage}–${currentPage + 1} / ${totalPages || 1}`
+                : `${currentPage} / ${totalPages || 1}`}
             </div>
           </div>
         </div>
       </footer>
     </div>
+  </>
   );
 }
