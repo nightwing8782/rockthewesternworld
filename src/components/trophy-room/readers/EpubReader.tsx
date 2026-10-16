@@ -14,6 +14,7 @@ interface EpubReaderProps {
   onProgressUpdate: (percent: number, cfi: string, page: number, totalPages: number) => void;
   onToggleHUD: () => void;
   settings: ReaderSettings;
+  bookMedium?: string;
 }
 
 export default function EpubReader({
@@ -22,12 +23,14 @@ export default function EpubReader({
   onProgressUpdate,
   onToggleHUD,
   settings,
+  bookMedium,
 }: EpubReaderProps) {
   const viewerRef = useRef<HTMLDivElement>(null);
   const renditionRef = useRef<Rendition | null>(null);
   const bookRef = useRef<Book | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isFixedLayout, setIsFixedLayout] = useState(false);
 
   const isRtl = settings.readingDirection === 'rtl';
 
@@ -62,6 +65,16 @@ export default function EpubReader({
         await book.ready;
         if (isCancelled) return;
 
+        // Detect fixed-layout manga / pre-paginated books
+        const metadataLayout = ((book as any).package?.metadata as any)?.layout;
+        const hasPrePaginatedSpine = (book.spine as any)?.spineItems?.some((item: any) =>
+          item.properties?.includes('rendition:layout-pre-paginated') ||
+          item.properties?.includes('pre-paginated')
+        );
+        const isManga = bookMedium === 'manga' || bookMedium === 'comic';
+        const fixedLayout = isManga || metadataLayout === 'pre-paginated' || hasPrePaginatedSpine;
+        setIsFixedLayout(fixedLayout);
+
         // Ensure viewer container has computed dimensions before rendering
         if (viewerRef.current && (viewerRef.current.clientWidth === 0 || viewerRef.current.clientHeight === 0)) {
           await new Promise((r) => requestAnimationFrame(r));
@@ -77,13 +90,13 @@ export default function EpubReader({
           flow: 'paginated',
           spread: isDual ? 'auto' : 'none',
         });
-        if (typeof (rendition as any).direction === 'function') {
+        if (!fixedLayout && typeof (rendition as any).direction === 'function') {
           (rendition as any).direction(isRtl ? 'rtl' : 'ltr');
         }
         renditionRef.current = rendition;
 
-        // Apply theme & font settings
-        applyTheme(rendition, settings);
+        // Apply theme & font settings (with fixed layout protection)
+        applyTheme(rendition, settings, fixedLayout);
 
         // Display initial location with defensive fallback to book start
         try {
@@ -221,7 +234,30 @@ export default function EpubReader({
   }, [fileBlob]);
 
   // Apply Theme & Font updates
-  const applyTheme = (rendition: Rendition, s: ReaderSettings) => {
+  const applyTheme = (rendition: Rendition, s: ReaderSettings, fixed: boolean) => {
+    if (fixed) {
+      // Fixed-layout manga: Dark background, zero margins/padding, preserve physical coordinates without CSS direction: rtl on body
+      rendition.themes.default({
+        'html, body': {
+          background: '#0a0c10 !important',
+          color: '#ffffff !important',
+          margin: '0 !important',
+          padding: '0 !important',
+          width: '100% !important',
+          height: '100% !important',
+          overflow: 'hidden !important',
+        },
+        'svg, img, image': {
+          'max-width': '100% !important',
+          'max-height': '100% !important',
+          'object-fit': 'contain !important',
+          margin: 'auto !important',
+          display: 'block !important',
+        },
+      });
+      return;
+    }
+
     const isDirRtl = s.readingDirection === 'rtl';
     const themeBg = s.epubTheme === 'dark' ? '#1C1917' : s.epubTheme === 'sepia' ? '#F4ECD8' : '#FAF8F5';
     const themeFg = s.epubTheme === 'dark' ? '#E7E5E4' : s.epubTheme === 'sepia' ? '#443A2B' : '#1C1917';
@@ -254,9 +290,12 @@ export default function EpubReader({
 
   useEffect(() => {
     if (renditionRef.current) {
-      applyTheme(renditionRef.current, settings);
+      applyTheme(renditionRef.current, settings, isFixedLayout);
+      if (!isFixedLayout && typeof (renditionRef.current as any).direction === 'function') {
+        (renditionRef.current as any).direction(settings.readingDirection === 'rtl' ? 'rtl' : 'ltr');
+      }
     }
-  }, [settings.epubTheme, settings.fontSize, settings.fontFamily, settings.readingDirection]);
+  }, [settings.epubTheme, settings.fontSize, settings.fontFamily, settings.readingDirection, isFixedLayout]);
 
   useEffect(() => {
     if (renditionRef.current) {
@@ -300,11 +339,21 @@ export default function EpubReader({
   });
 
   return (
-    <div className="flex-1 relative w-full h-full flex flex-col items-center justify-center overflow-hidden">
+    <div
+      className={`flex-1 relative w-full h-full flex flex-col items-center justify-center overflow-hidden ${
+        isFixedLayout ? 'bg-[#0a0c10]' : ''
+      }`}
+    >
       {loading && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#FAF8F5]/90 gap-3 text-stone-700">
-          <Loader2 className="w-8 h-8 animate-spin text-[#B45309]" />
-          <p className="text-xs font-display uppercase tracking-widest">Formatting book typography...</p>
+        <div
+          className={`absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 ${
+            isFixedLayout ? 'bg-[#0a0c10] text-stone-300' : 'bg-[#FAF8F5]/90 text-stone-700'
+          }`}
+        >
+          <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
+          <p className="text-xs font-mono uppercase tracking-widest text-stone-400">
+            {isFixedLayout ? 'Mounting Manga Vault...' : 'Formatting book typography...'}
+          </p>
         </div>
       )}
 
@@ -318,7 +367,9 @@ export default function EpubReader({
       {/* EPUB Render Viewer Container */}
       <div
         ref={viewerRef}
-        className="w-full h-full max-w-4xl mx-auto flex-1 cursor-pointer select-none"
+        className={`w-full h-full mx-auto flex-1 cursor-pointer select-none ${
+          isFixedLayout ? 'max-w-none bg-[#0a0c10]' : 'max-w-4xl'
+        }`}
       />
     </div>
   );

@@ -521,6 +521,7 @@ export default function ReaderContainer({
               onProgressUpdate={handleEpubProgress}
               onToggleHUD={toggleHUD}
               settings={effectiveSettings}
+              bookMedium={book.medium}
             />
           )}
 
