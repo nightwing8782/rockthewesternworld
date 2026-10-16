@@ -9,7 +9,7 @@ import {
 } from '@/types/journal';
 import { createClient } from '@/lib/supabase/client';
 import { Entry } from '@/types/database';
-import TipTapEditor from '@/components/journal/TipTapEditor';
+import TipTapEditor from '@/features/studio/components/TipTapEditor';
 import ReflectionPromptBar from './ReflectionPromptBar';
 import {
   Sparkles,
