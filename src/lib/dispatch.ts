@@ -26,14 +26,21 @@ export interface SendEmailResult {
 
 export async function fetchSubscribers(): Promise<Subscriber[]> {
   try {
+    const res = await fetch('/api/dispatch/subscribers');
+    if (res.ok) {
+      const data = await res.json();
+      return data.subscribers || [];
+    }
+
+    // Fallback to client Supabase query if running in an environment where direct read is configured
     const supabase = createClient();
     const { data, error } = await supabase
       .from('subscribers')
-      .select('*')
+      .select('id, email, created_at, status')
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.warn('Error fetching subscribers from Supabase:', error);
+      console.warn('Error fetching subscribers:', error);
       return [];
     }
     return data || [];
@@ -212,14 +219,43 @@ export async function sendResendEmail({
   subject: string;
   html: string;
 }): Promise<SendEmailResult> {
-  const cleanKey = (apiKey || process.env.NEXT_PUBLIC_RESEND_API_KEY || '').trim();
-  if (!cleanKey) {
-    return { success: false, error: 'Resend API key is required. Please set it in Settings.' };
-  }
-
   const sender = (from || '').trim() || 'Rock The Western World <onboarding@resend.dev>';
 
   try {
+    // 1. Primary path: Use protected server route (safe, keeps RESEND_API_KEY on server)
+    const serverRes = await fetch('/api/dispatch/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: sender,
+        to: Array.isArray(to) ? to : [to],
+        subject,
+        html,
+      }),
+    });
+
+    if (serverRes.ok) {
+      const data = await serverRes.json();
+      return { success: true, id: data.id };
+    }
+
+    const serverErr = await serverRes.json().catch(() => ({}));
+    if (serverRes.status !== 404 && serverRes.status !== 500) {
+      return {
+        success: false,
+        error: serverErr.error || `Server error (${serverRes.status}): ${serverRes.statusText}`,
+      };
+    }
+
+    // 2. Fallback only if custom apiKey provided and server route not available
+    const cleanKey = (apiKey || '').trim();
+    if (!cleanKey) {
+      return {
+        success: false,
+        error: serverErr.error || 'Failed to send email. Please verify server RESEND_API_KEY.',
+      };
+    }
+
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -235,7 +271,6 @@ export async function sendResendEmail({
     });
 
     const data = await res.json();
-
     if (!res.ok) {
       return {
         success: false,
@@ -243,14 +278,11 @@ export async function sendResendEmail({
       };
     }
 
-    return {
-      success: true,
-      id: data.id,
-    };
+    return { success: true, id: data.id };
   } catch (err: any) {
     return {
       success: false,
-      error: err.message || 'Failed to connect to Resend API.',
+      error: err.message || 'Failed to send dispatch email.',
     };
   }
 }

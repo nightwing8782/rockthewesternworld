@@ -6,7 +6,6 @@ import { trophyDb } from '@/lib/trophy/db';
 import { saveBookToOpfs, getBookFromOpfs, isBookInOpfs, deleteBookFromOpfs } from '@/lib/trophy/opfs';
 import { extractBookMetadata, extractBookInfo, detectFormat, unSquishWords } from '@/lib/trophy/metadataExtractor';
 import { isMangaBook, isComicBook } from '@/lib/trophy/sectorClassifier';
-import { getPresignedUploadUrl, getPresignedDownloadUrl } from '@/lib/trophy/s3';
 import {
   TrophyBook,
   TrophyProgress,
@@ -42,6 +41,34 @@ function saveLocalBookOverride(bookId: string, updates: Partial<TrophyBook>) {
   } catch (e) {
     console.warn('[Trophy Library] Failed to save local metadata override:', e);
   }
+}
+
+async function requestPresignedUploadUrl(fileKey: string, contentType: string): Promise<string> {
+  const res = await fetch('/api/trophy/presign-upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fileKey, contentType }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Upload authorization failed (${res.status})`);
+  }
+  const data = await res.json();
+  return data.uploadUrl;
+}
+
+async function requestStreamUrl(fileKey: string, expiresInSeconds = 86400): Promise<string> {
+  const res = await fetch('/api/trophy/stream-url', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fileKey, expiresInSeconds }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Streaming URL request failed (${res.status})`);
+  }
+  const data = await res.json();
+  return data.streamUrl;
 }
 
 export function useTrophyLibrary(user: any) {
@@ -199,7 +226,7 @@ export function useTrophyLibrary(user: any) {
         const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
         const fileKey = `books/${format}/${cleanFileName}`;
         const contentType = file.type || 'application/octet-stream';
-        const uploadUrl = await getPresignedUploadUrl(fileKey, contentType, 3600);
+        const uploadUrl = await requestPresignedUploadUrl(fileKey, contentType);
 
         // Step C: Upload directly to Cloudflare R2
         await fetch(uploadUrl, {
@@ -214,7 +241,7 @@ export function useTrophyLibrary(user: any) {
         if (extracted.coverBlob) {
           try {
             coverKey = `covers/${cleanFileName}.jpg`;
-            const coverUploadUrl = await getPresignedUploadUrl(coverKey, 'image/jpeg', 3600);
+            const coverUploadUrl = await requestPresignedUploadUrl(coverKey, 'image/jpeg');
             await fetch(coverUploadUrl, {
               method: 'PUT',
               headers: { 'Content-Type': 'image/jpeg' },
@@ -222,7 +249,7 @@ export function useTrophyLibrary(user: any) {
             });
 
             // Generate direct stream URL for cover
-            coverUrl = await getPresignedDownloadUrl(coverKey, 86400 * 7);
+            coverUrl = await requestStreamUrl(coverKey, 86400 * 7);
           } catch (e) {
             console.warn('Cover upload to R2 warning:', e);
           }
@@ -326,18 +353,7 @@ export function useTrophyLibrary(user: any) {
     } else {
       // Stream from R2 to store in OPFS
       try {
-        let streamUrl: string | null = null;
-        try {
-          streamUrl = await getPresignedDownloadUrl(book.file_key, 86400);
-        } catch (s3Err) {
-          const streamRes = await fetch('/api/trophy/stream-url', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fileKey: book.file_key }),
-          });
-          const streamData = await streamRes.json();
-          streamUrl = streamData.streamUrl;
-        }
+        const streamUrl = await requestStreamUrl(book.file_key, 86400);
 
         if (!streamUrl) throw new Error('Could not obtain download stream URL');
 

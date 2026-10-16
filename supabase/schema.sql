@@ -100,4 +100,6 @@ DROP POLICY IF EXISTS "Allow author view subscribers" ON public.subscribers;
 CREATE POLICY "Allow author view subscribers"
     ON public.subscribers
     FOR SELECT
-    USING (auth.uid() IS NOT NULL);
+    USING (
+        auth.uid() IN (SELECT user_id FROM public.entries WHERE user_id IS NOT NULL)
+    );

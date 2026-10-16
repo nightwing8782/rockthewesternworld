@@ -80,9 +80,8 @@ export default function DispatchModal({
   // Load Saved Keys and Subscribers
   useEffect(() => {
     if (isOpen) {
-      const envKey = process.env.NEXT_PUBLIC_RESEND_API_KEY || '';
       const localKey = typeof window !== 'undefined' ? localStorage.getItem('rww_resend_api_key') || '' : '';
-      setApiKey(localKey || envKey);
+      if (localKey) setApiKey(localKey);
 
       const localFrom = typeof window !== 'undefined' ? localStorage.getItem('rww_resend_from_address') || '' : '';
       if (localFrom) setFromAddress(localFrom);

@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Loader2, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { TrophyBook, ReaderSettings } from '@/types/trophy';
 import { getBookFromOpfs } from '@/lib/trophy/opfs';
-import { getPresignedDownloadUrl } from '@/lib/trophy/s3';
 import CbzReader from './CbzReader';
 import EpubReader from './EpubReader';
 import PdfReader from './PdfReader';
@@ -114,25 +113,21 @@ export default function ReaderContainer({
           return;
         }
 
-        // 2. Fetch presigned streaming URL directly via R2 SDK
+        // 2. Fetch presigned streaming URL via secure server endpoint
         let streamUrl: string | null = null;
-        try {
-          streamUrl = await getPresignedDownloadUrl(book.file_key, 86400);
-        } catch (s3Err) {
-          console.warn('[ReaderContainer] Client S3 presign fallback to API:', s3Err);
-          const res = await fetch('/api/trophy/stream-url', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fileKey: book.file_key }),
-          });
-          const resText = await res.text();
-          try {
-            const data = JSON.parse(resText);
-            streamUrl = data.streamUrl;
-          } catch (e) {
-            throw new Error(`Storage configuration error: ${resText.slice(0, 100)}`);
-          }
+        const res = await fetch('/api/trophy/stream-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileKey: book.file_key }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `Storage stream error (${res.status})`);
         }
+
+        const data = await res.json();
+        streamUrl = data.streamUrl;
 
         if (!streamUrl) {
           throw new Error('Failed to obtain streaming URL for this title.');

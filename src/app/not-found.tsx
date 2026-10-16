@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Entry } from '@/types/database';
 import Masthead from '@/components/navigation/Masthead';
 import { ArrowLeft, Star, BookOpen, Music, Radio, Loader2 } from 'lucide-react';
+import { sanitizeHtml } from '@/lib/security/sanitize';
 
 export default function NotFoundPage() {
   const [post, setPost] = useState<Entry | null>(null);
@@ -95,7 +96,7 @@ export default function NotFoundPage() {
 
           <div
             className="prose-broadsheet font-reading text-lg sm:text-[19px] leading-[1.8] text-[#242120]"
-            dangerouslySetInnerHTML={{ __html: body_html || '' }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(body_html) }}
           />
 
           <div className="mt-16 pt-8 border-t-2 border-[#1C1917] flex items-center justify-between">

@@ -4,45 +4,10 @@ import fs from 'fs';
 import path from 'path';
 import { Entry } from '@/types/database';
 
-export const dynamic = 'force-static';
 export const runtime = 'nodejs';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 export const alt = 'Rock The Western World';
-
-export async function generateStaticParams() {
-  const slugs = new Set<string>();
-
-  // 1. Fetch only published entries from Supabase
-  try {
-    const supabase = createStaticClient();
-    const { data } = await supabase
-      .from('entries')
-      .select('slug')
-      .eq('status', 'published');
-    if (data) {
-      data.forEach((item) => {
-        if (item.slug) slugs.add(item.slug);
-      });
-    }
-  } catch (e) {}
-
-  // 2. Load from WordPress imported JSON archive
-  const archivePath = path.join(process.cwd(), 'public', 'archive', 'imported-entries.json');
-  if (fs.existsSync(archivePath)) {
-    try {
-      const entries: Entry[] = JSON.parse(fs.readFileSync(archivePath, 'utf8'));
-      entries.forEach((e) => {
-        const isPublished = e.status ? e.status === 'published' : true;
-        if (e.slug && isPublished) {
-          slugs.add(e.slug);
-        }
-      });
-    } catch (e) {}
-  }
-
-  return Array.from(slugs).map((slug) => ({ slug }));
-}
 
 async function getPost(slug: string): Promise<Entry | null> {
   // 1. Check Supabase

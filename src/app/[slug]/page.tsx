@@ -43,6 +43,7 @@ import { ArrowLeft, Star, Book, BookOpen, Music, Radio, ChevronRight } from 'luc
 import type { Metadata } from 'next';
 import fs from 'fs';
 import path from 'path';
+import { sanitizeHtml } from '@/lib/security/sanitize';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -441,7 +442,7 @@ export default async function BlogPostPage({ params }: PageProps) {
         {/* Prose Body */}
         <div
           className="prose-broadsheet"
-          dangerouslySetInnerHTML={{ __html: body_html || '' }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(body_html) }}
         />
 
         {/* Concluding Flourish */}
