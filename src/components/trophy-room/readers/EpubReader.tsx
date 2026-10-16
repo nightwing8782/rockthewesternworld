@@ -88,12 +88,76 @@ export default function EpubReader({
           width: '100%',
           height: '100%',
           flow: 'paginated',
+          layout: fixedLayout ? 'pre-paginated' : 'reflowable',
           spread: isDual ? 'auto' : 'none',
-        });
+        } as any);
+
         if (!fixedLayout && typeof (rendition as any).direction === 'function') {
           (rendition as any).direction(isRtl ? 'rtl' : 'ltr');
         }
         renditionRef.current = rendition;
+
+        // Dynamically compute and scale fixed-layout manga pages to fit and center in the viewport
+        rendition.hooks.content.register((contents: any) => {
+          if (!fixedLayout) return;
+
+          const doc = contents.document;
+          if (!doc) return;
+
+          let vWidth = 0;
+          let vHeight = 0;
+          const metaViewport = doc.querySelector('meta[name="viewport"]');
+          if (metaViewport && metaViewport.hasAttribute('content')) {
+            const contentStr = metaViewport.getAttribute('content') || '';
+            const wMatch = contentStr.match(/width\s*=\s*([^,]*)/);
+            const hMatch = contentStr.match(/height\s*=\s*([^,]*)/);
+            if (wMatch) vWidth = parseFloat(wMatch[1]);
+            if (hMatch) vHeight = parseFloat(hMatch[1]);
+          }
+
+          if (!vWidth || !vHeight) {
+            const svg = doc.querySelector('svg');
+            const img = doc.querySelector('img, image');
+            if (svg) {
+              if (svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width > 0) {
+                vWidth = svg.viewBox.baseVal.width;
+                vHeight = svg.viewBox.baseVal.height;
+              } else {
+                const vb = svg.getAttribute('viewBox')?.split(/\s+|,/);
+                if (vb && vb.length >= 4) {
+                  vWidth = parseFloat(vb[2]);
+                  vHeight = parseFloat(vb[3]);
+                }
+              }
+            }
+            if ((!vWidth || !vHeight) && img) {
+              vWidth = img.naturalWidth || parseFloat(img.getAttribute('width') || '0');
+              vHeight = img.naturalHeight || parseFloat(img.getAttribute('height') || '0');
+            }
+          }
+
+          const containerW = viewerRef.current?.clientWidth || window.innerWidth;
+          const containerH = viewerRef.current?.clientHeight || window.innerHeight;
+
+          if (vWidth > 0 && vHeight > 0 && containerW > 0 && containerH > 0) {
+            const scale = Math.min(containerW / vWidth, containerH / vHeight);
+            const scaledW = vWidth * scale;
+            const scaledH = vHeight * scale;
+            const offsetX = Math.max(0, (containerW - scaledW) / 2);
+            const offsetY = Math.max(0, (containerH - scaledH) / 2);
+
+            const body = doc.body;
+            if (body) {
+              body.style.setProperty('width', `${vWidth}px`, 'important');
+              body.style.setProperty('height', `${vHeight}px`, 'important');
+              body.style.setProperty('transform-origin', 'top left', 'important');
+              body.style.setProperty('transform', `translate(${offsetX}px, ${offsetY}px) scale(${scale})`, 'important');
+              body.style.setProperty('overflow', 'hidden', 'important');
+              body.style.setProperty('margin', '0', 'important');
+              body.style.setProperty('padding', '0', 'important');
+            }
+          }
+        });
 
         // Apply theme & font settings (with fixed layout protection)
         applyTheme(rendition, settings, fixedLayout);
@@ -236,22 +300,18 @@ export default function EpubReader({
   // Apply Theme & Font updates
   const applyTheme = (rendition: Rendition, s: ReaderSettings, fixed: boolean) => {
     if (fixed) {
-      // Fixed-layout manga: Dark background, zero margins/padding, preserve physical coordinates without CSS direction: rtl on body
+      // Fixed-layout manga: Dark background, zero margins/padding (size handled dynamically by scaler)
       rendition.themes.default({
         'html, body': {
           background: '#0a0c10 !important',
           color: '#ffffff !important',
           margin: '0 !important',
           padding: '0 !important',
-          width: '100% !important',
-          height: '100% !important',
-          overflow: 'hidden !important',
         },
         'svg, img, image': {
           'max-width': '100% !important',
           'max-height': '100% !important',
           'object-fit': 'contain !important',
-          margin: 'auto !important',
           display: 'block !important',
         },
       });
@@ -307,6 +367,28 @@ export default function EpubReader({
       } catch (e) {}
     }
   }, [settings.pageSpreadMode, settings.dualPageLandscape]);
+
+  // Window resize handler for dynamic rendition scaling
+  useEffect(() => {
+    const handleResize = () => {
+      if (renditionRef.current && viewerRef.current) {
+        const w = viewerRef.current.clientWidth;
+        const h = viewerRef.current.clientHeight;
+        if (w > 0 && h > 0) {
+          try {
+            renditionRef.current.resize(w, h);
+          } catch (e) {}
+        }
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, []);
 
   // Keyboard navigation on outer window
   useEffect(() => {
