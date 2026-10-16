@@ -1,4 +1,4 @@
-import DOMPurify from 'isomorphic-dompurify';
+import sanitize from 'sanitize-html';
 
 export const ALLOWED_TAGS = [
   // Typography & Headings
@@ -28,7 +28,7 @@ export const ALLOWED_ATTR = [
   'colspan', 'rowspan', 'scope', 'align', 'cite',
 ];
 
-const ALLOWED_IFRAME_HOSTS = [
+export const ALLOWED_IFRAME_HOSTS = [
   'www.youtube.com',
   'youtube.com',
   'www.youtube-nocookie.com',
@@ -45,64 +45,37 @@ const ALLOWED_IFRAME_HOSTS = [
 ];
 
 /**
- * Validates whether an iframe src URL belongs to a verified embedding provider.
- */
-function isAllowedIframeSrc(src: string): boolean {
-  try {
-    const url = new URL(src);
-    return ALLOWED_IFRAME_HOSTS.some(
-      (host) => url.hostname === host || url.hostname.endsWith('.' + host)
-    );
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Configure DOMPurify hooks once (safe for both SSR and client execution).
- */
-if (typeof DOMPurify.addHook === 'function') {
-  DOMPurify.addHook('uponSanitizeElement', (node, data) => {
-    // Validate iframe elements against host allowlist
-    if (data.tagName === 'iframe' && 'getAttribute' in node) {
-      const el = node as Element;
-      const src = el.getAttribute('src') || '';
-      if (!isAllowedIframeSrc(src)) {
-        if (typeof el.remove === 'function') {
-          el.remove();
-        } else if (node.parentNode) {
-          node.parentNode.removeChild(node);
-        }
-      }
-    }
-  });
-
-  DOMPurify.addHook('afterSanitizeAttributes', (node) => {
-    // Enforce noopener noreferrer on links with target="_blank"
-    if (node.nodeName === 'A' && 'getAttribute' in node) {
-      const el = node as Element;
-      const href = el.getAttribute('href') || '';
-      if (href.startsWith('http://') || href.startsWith('https://')) {
-        el.setAttribute('rel', 'noopener noreferrer');
-      }
-    }
-  });
-}
-
-/**
  * Sanitizes rich-text HTML against Stored XSS threats.
+ * Native SSR-safe string tokenizer (htmlparser2) with zero DOM/jsdom dependencies.
  */
 export function sanitizeHtml(dirtyHtml: string | null | undefined): string {
   if (!dirtyHtml || typeof dirtyHtml !== 'string') {
     return '';
   }
 
-  return DOMPurify.sanitize(dirtyHtml, {
-    ALLOWED_TAGS,
-    ALLOWED_ATTR,
-    ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
-    ADD_ATTR: ['target'],
-    RETURN_DOM_FRAGMENT: false,
-    RETURN_DOM: false,
+  return sanitize(dirtyHtml, {
+    allowedTags: ALLOWED_TAGS,
+    allowedAttributes: {
+      '*': ALLOWED_ATTR,
+    },
+    allowedIframeHostnames: ALLOWED_IFRAME_HOSTS,
+    allowedSchemes: ['http', 'https', 'mailto', 'tel'],
+    allowedSchemesByTag: {
+      img: ['http', 'https', 'data', 'blob'],
+    },
+    transformTags: {
+      a: (tagName, attribs) => {
+        const isExternal =
+          attribs.href &&
+          (attribs.href.startsWith('http://') || attribs.href.startsWith('https://'));
+        return {
+          tagName: 'a',
+          attribs: {
+            ...attribs,
+            ...(isExternal ? { rel: 'noopener noreferrer' } : {}),
+          },
+        };
+      },
+    },
   });
 }
