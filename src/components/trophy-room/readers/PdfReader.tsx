@@ -13,23 +13,9 @@ interface PdfReaderProps {
   settings: ReaderSettings;
 }
 
-let cachedWorkerBlobUrl: string | null = null;
-
-async function getResilientWorkerSrc(version: string): Promise<string> {
-  if (cachedWorkerBlobUrl) return cachedWorkerBlobUrl;
+function getResilientWorkerSrc(version: string): string {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  try {
-    const res = await fetch(`${origin}/pdfjs/pdf.worker.min.mjs`);
-    if (res.ok) {
-      const code = await res.text();
-      const blob = new Blob([code], { type: 'text/javascript' });
-      cachedWorkerBlobUrl = URL.createObjectURL(blob);
-      return cachedWorkerBlobUrl;
-    }
-  } catch (err) {
-    console.warn('[PdfReader] Local worker blob resolution failed, using CDN fallback:', err);
-  }
-  return `https://unpkg.com/pdfjs-dist@${version || '6.3.289'}/build/pdf.worker.min.mjs`;
+  return `${origin}/pdfjs/pdf.worker.min.mjs`;
 }
 
 export default function PdfReader({

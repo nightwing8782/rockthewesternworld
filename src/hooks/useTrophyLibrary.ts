@@ -181,7 +181,13 @@ export function useTrophyLibrary(user: any) {
         const hydrated: TrophyBook[] = await Promise.all(
           booksData.map(async (book: any) => {
             const isOffline = await isBookInOpfs(book.id);
-            const prog = progMap.get(book.id) || null;
+            let prog = progMap.get(book.id) || null;
+            if (!prog && typeof window !== 'undefined') {
+              try {
+                const saved = localStorage.getItem(`rww_trophy_prog_${book.id}`);
+                if (saved) prog = JSON.parse(saved);
+              } catch {}
+            }
             const override = localOverrides[book.id] || {};
             const merged = { ...book, ...override };
 
@@ -339,8 +345,11 @@ export function useTrophyLibrary(user: any) {
       prev.map((b) => (b.id === bookId ? { ...b, progress: progData } : b))
     );
 
-    // Save to Supabase
+    // Save to localStorage and Supabase
     try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`rww_trophy_prog_${bookId}`, JSON.stringify(progData));
+      }
       const supabase = createClient();
       await supabase.from('trophy_progress').upsert(progData, {
         onConflict: 'book_id,user_id',

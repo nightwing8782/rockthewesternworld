@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Loader2, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { TrophyBook, ReaderSettings } from '@/types/trophy';
-import { getBookFromOpfs } from '@/lib/trophy/opfs';
+import { getBookFromOpfs, saveBookToOpfs } from '@/lib/trophy/opfs';
 import CbzReader from './CbzReader';
 import EpubReader from './EpubReader';
 import PdfReader from './PdfReader';
@@ -33,6 +33,13 @@ export default function ReaderContainer({
   const [fileBlob, setFileBlob] = useState<Blob | null>(null);
   const [loadingFile, setLoadingFile] = useState(true);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<{
+    percent: number;
+    loadedMb: string;
+    totalMb: string;
+    speedMb?: string;
+  } | null>(null);
+  const [retryTrigger, setRetryTrigger] = useState(0);
   const [hudVisible, setHudVisible] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
@@ -40,6 +47,25 @@ export default function ReaderContainer({
   const [currentPage, setCurrentPage] = useState<number>(book.progress?.last_page || 1);
   const [totalPages, setTotalPages] = useState<number>(book.page_count || 1);
   const [currentCfi, setCurrentCfi] = useState<string | null>(book.progress?.current_cfi || null);
+
+  // Restore local progress fallback if available
+  useEffect(() => {
+    try {
+      const localProgStr = localStorage.getItem(`rww_trophy_prog_${book.id}`);
+      if (localProgStr) {
+        const localProg = JSON.parse(localProgStr);
+        if (localProg.last_page && !book.progress?.last_page) {
+          setCurrentPage(localProg.last_page);
+        }
+        if (localProg.current_cfi && !book.progress?.current_cfi) {
+          setCurrentCfi(localProg.current_cfi);
+        }
+        if (localProg.total_pages && (!book.page_count || book.page_count <= 1)) {
+          setTotalPages(localProg.total_pages);
+        }
+      }
+    } catch {}
+  }, [book.id, book.progress]);
 
   // Prevent browser viewport scrolling and bounce on iPad/Safari/Chrome while reader is mounted
   useEffect(() => {
@@ -98,10 +124,12 @@ export default function ReaderContainer({
   // Load Book Data: Check OPFS first, then Stream from Cloudflare R2
   useEffect(() => {
     let isCancelled = false;
+    const abortController = new AbortController();
 
     async function loadData() {
       setLoadingFile(true);
       setFileError(null);
+      setDownloadProgress(null);
 
       try {
         // 1. Try local OPFS cache
@@ -118,39 +146,96 @@ export default function ReaderContainer({
         try {
           const { getPresignedDownloadUrl } = await import('@/lib/trophy/s3');
           streamUrl = await getPresignedDownloadUrl(book.file_key, 86400);
-        } catch {
-          try {
-            const res = await fetch('/api/trophy/stream-url', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ fileKey: book.file_key }),
-            });
-            if (res.ok) {
-              const data = await res.json();
-              streamUrl = data.streamUrl;
-            }
-          } catch {}
+        } catch (s3Err) {
+          console.warn('[ReaderContainer] Client presigning fallback attempt:', s3Err);
         }
 
         if (!streamUrl) {
-          throw new Error('Failed to obtain streaming URL for this title.');
+          throw new Error('Failed to generate streaming URL for this title.');
         }
 
-        const fileResponse = await fetch(streamUrl);
+        // 30s connection / 120s stream timeout
+        const timeoutId = setTimeout(() => {
+          abortController.abort();
+        }, 120000);
+
+        const startTime = Date.now();
+        const fileResponse = await fetch(streamUrl, {
+          signal: abortController.signal,
+        });
+
         if (!fileResponse.ok) {
-          throw new Error(`Failed to download stream from storage (${fileResponse.status})`);
+          clearTimeout(timeoutId);
+          throw new Error(`Storage server returned error (${fileResponse.status}: ${fileResponse.statusText})`);
         }
 
-        const blob = await fileResponse.blob();
+        const contentLengthHeader = fileResponse.headers.get('content-length');
+        const totalBytes = contentLengthHeader ? parseInt(contentLengthHeader, 10) : 0;
+        const contentType = fileResponse.headers.get('content-type') || 'application/octet-stream';
+
+        let blob: Blob;
+
+        if (!fileResponse.body || totalBytes === 0) {
+          blob = await fileResponse.blob();
+        } else {
+          const reader = fileResponse.body.getReader();
+          const chunks: BlobPart[] = [];
+          let loadedBytes = 0;
+          let lastProgressUpdate = 0;
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (isCancelled) {
+              reader.cancel();
+              return;
+            }
+
+            chunks.push(value);
+            loadedBytes += value.length;
+
+            const now = Date.now();
+            if (now - lastProgressUpdate > 100 || loadedBytes === totalBytes) {
+              lastProgressUpdate = now;
+              const elapsedSec = (now - startTime) / 1000;
+              const speedBytesPerSec = elapsedSec > 0 ? loadedBytes / elapsedSec : 0;
+              const speedMb = (speedBytesPerSec / (1024 * 1024)).toFixed(1);
+              const percent = totalBytes > 0 ? Math.min(100, Math.round((loadedBytes / totalBytes) * 100)) : 0;
+              const loadedMb = (loadedBytes / (1024 * 1024)).toFixed(1);
+              const totalMb = (totalBytes / (1024 * 1024)).toFixed(1);
+
+              setDownloadProgress({
+                percent,
+                loadedMb,
+                totalMb,
+                speedMb: `${speedMb} MB/s`,
+              });
+            }
+          }
+
+          blob = new Blob(chunks, { type: contentType });
+        }
+
+        clearTimeout(timeoutId);
+
         if (!isCancelled) {
           setFileBlob(blob);
           setLoadingFile(false);
           resetHudTimer();
+
+          // Save to OPFS for instant subsequent opens
+          saveBookToOpfs(book.id, blob).catch((e) => {
+            console.warn('[ReaderContainer] Could not persist to OPFS cache:', e);
+          });
         }
       } catch (err: any) {
-        console.error('[ReaderContainer] Error loading book binary:', err);
         if (!isCancelled) {
-          setFileError(err.message || 'Unable to stream book content.');
+          console.error('[ReaderContainer] Error streaming book binary:', err);
+          const errorMsg =
+            err.name === 'AbortError'
+              ? 'Download connection timed out. Please check your internet connection and try again.'
+              : err.message || 'Unable to stream book content.';
+          setFileError(errorMsg);
           setLoadingFile(false);
         }
       }
@@ -160,9 +245,10 @@ export default function ReaderContainer({
 
     return () => {
       isCancelled = true;
+      abortController.abort();
       if (hudTimeoutRef.current) clearTimeout(hudTimeoutRef.current);
     };
-  }, [book.id, book.file_key, resetHudTimer]);
+  }, [book.id, book.file_key, retryTrigger, resetHudTimer]);
 
   // Progress Update Handler
   const handlePageChange = useCallback(
@@ -172,6 +258,18 @@ export default function ReaderContainer({
       setCurrentPage(safePage);
       setTotalPages(safeTotal);
       onUpdateProgress(book.id, safePage, safeTotal, currentCfi);
+      try {
+        localStorage.setItem(
+          `rww_trophy_prog_${book.id}`,
+          JSON.stringify({
+            book_id: book.id,
+            last_page: safePage,
+            total_pages: safeTotal,
+            current_cfi: currentCfi,
+            last_read_at: new Date().toISOString(),
+          })
+        );
+      } catch {}
       resetHudTimer();
     },
     [book.id, totalPages, currentCfi, onUpdateProgress, resetHudTimer]
@@ -183,6 +281,19 @@ export default function ReaderContainer({
       setTotalPages(total);
       setCurrentCfi(cfi);
       onUpdateProgress(book.id, page, total, cfi);
+      try {
+        localStorage.setItem(
+          `rww_trophy_prog_${book.id}`,
+          JSON.stringify({
+            book_id: book.id,
+            last_page: page,
+            total_pages: total,
+            current_cfi: cfi,
+            percent_read: percent,
+            last_read_at: new Date().toISOString(),
+          })
+        );
+      } catch {}
       resetHudTimer();
     },
     [book.id, onUpdateProgress, resetHudTimer]
@@ -193,25 +304,60 @@ export default function ReaderContainer({
       {/* Amber Night Filter Overlay */}
       <AmberOverlay percent={effectiveSettings.amberFilterPercent} />
 
-      {/* Loading State */}
+      {/* Loading State with Real-Time Progress Bar */}
       {loadingFile && (
-        <div className="flex flex-col items-center justify-center space-y-4 text-stone-300">
-          <Loader2 className="w-12 h-12 animate-spin text-amber-500" />
-          <p className="font-serif text-lg tracking-wide text-stone-200">Opening {book.title}...</p>
-          <p className="font-mono text-xs uppercase tracking-widest text-stone-500">Streaming from zero-egress vault</p>
+        <div className="flex flex-col items-center justify-center space-y-5 text-stone-300 max-w-sm w-full px-6 text-center">
+          <div className="relative">
+            <Loader2 className="w-14 h-14 animate-spin text-[#FFDE59]" />
+          </div>
+          <div className="space-y-1.5">
+            <p className="font-serif text-lg tracking-wide text-stone-100 font-bold">{book.title}</p>
+            <p className="font-mono text-xs uppercase tracking-widest text-stone-400">
+              {downloadProgress ? 'Streaming from Zero-Egress Vault' : 'Connecting to Vault...'}
+            </p>
+          </div>
+
+          {downloadProgress ? (
+            <div className="w-full space-y-2">
+              <div className="w-full bg-stone-800 rounded-full h-3 overflow-hidden border border-stone-700 shadow-inner">
+                <div
+                  className="bg-[#FFDE59] h-full transition-all duration-150 ease-out rounded-full"
+                  style={{ width: `${downloadProgress.percent}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-xs font-mono text-stone-400 px-0.5">
+                <span className="font-bold text-[#FFDE59]">{downloadProgress.percent}%</span>
+                <span>{downloadProgress.loadedMb} / {downloadProgress.totalMb} MB</span>
+                {downloadProgress.speedMb && (
+                  <span className="text-stone-500">{downloadProgress.speedMb}</span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-xs font-mono text-stone-500">
+              <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+              Initializing secure stream...
+            </div>
+          )}
         </div>
       )}
 
-      {/* Error State */}
+      {/* Error State with Retry Button */}
       {!loadingFile && fileError && (
-        <div className="max-w-md p-6 bg-stone-900 border border-stone-800 rounded-xl text-center space-y-4">
-          <AlertTriangle className="w-12 h-12 text-rose-500 mx-auto" />
+        <div className="max-w-md p-6 bg-stone-900 border-2 border-stone-800 rounded-2xl text-center space-y-4 shadow-2xl">
+          <AlertTriangle className="w-12 h-12 text-[#FF4757] mx-auto" />
           <h2 className="font-serif text-lg font-bold text-stone-100">Unable to Stream Document</h2>
-          <p className="font-sans text-sm text-stone-400">{fileError}</p>
-          <div className="pt-2">
+          <p className="font-sans text-xs text-stone-400 leading-relaxed">{fileError}</p>
+          <div className="pt-2 flex items-center justify-center gap-3">
+            <button
+              onClick={() => setRetryTrigger((prev) => prev + 1)}
+              className="px-4 py-2 bg-[#FFDE59] hover:bg-[#ffcf21] text-[#111827] text-xs font-bold font-mono tracking-wider uppercase rounded-lg transition-colors shadow-md"
+            >
+              Retry Download
+            </button>
             <button
               onClick={onClose}
-              className="px-5 py-2 bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-mono tracking-wider uppercase rounded-lg transition-colors inline-flex items-center gap-2"
+              className="px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-mono tracking-wider uppercase rounded-lg transition-colors inline-flex items-center gap-1.5"
             >
               <ArrowLeft className="w-4 h-4" />
               Return to Shelf
