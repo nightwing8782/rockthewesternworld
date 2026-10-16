@@ -39,21 +39,14 @@ export async function resolveCoverUrl(book: {
     }
 
     try {
-      const res = await fetch('/api/trophy/stream-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileKey: book.cover_key, expiresInSeconds: 604800 }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.streamUrl) {
-          coverUrlCache.set(book.cover_key, data.streamUrl);
-          return data.streamUrl;
-        }
+      const { getPresignedDownloadUrl } = await import('@/lib/trophy/s3');
+      const streamUrl = await getPresignedDownloadUrl(book.cover_key, 604800);
+      if (streamUrl) {
+        coverUrlCache.set(book.cover_key, streamUrl);
+        return streamUrl;
       }
     } catch (e) {
-      console.warn('[CoverResolver] Failed to presign cover_key via server:', book.cover_key, e);
+      console.warn('[CoverResolver] Failed to presign cover_key:', book.cover_key, e);
     }
   }
 

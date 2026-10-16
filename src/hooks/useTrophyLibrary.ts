@@ -44,31 +44,41 @@ function saveLocalBookOverride(bookId: string, updates: Partial<TrophyBook>) {
 }
 
 async function requestPresignedUploadUrl(fileKey: string, contentType: string): Promise<string> {
-  const res = await fetch('/api/trophy/presign-upload', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fileKey, contentType }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `Upload authorization failed (${res.status})`);
+  try {
+    const { getPresignedUploadUrl } = await import('@/lib/trophy/s3');
+    return await getPresignedUploadUrl(fileKey, contentType);
+  } catch {
+    const res = await fetch('/api/trophy/presign-upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileKey, contentType }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Upload authorization failed (${res.status})`);
+    }
+    const data = await res.json();
+    return data.uploadUrl;
   }
-  const data = await res.json();
-  return data.uploadUrl;
 }
 
 async function requestStreamUrl(fileKey: string, expiresInSeconds = 86400): Promise<string> {
-  const res = await fetch('/api/trophy/stream-url', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fileKey, expiresInSeconds }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `Streaming URL request failed (${res.status})`);
+  try {
+    const { getPresignedDownloadUrl } = await import('@/lib/trophy/s3');
+    return await getPresignedDownloadUrl(fileKey, expiresInSeconds);
+  } catch {
+    const res = await fetch('/api/trophy/stream-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileKey, expiresInSeconds }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Streaming URL request failed (${res.status})`);
+    }
+    const data = await res.json();
+    return data.streamUrl;
   }
-  const data = await res.json();
-  return data.streamUrl;
 }
 
 export function useTrophyLibrary(user: any) {

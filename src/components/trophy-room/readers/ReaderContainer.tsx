@@ -113,21 +113,24 @@ export default function ReaderContainer({
           return;
         }
 
-        // 2. Fetch presigned streaming URL via secure server endpoint
+        // 2. Fetch presigned streaming URL
         let streamUrl: string | null = null;
-        const res = await fetch('/api/trophy/stream-url', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileKey: book.file_key }),
-        });
-
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || `Storage stream error (${res.status})`);
+        try {
+          const { getPresignedDownloadUrl } = await import('@/lib/trophy/s3');
+          streamUrl = await getPresignedDownloadUrl(book.file_key, 86400);
+        } catch {
+          try {
+            const res = await fetch('/api/trophy/stream-url', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ fileKey: book.file_key }),
+            });
+            if (res.ok) {
+              const data = await res.json();
+              streamUrl = data.streamUrl;
+            }
+          } catch {}
         }
-
-        const data = await res.json();
-        streamUrl = data.streamUrl;
 
         if (!streamUrl) {
           throw new Error('Failed to obtain streaming URL for this title.');
