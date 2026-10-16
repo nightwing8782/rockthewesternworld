@@ -98,3 +98,36 @@ export async function isBookInOpfs(bookId: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Retrieve the set of all book IDs currently stored in OPFS
+ * Reads the directory once to avoid lock contention
+ */
+export async function getOpfsBookIds(): Promise<Set<string>> {
+  const ids = new Set<string>();
+  for (const key of memoryFallback.keys()) {
+    if (key.endsWith('.bin')) {
+      ids.add(key.replace('.bin', ''));
+    }
+  }
+
+  if (!isOpfsSupported()) return ids;
+
+  try {
+    const root = await navigator.storage.getDirectory();
+    // @ts-ignore
+    if (typeof (root as any).keys === 'function') {
+      // @ts-ignore
+      for await (const name of (root as any).keys()) {
+        if (typeof name === 'string' && name.endsWith('.bin')) {
+          ids.add(name.replace('.bin', ''));
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[OPFS] Error listing offline books:', err);
+  }
+
+  return ids;
+}
+

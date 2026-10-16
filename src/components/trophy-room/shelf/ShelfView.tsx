@@ -96,8 +96,8 @@ export default function ShelfView({ user }: ShelfViewProps) {
           ingestionProgress={ingestionProgress}
         />
 
-        {/* Loading State */}
-        {isLoading && (
+        {/* Loading State: only show full-page blocker if no cached books exist */}
+        {isLoading && books.length === 0 && (
           <div className="py-24 flex flex-col items-center justify-center space-y-4">
             <Loader2 className="w-12 h-12 animate-spin text-[#FF4757]" />
             <p className="font-black text-sm uppercase tracking-widest text-[#111827]">
@@ -135,7 +135,7 @@ export default function ShelfView({ user }: ShelfViewProps) {
         )}
 
         {/* Main Content Area */}
-        {!isLoading && totalItemCount > 0 && (
+        {(!isLoading || books.length > 0) && totalItemCount > 0 && (
           <main className="space-y-6">
             {/* Hub View Mode: Continue Reading Deck + Watchtower Sector Portals */}
             {filter === 'all' && !searchQuery ? (

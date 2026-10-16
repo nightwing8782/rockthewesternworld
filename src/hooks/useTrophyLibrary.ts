@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { trophyDb } from '@/lib/trophy/db';
-import { saveBookToOpfs, getBookFromOpfs, isBookInOpfs, deleteBookFromOpfs } from '@/lib/trophy/opfs';
+import { saveBookToOpfs, getBookFromOpfs, isBookInOpfs, deleteBookFromOpfs, getOpfsBookIds } from '@/lib/trophy/opfs';
 import { extractBookMetadata, extractBookInfo, detectFormat, unSquishWords } from '@/lib/trophy/metadataExtractor';
 import { isMangaBook, isComicBook } from '@/lib/trophy/sectorClassifier';
 import {
@@ -82,9 +82,25 @@ async function requestStreamUrl(fileKey: string, expiresInSeconds = 86400): Prom
 }
 
 export function useTrophyLibrary(user: any) {
-  const [books, setBooks] = useState<TrophyBook[]>([]);
+  const [books, setBooks] = useState<TrophyBook[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('rww_trophy_cached_books');
+        if (cached) return JSON.parse(cached);
+      } catch {}
+    }
+    return [];
+  });
   const [progressMap, setProgressMap] = useState<Map<string, TrophyProgress>>(new Map());
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('rww_trophy_cached_books');
+        if (cached && JSON.parse(cached).length > 0) return false;
+      } catch {}
+    }
+    return true;
+  });
   const [filter, setFilter] = useState<FilterCategory>('all');
   const [groupBy, setGroupBy] = useState<GroupByMode>('series');
   const [sortOption, setSortOption] = useState<SortOption>('recently-read');
@@ -123,93 +139,105 @@ export function useTrophyLibrary(user: any) {
     });
   }, []);
 
-  // 1. Fetch Books and Reading Progress from Supabase
+  const isFetchingRef = useRef(false);
+
+  // 1. Fetch Books and Reading Progress from Supabase (Concurrent & Resilient)
   const loadLibrary = useCallback(async () => {
     if (!user) {
       setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+
+    // Safety timeout: dismiss full-screen synchronizing screen within 6 seconds even if PostgREST stalls
+    const safetyTimer = setTimeout(() => {
+      setIsLoading(false);
+      isFetchingRef.current = false;
+    }, 6000);
+
     try {
       const supabase = createClient();
 
-      // Fetch All Books via Pagination
-      let booksData: any[] = [];
-      let bookFrom = 0;
-      const pageSize = 1000;
-      while (true) {
-        const { data, error } = await supabase
+      // Fetch Books and Progress concurrently in parallel
+      const [booksResult, progressResult] = await Promise.all([
+        supabase
           .from('trophy_books')
           .select('*')
-          .range(bookFrom, bookFrom + pageSize - 1)
           .order('series', { ascending: true })
-          .order('issue_number', { ascending: true });
-
-        if (error || !data || data.length === 0) break;
-        booksData = booksData.concat(data);
-        if (data.length < pageSize) break;
-        bookFrom += pageSize;
-      }
-
-      // Fetch All Progress via Pagination
-      let progressData: any[] = [];
-      let progFrom = 0;
-      while (true) {
-        const { data, error } = await supabase
+          .limit(2000),
+        supabase
           .from('trophy_progress')
           .select('*')
-          .range(progFrom, progFrom + pageSize - 1);
+          .limit(2000),
+      ]);
 
-        if (error || !data || data.length === 0) break;
-        progressData = progressData.concat(data);
-        if (data.length < pageSize) break;
-        progFrom += pageSize;
+      const booksData = booksResult.data || [];
+      const progressData = progressResult.data || [];
+
+      if (booksResult.error) {
+        console.warn('[Trophy Library] Error fetching books:', booksResult.error);
+      }
+      if (progressResult.error) {
+        console.warn('[Trophy Library] Error fetching progress:', progressResult.error);
       }
 
       const progMap = new Map<string, TrophyProgress>();
-      if (progressData) {
+      if (progressData.length > 0) {
         progressData.forEach((p: TrophyProgress) => {
           progMap.set(p.book_id, p);
         });
       }
       setProgressMap(progMap);
 
-      if (booksData && booksData.length > 0) {
+      if (booksData.length > 0) {
         const localOverrides = getLocalBookOverrides();
-        // Check offline status for each book & un-squish title/series & merge local overrides
-        const hydrated: TrophyBook[] = await Promise.all(
-          booksData.map(async (book: any) => {
-            const isOffline = await isBookInOpfs(book.id);
-            let prog = progMap.get(book.id) || null;
-            if (!prog && typeof window !== 'undefined') {
-              try {
-                const saved = localStorage.getItem(`rww_trophy_prog_${book.id}`);
-                if (saved) prog = JSON.parse(saved);
-              } catch {}
-            }
-            const override = localOverrides[book.id] || {};
-            const merged = { ...book, ...override };
+        const offlineBookIds = await getOpfsBookIds();
 
-            const cleanTitle = unSquishWords(merged.title || '');
-            const cleanSeries = merged.series && merged.series !== 'Standalone' ? unSquishWords(merged.series) : (merged.series || 'Standalone');
-            return {
-              ...merged,
-              title: cleanTitle,
-              series: cleanSeries,
-              isOffline,
-              progress: prog,
-            };
-          })
-        );
+        const hydrated: TrophyBook[] = booksData.map((book: any) => {
+          const isOffline = offlineBookIds.has(book.id);
+          let prog = progMap.get(book.id) || null;
+          if (!prog && typeof window !== 'undefined') {
+            try {
+              const saved = localStorage.getItem(`rww_trophy_prog_${book.id}`);
+              if (saved) prog = JSON.parse(saved);
+            } catch {}
+          }
+          const override = localOverrides[book.id] || {};
+          const merged = { ...book, ...override };
+
+          const cleanTitle = unSquishWords(merged.title || '');
+          const cleanSeries =
+            merged.series && merged.series !== 'Standalone'
+              ? unSquishWords(merged.series)
+              : merged.series || 'Standalone';
+
+          return {
+            ...merged,
+            title: cleanTitle,
+            series: cleanSeries,
+            isOffline,
+            progress: prog,
+          };
+        });
+
         setBooks(hydrated);
+
+        try {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('rww_trophy_cached_books', JSON.stringify(hydrated));
+          }
+        } catch {}
       }
     } catch (err) {
       console.error('[Trophy Library] Error loading library:', err);
     } finally {
+      clearTimeout(safetyTimer);
       setIsLoading(false);
+      isFetchingRef.current = false;
     }
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     loadLibrary();
