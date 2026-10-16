@@ -18,6 +18,8 @@ import MonthlyHorizonView from './components/MonthlyHorizonView';
 import WeeklyRhythmView from './components/WeeklyRhythmView';
 import DailyLedgerView from './components/DailyLedgerView';
 
+import { EssaySeedPayload } from '@/features/shared';
+
 function formatDateSafe(
   dateStr?: string | null,
   fallback = 'Recent Entry',
@@ -40,6 +42,7 @@ export interface LedgerWorkspaceProps {
   onCloseMobileSidebar?: () => void;
   allEntries?: Entry[];
   state?: ReturnType<typeof useLedgerState>;
+  onSeedToEssay?: (seed: EssaySeedPayload) => void;
 }
 
 export function LedgerWorkspace({
@@ -49,6 +52,7 @@ export function LedgerWorkspace({
   onCloseMobileSidebar,
   allEntries,
   state: externalState,
+  onSeedToEssay,
 }: LedgerWorkspaceProps) {
   const internalState = useLedgerState({ userId });
   const state = externalState || internalState;
@@ -308,6 +312,7 @@ export function LedgerWorkspace({
               onRecordDailyCheckIn={handleRecordDailyCheckIn}
               onInsertPrompt={handleInsertPrompt}
               feedbackMessage={ledgerFeedback}
+              onSeedToEssay={onSeedToEssay}
             />
           )}
         </div>

@@ -11,6 +11,7 @@ import {
   SubCategory,
   EDITORIAL_DESKS,
 } from '@/types/database';
+import { EssaySeedPayload } from '@/features/shared';
 
 function isValidUUID(str?: string | null): boolean {
   if (!str) return false;
@@ -377,6 +378,66 @@ export function useStudioState({ userId }: UseStudioStateProps) {
     [flushDraft, userId]
   );
 
+  // Create seed document from Ledger observation
+  const createSeedDraft = useCallback(
+    (seed: EssaySeedPayload) => {
+      flushDraft();
+
+      const targetD = new Date(seed.sourceDateKey + 'T12:00:00');
+      const formattedDate = !isNaN(targetD.getTime())
+        ? targetD.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : seed.sourceDateKey;
+
+      const fieldLabels: Record<string, string> = {
+        working_thought: 'Working Thought',
+        bright_spot: 'Bright Spot',
+        calibration: 'Calibration',
+      };
+      const fieldLabel = fieldLabels[seed.sourceField] || 'Daily Reflection';
+
+      const epigraphHtml = `<blockquote><p>“${seed.text.trim()}”</p><p><small>— Daily Ledger · ${formattedDate} (${fieldLabel})</small></p></blockquote><p></p>`;
+
+      const freshMetadata: EntryMetadata = {
+        desk: 'commonwealth',
+        category: 'Dan Reads the News',
+        isPrivate: false,
+        seedOrigin: {
+          source: 'daily_ledger',
+          dateKey: seed.sourceDateKey,
+          field: seed.sourceField,
+        },
+      };
+
+      const newDoc: Entry = {
+        id: generateUUID(),
+        user_id: isValidUUID(userId) ? (userId as string) : '',
+        entry_type: 'essay',
+        status: 'draft',
+        title: '',
+        slug: null,
+        body_json: null,
+        body_html: epigraphHtml,
+        metadata: freshMetadata,
+        published_at: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      setActiveEntry(newDoc);
+      setTitle('');
+      setContentHtml(epigraphHtml);
+      setEntryType('essay');
+      setEntryStatus('draft');
+      setSelectedDesk('commonwealth');
+      setSelectedCategory('Dan Reads the News');
+      setMetadata(freshMetadata);
+      setDraftEntries((prev) => [newDoc, ...prev]);
+      setEditorialTab('drafts');
+      setSaveStatus('unsaved');
+    },
+    [flushDraft, userId]
+  );
+
   // Load drafts and published entries from cache and Cloud
   useEffect(() => {
     if (!userId) return;
@@ -618,5 +679,6 @@ export function useStudioState({ userId }: UseStudioStateProps) {
     handleSetEditorialStatus,
     handleApplyTemplate,
     handlePublishComplete,
+    createSeedDraft,
   };
 }

@@ -118,6 +118,11 @@ export default function JournalStudioPage() {
             ...studioState.draftEntries,
             ...studioState.publishedEntries,
           ]}
+          onSeedToEssay={(seed) => {
+            ledgerState.flushDraft();
+            studioState.createSeedDraft(seed);
+            handleModeChange('editorial');
+          }}
         />
       ) : (
         <StudioWorkspace

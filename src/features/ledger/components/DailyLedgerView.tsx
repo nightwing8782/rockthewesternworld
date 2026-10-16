@@ -33,7 +33,9 @@ import {
   Lightbulb,
   Smile,
   Heart,
+  Feather,
 } from 'lucide-react';
+import { EssaySeedPayload } from '@/features/shared';
 
 interface DailyLedgerViewProps {
   metadata: DailyLedgerMetadata;
@@ -52,6 +54,7 @@ interface DailyLedgerViewProps {
   onRecordDailyCheckIn?: () => void;
   onInsertPrompt?: (prompt: string) => void;
   feedbackMessage?: string | null;
+  onSeedToEssay?: (seed: EssaySeedPayload) => void;
 }
 
 interface WikiEvent {
@@ -127,6 +130,7 @@ export default function DailyLedgerView({
   onRecordDailyCheckIn,
   onInsertPrompt,
   feedbackMessage,
+  onSeedToEssay,
 }: DailyLedgerViewProps) {
   // Sync core metadata fields
   const energy: EnergyQuadrant = metadata?.energy || null;
@@ -699,9 +703,28 @@ export default function DailyLedgerView({
         <div className="space-y-2.5">
           {/* Bright Spot */}
           <div className="p-2.5 bg-[#FAF8F5] border border-[#DDD5C7] rounded-md space-y-1">
-            <div className="flex items-center gap-1.5 text-xs font-display font-bold uppercase tracking-wider text-emerald-800">
-              <span className="text-emerald-600 text-sm font-black">+</span>
-              <span>Bright Spot (Rolls up to Weekly &amp; Monthly Wins)</span>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-xs font-display font-bold uppercase tracking-wider text-emerald-800">
+                <span className="text-emerald-600 text-sm font-black">+</span>
+                <span>Bright Spot (Rolls up to Weekly &amp; Monthly Wins)</span>
+              </div>
+              {onSeedToEssay && localTriad.bright_spot?.trim().length >= 3 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onSeedToEssay({
+                      text: localTriad.bright_spot,
+                      sourceDateKey: dateKey,
+                      sourceField: 'bright_spot',
+                    })
+                  }
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-display uppercase tracking-wider font-bold bg-emerald-100 hover:bg-emerald-700 text-emerald-800 hover:text-white transition-all cursor-pointer shrink-0 shadow-2xs"
+                  title="Promote this bright spot into a Broadsheet essay draft"
+                >
+                  <Feather className="w-2.5 h-2.5" />
+                  <span>Seed Essay →</span>
+                </button>
+              )}
             </div>
             <textarea
               rows={1}
@@ -719,9 +742,28 @@ export default function DailyLedgerView({
 
           {/* Calibration */}
           <div className="p-2.5 bg-[#FAF8F5] border border-[#DDD5C7] rounded-md space-y-1">
-            <div className="flex items-center gap-1.5 text-xs font-display font-bold uppercase tracking-wider text-[#B45309]">
-              <span className="text-[#B45309] text-sm font-black">△</span>
-              <span>Calibration</span>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-xs font-display font-bold uppercase tracking-wider text-[#B45309]">
+                <span className="text-[#B45309] text-sm font-black">△</span>
+                <span>Calibration</span>
+              </div>
+              {onSeedToEssay && localTriad.calibration?.trim().length >= 3 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onSeedToEssay({
+                      text: localTriad.calibration,
+                      sourceDateKey: dateKey,
+                      sourceField: 'calibration',
+                    })
+                  }
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-display uppercase tracking-wider font-bold bg-amber-100 hover:bg-[#B45309] text-amber-900 hover:text-white transition-all cursor-pointer shrink-0 shadow-2xs"
+                  title="Promote this calibration into a Broadsheet essay draft"
+                >
+                  <Feather className="w-2.5 h-2.5" />
+                  <span>Seed Essay →</span>
+                </button>
+              )}
             </div>
             <textarea
               rows={1}
@@ -739,9 +781,28 @@ export default function DailyLedgerView({
 
           {/* Working Thought */}
           <div className="p-2.5 bg-[#FAF8F5] border border-[#DDD5C7] rounded-md space-y-1">
-            <div className="flex items-center gap-1.5 text-xs font-display font-bold uppercase tracking-wider text-[#1E40AF]">
-              <span className="text-[#1E40AF] text-sm font-black">•</span>
-              <span>Working Thought</span>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-xs font-display font-bold uppercase tracking-wider text-[#1E40AF]">
+                <span className="text-[#1E40AF] text-sm font-black">•</span>
+                <span>Working Thought</span>
+              </div>
+              {onSeedToEssay && localTriad.working_thought?.trim().length >= 3 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onSeedToEssay({
+                      text: localTriad.working_thought,
+                      sourceDateKey: dateKey,
+                      sourceField: 'working_thought',
+                    })
+                  }
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-display uppercase tracking-wider font-bold bg-blue-100 hover:bg-[#1E40AF] text-[#1E40AF] hover:text-white transition-all cursor-pointer shrink-0 shadow-2xs"
+                  title="Promote this thought into a Broadsheet essay draft"
+                >
+                  <Feather className="w-2.5 h-2.5" />
+                  <span>Seed Essay →</span>
+                </button>
+              )}
             </div>
             <textarea
               rows={1}
