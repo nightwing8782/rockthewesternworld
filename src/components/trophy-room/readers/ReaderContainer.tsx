@@ -177,11 +177,87 @@ export default function ReaderContainer({
 
         if (!fileResponse.body || totalBytes === 0) {
           blob = await fileResponse.blob();
+        } else if (totalBytes >= 30 * 1024 * 1024) {
+          // Large file optimization: 4 parallel range streams to maximize bandwidth utilization
+          const numWorkers = 4;
+          const chunkSize = Math.ceil(totalBytes / numWorkers);
+          let loadedBytes = 0;
+          let lastProgressUpdate = Date.now();
+          let lastLoaded = 0;
+          let rollingSpeedMb = '0.0';
+
+          const workerPromises = Array.from({ length: numWorkers }, async (_, workerIdx) => {
+            const rangeStart = workerIdx * chunkSize;
+            const rangeEnd = Math.min((workerIdx + 1) * chunkSize - 1, totalBytes - 1);
+            if (rangeStart > rangeEnd) return new Uint8Array(0);
+
+            const rangeRes = await fetch(streamUrl, {
+              headers: { Range: `bytes=${rangeStart}-${rangeEnd}` },
+              signal: abortController.signal,
+            });
+
+            if (!rangeRes.ok || !rangeRes.body) {
+              const buf = await rangeRes.arrayBuffer();
+              loadedBytes += buf.byteLength;
+              return new Uint8Array(buf);
+            }
+
+            const rReader = rangeRes.body.getReader();
+            const rChunks: Uint8Array[] = [];
+
+            while (true) {
+              const { done, value } = await rReader.read();
+              if (done) break;
+              if (isCancelled) {
+                rReader.cancel();
+                return new Uint8Array(0);
+              }
+              rChunks.push(value);
+              loadedBytes += value.length;
+
+              const now = Date.now();
+              const timeDeltaSec = (now - lastProgressUpdate) / 1000;
+              if (timeDeltaSec > 0.25 || loadedBytes === totalBytes) {
+                if (timeDeltaSec > 0) {
+                  const bytesDelta = loadedBytes - lastLoaded;
+                  rollingSpeedMb = (bytesDelta / timeDeltaSec / (1024 * 1024)).toFixed(1);
+                  lastLoaded = loadedBytes;
+                  lastProgressUpdate = now;
+                }
+
+                const percent = Math.min(100, Math.round((loadedBytes / totalBytes) * 100));
+                const loadedMb = (loadedBytes / (1024 * 1024)).toFixed(1);
+                const totalMb = (totalBytes / (1024 * 1024)).toFixed(1);
+
+                setDownloadProgress({
+                  percent,
+                  loadedMb,
+                  totalMb,
+                  speedMb: `${rollingSpeedMb} MB/s`,
+                });
+              }
+            }
+
+            const workerTotal = rChunks.reduce((acc, c) => acc + c.length, 0);
+            const mergedWorker = new Uint8Array(workerTotal);
+            let offset = 0;
+            for (const chunk of rChunks) {
+              mergedWorker.set(chunk, offset);
+              offset += chunk.length;
+            }
+            return mergedWorker;
+          });
+
+          const workerBuffers = await Promise.all(workerPromises);
+          blob = new Blob(workerBuffers, { type: contentType });
         } else {
+          // Standard single-stream for smaller files (< 30 MB)
           const reader = fileResponse.body.getReader();
           const chunks: BlobPart[] = [];
           let loadedBytes = 0;
-          let lastProgressUpdate = 0;
+          let lastProgressUpdate = Date.now();
+          let lastLoaded = 0;
+          let rollingSpeedMb = '0.0';
 
           while (true) {
             const { done, value } = await reader.read();
@@ -195,11 +271,15 @@ export default function ReaderContainer({
             loadedBytes += value.length;
 
             const now = Date.now();
-            if (now - lastProgressUpdate > 100 || loadedBytes === totalBytes) {
-              lastProgressUpdate = now;
-              const elapsedSec = (now - startTime) / 1000;
-              const speedBytesPerSec = elapsedSec > 0 ? loadedBytes / elapsedSec : 0;
-              const speedMb = (speedBytesPerSec / (1024 * 1024)).toFixed(1);
+            const timeDeltaSec = (now - lastProgressUpdate) / 1000;
+            if (timeDeltaSec > 0.25 || loadedBytes === totalBytes) {
+              if (timeDeltaSec > 0) {
+                const bytesDelta = loadedBytes - lastLoaded;
+                rollingSpeedMb = (bytesDelta / timeDeltaSec / (1024 * 1024)).toFixed(1);
+                lastLoaded = loadedBytes;
+                lastProgressUpdate = now;
+              }
+
               const percent = totalBytes > 0 ? Math.min(100, Math.round((loadedBytes / totalBytes) * 100)) : 0;
               const loadedMb = (loadedBytes / (1024 * 1024)).toFixed(1);
               const totalMb = (totalBytes / (1024 * 1024)).toFixed(1);
@@ -208,7 +288,7 @@ export default function ReaderContainer({
                 percent,
                 loadedMb,
                 totalMb,
-                speedMb: `${speedMb} MB/s`,
+                speedMb: `${rollingSpeedMb} MB/s`,
               });
             }
           }
