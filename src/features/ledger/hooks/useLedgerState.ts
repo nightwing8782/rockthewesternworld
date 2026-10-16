@@ -928,6 +928,7 @@ export function useLedgerState({ userId }: UseLedgerStateProps) {
     handleDeleteEntry,
     selectEntry,
     flushCurrentDraft,
+    flushDraft: flushCurrentDraft,
     selectedMonthParsed,
     activeMonthlyEntry,
     activeWeeklyEntry,
