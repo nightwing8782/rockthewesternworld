@@ -5,6 +5,7 @@ import JSZip from 'jszip';
 import { AlertTriangle, Loader2, BookOpen, Columns, ZoomIn, ZoomOut } from 'lucide-react';
 import { useSwipeGestures } from '@/hooks/useSwipeGestures';
 import { ReaderSettings } from '@/types/trophy';
+import { extractEpubImageEntries } from '@/lib/trophy/epubImageExtractor';
 
 interface CbzReaderProps {
   fileBlob: Blob;
@@ -93,39 +94,54 @@ export default function CbzReader({
     };
   }, [cleanupAllUrls]);
 
-  // 1. Fast Indexing of CBZ Archive (No image decompression on initial load = <50ms instant start)
+  // 1. Fast Indexing of Publication Archive (CBZ or Manga EPUB)
   useEffect(() => {
     let isCancelled = false;
 
-    async function indexCbz() {
+    async function indexArchive() {
       setInitialLoading(true);
       setError(null);
       cleanupAllUrls();
 
       try {
         if (!fileBlob || fileBlob.size === 0) {
-          throw new Error('CBZ archive is empty (0 bytes).');
+          throw new Error('Publication archive is empty (0 bytes).');
         }
 
         const zip = new JSZip();
         const loadedZip = await zip.loadAsync(fileBlob);
-        const imageEntries: { name: string; file: JSZip.JSZipObject }[] = [];
+        
+        // Detect if this archive is an EPUB publication (has container.xml or .opf)
+        const isEpub = loadedZip.file('META-INF/container.xml') !== null || loadedZip.file(/\.opf$/i).length > 0;
+        let imageEntries: { name: string; file: JSZip.JSZipObject }[] = [];
 
-        loadedZip.forEach((relativePath, file) => {
-          const filename = relativePath.split('/').pop() || '';
-          if (
-            !file.dir &&
-            IMAGE_EXTENSIONS.test(relativePath) &&
-            !relativePath.includes('__MACOSX') &&
-            !filename.startsWith('.') &&
-            !filename.toLowerCase().includes('thumbs.db')
-          ) {
-            imageEntries.push({ name: relativePath, file });
-          }
-        });
+        if (isEpub) {
+          imageEntries = await extractEpubImageEntries(loadedZip);
+        }
+
+        // Standard CBZ or EPUB fallback if spine extraction did not locate images
+        if (imageEntries.length === 0) {
+          loadedZip.forEach((relativePath, file) => {
+            const filename = relativePath.split('/').pop() || '';
+            if (
+              !file.dir &&
+              IMAGE_EXTENSIONS.test(relativePath) &&
+              !relativePath.includes('__MACOSX') &&
+              !filename.startsWith('.') &&
+              !filename.toLowerCase().includes('thumbs.db')
+            ) {
+              imageEntries.push({ name: relativePath, file });
+            }
+          });
+
+          // Natural alphanumeric sort (page1.jpg, page2.jpg, ... page10.jpg)
+          imageEntries.sort((a, b) =>
+            a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
+          );
+        }
 
         if (imageEntries.length === 0) {
-          throw new Error('No images found inside the CBZ archive.');
+          throw new Error('No images found inside the publication archive.');
         }
 
         // Natural alphanumeric sort (page1.jpg, page2.jpg, ... page10.jpg)
@@ -143,13 +159,13 @@ export default function CbzReader({
         }
       } catch (err: any) {
         if (!isCancelled) {
-          setError(err.message || 'Failed to read CBZ file.');
+          setError(err.message || 'Failed to read publication file.');
           setInitialLoading(false);
         }
       }
     }
 
-    indexCbz();
+    indexArchive();
 
     return () => {
       isCancelled = true;

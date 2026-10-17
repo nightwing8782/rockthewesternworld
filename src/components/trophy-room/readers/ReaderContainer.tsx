@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Loader2, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { TrophyBook, ReaderSettings } from '@/types/trophy';
 import { getBookFromOpfs, saveBookToOpfs } from '@/lib/trophy/opfs';
+import { isImagePublication } from '@/lib/trophy/detectPublicationType';
 import CbzReader from './CbzReader';
 import EpubReader from './EpubReader';
 import PdfReader from './PdfReader';
@@ -33,6 +34,11 @@ export default function ReaderContainer({
   const [fileBlob, setFileBlob] = useState<Blob | null>(null);
   const [loadingFile, setLoadingFile] = useState(true);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [isImagePub, setIsImagePub] = useState<boolean>(() => {
+    if (book.format === 'cbz' || (book.format as any) === 'cbr') return true;
+    if (book.medium === 'manga' || book.medium === 'comic') return true;
+    return false;
+  });
   const [downloadProgress, setDownloadProgress] = useState<{
     percent: number;
     loadedMb: string;
@@ -135,9 +141,13 @@ export default function ReaderContainer({
         // 1. Try local OPFS cache
         const localBlob = await getBookFromOpfs(book.id);
         if (localBlob && !isCancelled) {
-          setFileBlob(localBlob);
-          setLoadingFile(false);
-          resetHudTimer();
+          const isImg = await isImagePublication(localBlob, book);
+          if (!isCancelled) {
+            setIsImagePub(isImg);
+            setFileBlob(localBlob);
+            setLoadingFile(false);
+            resetHudTimer();
+          }
           return;
         }
 
@@ -299,16 +309,20 @@ export default function ReaderContainer({
         clearTimeout(timeoutId);
 
         if (!isCancelled) {
-          setFileBlob(blob);
-          setLoadingFile(false);
-          resetHudTimer();
+          const isImg = await isImagePublication(blob, book);
+          if (!isCancelled) {
+            setIsImagePub(isImg);
+            setFileBlob(blob);
+            setLoadingFile(false);
+            resetHudTimer();
 
-          // Save to OPFS for instant subsequent opens (deferred to prioritize initial reader render)
-          setTimeout(() => {
-            saveBookToOpfs(book.id, blob).catch((e) => {
-              console.warn('[ReaderContainer] Could not persist to OPFS cache:', e);
-            });
-          }, 600);
+            // Save to OPFS for instant subsequent opens (deferred to prioritize initial reader render)
+            setTimeout(() => {
+              saveBookToOpfs(book.id, blob).catch((e) => {
+                console.warn('[ReaderContainer] Could not persist to OPFS cache:', e);
+              });
+            }, 600);
+          }
         }
       } catch (err: any) {
         if (!isCancelled) {
@@ -502,7 +516,7 @@ export default function ReaderContainer({
       {/* Active Reader */}
       {!loadingFile && !fileError && fileBlob && (
         <div className="w-full h-full relative overflow-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {book.format === 'cbz' && (
+          {(book.format === 'cbz' || isImagePub) && (
             <CbzReader
               fileBlob={fileBlob}
               currentPage={currentPage}
@@ -512,7 +526,7 @@ export default function ReaderContainer({
             />
           )}
 
-          {book.format === 'epub' && (
+          {!isImagePub && book.format === 'epub' && (
             <EpubReader
               fileBlob={fileBlob}
               initialCfi={book.progress?.current_cfi}

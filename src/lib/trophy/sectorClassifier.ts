@@ -2,6 +2,9 @@ import { TrophyBook, FilterCategory } from '@/types/trophy';
 
 const KNOWN_MANGA_PATTERNS = [
   /silent\s*voice/i,
+  /condition.*called.*love/i,
+  /aconditioncalledlove/i,
+  /hananoi.*kun/i,
   /canon\s*of\s*youth/i,
   /canonofyouth/i,
   /touch\s*of\s*the\s*love\s*bug/i,
