@@ -65,6 +65,35 @@ export default function ReaderHUD({
   };
 
   const isRTL = settings.readingDirection === 'rtl';
+  const isDual = settings.pageSpreadMode === 'dual' || (!settings.pageSpreadMode && settings.dualPageLandscape);
+
+  const handleNext = () => {
+    if (currentPage >= totalPages) return;
+    if (isDual) {
+      if (currentPage === 1) {
+        onPageChange(Math.min(totalPages, 2));
+      } else {
+        const pairStart = currentPage % 2 === 0 ? currentPage : currentPage - 1;
+        onPageChange(Math.min(totalPages, pairStart + 2));
+      }
+    } else {
+      onPageChange(Math.min(totalPages, currentPage + 1));
+    }
+  };
+
+  const handlePrev = () => {
+    if (currentPage <= 1) return;
+    if (isDual) {
+      if (currentPage <= 2) {
+        onPageChange(1);
+      } else {
+        const pairStart = currentPage % 2 === 0 ? currentPage : currentPage - 1;
+        onPageChange(Math.max(1, pairStart - 2));
+      }
+    } else {
+      onPageChange(Math.max(1, currentPage - 1));
+    }
+  };
 
   return (
     <>
@@ -249,9 +278,9 @@ export default function ReaderHUD({
           {/* Scrubber Slider & Jump */}
           <div className="flex items-center space-x-3">
             <button
-              onClick={() => onPageChange(isRTL ? currentPage + 1 : currentPage - 1)}
+              onClick={isRTL ? handleNext : handlePrev}
               disabled={isRTL ? currentPage >= totalPages : currentPage <= 1}
-              className="p-1.5 rounded-md text-stone-300 hover:bg-stone-800 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+              className="p-1.5 rounded-md text-stone-300 hover:bg-stone-800 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
               title={isRTL ? 'Next Page' : 'Previous Page'}
             >
               <ChevronLeft className="w-5 h-5" />
@@ -270,16 +299,16 @@ export default function ReaderHUD({
             </div>
 
             <button
-              onClick={() => onPageChange(isRTL ? currentPage - 1 : currentPage + 1)}
+              onClick={isRTL ? handlePrev : handleNext}
               disabled={isRTL ? currentPage <= 1 : currentPage >= totalPages}
-              className="p-1.5 rounded-md text-stone-300 hover:bg-stone-800 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+              className="p-1.5 rounded-md text-stone-300 hover:bg-stone-800 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
               title={isRTL ? 'Previous Page' : 'Next Page'}
             >
               <ChevronRight className="w-5 h-5" />
             </button>
 
             <div className="font-mono text-xs text-stone-300 shrink-0 min-w-[75px] text-right font-semibold tracking-wider">
-              {(settings.pageSpreadMode === 'dual' || (!settings.pageSpreadMode && settings.dualPageLandscape)) && currentPage < totalPages && book.format !== 'epub'
+              {isDual && currentPage < totalPages
                 ? `${currentPage}–${currentPage + 1} / ${totalPages || 1}`
                 : `${currentPage} / ${totalPages || 1}`}
             </div>
