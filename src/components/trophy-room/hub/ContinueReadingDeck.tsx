@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Play, Sparkles, BookOpen, Clock, ChevronRight, Star } from 'lucide-react';
+import { Play, Sparkles, BookOpen, Clock, ChevronRight, Star, X } from 'lucide-react';
 import { TrophyBook } from '@/types/trophy';
 import TypographicCover from '../common/TypographicCover';
 import { resolveCoverUrl } from '@/lib/trophy/coverResolver';
@@ -62,11 +62,13 @@ function DeckCover({ book }: DeckCoverProps) {
 interface ContinueReadingDeckProps {
   books: TrophyBook[];
   onOpenBook: (book: TrophyBook) => void;
+  onClearProgress?: (book: TrophyBook) => void;
 }
 
 export default function ContinueReadingDeck({
   books,
   onOpenBook,
+  onClearProgress,
 }: ContinueReadingDeckProps) {
   // Find top 3 in-progress or recently read items
   const inProgressBooks = books
@@ -77,11 +79,8 @@ export default function ContinueReadingDeck({
       return bTime - aTime;
     });
 
-  // Fallback: If fewer than 3 in-progress, pick favorites or prominent items
-  const fallbackBooks = books.slice(0, 3);
-  const displayBooks = inProgressBooks.length > 0 ? inProgressBooks.slice(0, 3) : fallbackBooks;
-
-  if (displayBooks.length === 0) return null;
+  if (inProgressBooks.length === 0) return null;
+  const displayBooks = inProgressBooks.slice(0, 3);
 
   return (
     <section className="mb-10 animate-in fade-in duration-300">
@@ -121,6 +120,24 @@ export default function ContinueReadingDeck({
               onClick={() => onOpenBook(book)}
               className="group relative bg-white border-4 border-[#111827] rounded-3xl p-4 shadow-[6px_6px_0_#111827] hover:shadow-[8px_8px_0_#111827] hover:-translate-y-1 transition-all duration-150 cursor-pointer flex flex-col justify-between overflow-hidden text-left"
             >
+              {/* Dismiss / Mark Inactive button */}
+              {onClearProgress && book.progress && book.progress.percent_read > 0 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const confirmed = window.confirm(`Mark "${book.title}" as inactive / unread?`);
+                    if (confirmed) {
+                      onClearProgress(book);
+                    }
+                  }}
+                  className="absolute top-3 right-3 p-1.5 rounded-xl bg-white hover:bg-[#FF4757] hover:text-white border-2 border-[#111827] text-slate-500 shadow-[2px_2px_0_#111827] active:scale-95 transition-all z-20 cursor-pointer"
+                  title="Mark as inactive / reset progress"
+                >
+                  <X className="w-3.5 h-3.5 stroke-[2.5]" />
+                </button>
+              )}
+
               {/* Halftone Top Bar */}
               <div className="flex gap-4 items-start">
                 {/* Book Thumbnail */}

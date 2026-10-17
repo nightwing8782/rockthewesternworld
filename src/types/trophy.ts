@@ -8,6 +8,7 @@ export type BookMedium =
   | 'cookbook'
   | 'reference'
   | 'magazine'
+  | 'periodical'
   | 'wellness'
   | 'writing'
   | 'artbook'
@@ -15,11 +16,15 @@ export type BookMedium =
 
 export type FilterCategory =
   | 'all'
+  | 'reading-now'
   | 'comic'
   | 'manga'
   | 'cookbook'
   | 'reference'
   | 'wellness'
+  | 'novel'
+  | 'writing'
+  | 'periodical'
   | 'magazine'
   | 'cbz'
   | 'epub'

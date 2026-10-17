@@ -11,7 +11,13 @@ import TrophyHeader from '../layout/TrophyHeader';
 import SeriesStackCard from './SeriesStackCard';
 import BookCard from './BookCard';
 import BookListView from './BookListView';
-import SeriesPickerModal from './SeriesPickerModal';
+import SeriesLandingModal from '../discovery/SeriesLandingModal';
+import CreatorLandingModal from '../discovery/CreatorLandingModal';
+import PublisherLandingModal from '../discovery/PublisherLandingModal';
+import ReadingContinuityBanner from '../discovery/ReadingContinuityBanner';
+import DiscoveryInsightsGrid from '../discovery/DiscoveryInsightsGrid';
+import DiscoveryRail from '../discovery/DiscoveryRail';
+import { calculateAffinityRecommendations } from '@/lib/trophy/discoveryEngine';
 import MetadataModal from './MetadataModal';
 import AddBookModal from '../modals/AddBookModal';
 import SettingsModal from '../modals/SettingsModal';
@@ -30,6 +36,7 @@ export default function ShelfView({ user }: ShelfViewProps) {
     books,
     filteredBooks,
     seriesGroups,
+    progressMap,
     isLoading,
     filter,
     setFilter,
@@ -44,6 +51,7 @@ export default function ShelfView({ user }: ShelfViewProps) {
     updateSettings,
     ingestFiles,
     updateProgress,
+    clearProgress,
     updateBookMetadata,
     toggleOffline,
     deleteBook,
@@ -53,6 +61,8 @@ export default function ShelfView({ user }: ShelfViewProps) {
   const [viewMode, setViewMode] = useState<ShelfViewMode>('stacked');
   const [activeBook, setActiveBook] = useState<TrophyBook | null>(null);
   const [selectedSeries, setSelectedSeries] = useState<SeriesGroup | null>(null);
+  const [selectedCreator, setSelectedCreator] = useState<string | null>(null);
+  const [selectedPublisher, setSelectedPublisher] = useState<string | null>(null);
   const [editingBook, setEditingBook] = useState<TrophyBook | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -67,6 +77,44 @@ export default function ShelfView({ user }: ShelfViewProps) {
       }
     });
     return Array.from(set).sort();
+  }, [books]);
+
+  const handleOpenSeriesByName = React.useCallback(
+    (seriesName: string) => {
+      const match = seriesGroups.find(
+        (g) => g.seriesName.toLowerCase() === seriesName.toLowerCase()
+      );
+      if (match) {
+        setSelectedSeries(match);
+      } else {
+        const sBooks = books.filter(
+          (b) => b.series && b.series.toLowerCase() === seriesName.toLowerCase()
+        );
+        if (sBooks.length > 0) {
+          sBooks.sort((a, b) => (Number(a.issue_number) || 1) - (Number(b.issue_number) || 1));
+          setSelectedSeries({
+            seriesName,
+            books: sBooks,
+            totalIssues: sBooks.length,
+            completedIssues: sBooks.filter((b) => b.progress?.completed).length,
+            coverUrl: sBooks[0].cover_url || null,
+            formats: Array.from(new Set(sBooks.map((b) => b.format))),
+            lastReadAt: 0,
+            medium: sBooks[0].medium,
+            publisher: sBooks[0].publisher,
+          });
+        }
+      }
+    },
+    [books, seriesGroups]
+  );
+
+  const recommendedBooks = React.useMemo(() => {
+    const activeWithProg = books.find((b) => b.progress && b.progress.percent_read > 0);
+    const source = activeWithProg || books[0];
+    if (!source) return [];
+    const recs = calculateAffinityRecommendations(source, books, 8);
+    return recs.map((r) => r.book);
   }, [books]);
 
   const offlineCount = books.filter((b) => b.isOffline).length;
@@ -137,21 +185,54 @@ export default function ShelfView({ user }: ShelfViewProps) {
         {/* Main Content Area */}
         {(!isLoading || books.length > 0) && totalItemCount > 0 && (
           <main className="space-y-6">
-            {/* Hub View Mode: Continue Reading Deck + Watchtower Sector Portals */}
+            {/* Hub View Mode: Continuity + Continue Reading + Insights + Watchtower Portals + Discovery Rail */}
             {filter === 'all' && !searchQuery ? (
               <div className="space-y-8">
-                {/* 1. Top Hero: Continue Reading Deck */}
+                {/* 1. Reading Continuity & Momentum Banner */}
+                <ReadingContinuityBanner
+                  books={books}
+                  progressMap={progressMap}
+                  onOpenBook={(b) => setActiveBook(b)}
+                  onOpenSeries={handleOpenSeriesByName}
+                />
+
+                {/* 2. Continue Reading Deck */}
                 <ContinueReadingDeck
                   books={books}
                   onOpenBook={(b) => setActiveBook(b)}
+                  onClearProgress={(b) => clearProgress(b.id)}
                 />
 
-                {/* 2. Watchtower Sector Portals Grid */}
+                {/* 3. Discovery Insights Grid (Largest Runs, Hidden Gems, Progress, Active Titles) */}
+                <DiscoveryInsightsGrid
+                  books={books}
+                  progressMap={progressMap}
+                  onOpenBook={(b) => setActiveBook(b)}
+                  onOpenSeries={handleOpenSeriesByName}
+                  onOpenCreator={(c) => setSelectedCreator(c)}
+                />
+
+                {/* 4. Watchtower Sector Portals Grid */}
                 <WatchtowerSectorsGrid
                   books={books}
                   onSelectSector={(sec) => setFilter(sec)}
-                  onSelectAll={() => setViewMode('grid')}
                 />
+
+                {/* 5. Recommended From The Vault Discovery Rail */}
+                {recommendedBooks.length > 0 && (
+                  <DiscoveryRail
+                    title="Recommended From The Vault"
+                    subtitle="Thematic affinity derived from your active reading stacks"
+                    books={recommendedBooks}
+                    badge="DISCOVERY"
+                    onOpenBook={(b) => setActiveBook(b)}
+                    onOpenCreator={(c) => setSelectedCreator(c)}
+                    onOpenPublisher={(p) => setSelectedPublisher(p)}
+                    onEditMetadata={(b) => setEditingBook(b)}
+                    onToggleOffline={toggleOffline}
+                    onDelete={deleteBook}
+                  />
+                )}
               </div>
             ) : (
               /* Focused Sector / Filtered Shelf View */
@@ -263,6 +344,9 @@ export default function ShelfView({ user }: ShelfViewProps) {
                         series={group}
                         onOpenSeries={(s) => setSelectedSeries(s)}
                         onOpenBook={(b) => setActiveBook(b)}
+                        onOpenCreator={(c) => setSelectedCreator(c)}
+                        onOpenPublisher={(p) => setSelectedPublisher(p)}
+                        onClearProgress={(b) => clearProgress(b.id)}
                         onEditMetadata={(b) => setEditingBook(b)}
                         onToggleOffline={toggleOffline}
                         onDelete={deleteBook}
@@ -279,6 +363,9 @@ export default function ShelfView({ user }: ShelfViewProps) {
                         key={book.id}
                         book={book}
                         onOpen={(b) => setActiveBook(b)}
+                        onOpenCreator={(c) => setSelectedCreator(c)}
+                        onOpenPublisher={(p) => setSelectedPublisher(p)}
+                        onClearProgress={(b) => clearProgress(b.id)}
                         onEditMetadata={(b) => setEditingBook(b)}
                         onToggleOffline={toggleOffline}
                         onDelete={deleteBook}
@@ -303,11 +390,44 @@ export default function ShelfView({ user }: ShelfViewProps) {
         )}
       </div>
 
-      {/* Series Run Picker Modal */}
-      <SeriesPickerModal
+      {/* Series Landing Page Modal */}
+      <SeriesLandingModal
         series={selectedSeries}
+        allBooks={books}
+        progressMap={progressMap}
         onClose={() => setSelectedSeries(null)}
         onOpenBook={(b) => setActiveBook(b)}
+        onOpenCreator={(c) => setSelectedCreator(c)}
+        onOpenPublisher={(p) => setSelectedPublisher(p)}
+        onClearProgress={(b) => clearProgress(b.id)}
+        onEditMetadata={(b) => setEditingBook(b)}
+        onToggleOffline={toggleOffline}
+        onDelete={deleteBook}
+      />
+
+      {/* Creator Spotlight Modal */}
+      <CreatorLandingModal
+        creatorName={selectedCreator}
+        allBooks={books}
+        progressMap={progressMap}
+        onClose={() => setSelectedCreator(null)}
+        onOpenBook={(b) => setActiveBook(b)}
+        onOpenSeries={handleOpenSeriesByName}
+        onOpenPublisher={(p) => setSelectedPublisher(p)}
+        onEditMetadata={(b) => setEditingBook(b)}
+        onToggleOffline={toggleOffline}
+        onDelete={deleteBook}
+      />
+
+      {/* Publisher Spotlight Modal */}
+      <PublisherLandingModal
+        publisherName={selectedPublisher}
+        allBooks={books}
+        progressMap={progressMap}
+        onClose={() => setSelectedPublisher(null)}
+        onOpenBook={(b) => setActiveBook(b)}
+        onOpenSeries={handleOpenSeriesByName}
+        onOpenCreator={(c) => setSelectedCreator(c)}
         onEditMetadata={(b) => setEditingBook(b)}
         onToggleOffline={toggleOffline}
         onDelete={deleteBook}

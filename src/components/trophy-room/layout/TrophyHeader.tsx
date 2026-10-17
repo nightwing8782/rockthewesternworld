@@ -222,12 +222,15 @@ export default function TrophyHeader({
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
           {[
             { id: 'all', label: `ALL (${totalBooks})`, icon: '📚' },
+            { id: 'reading-now', label: `READING NOW (${inProgressCount})`, icon: '📖' },
             { id: 'comic', label: 'COMICS', icon: '🦸' },
             { id: 'manga', label: 'MANGA', icon: '⛩️' },
-            { id: 'cookbook', label: 'COOKBOOKS', icon: '🍳' },
             { id: 'reference', label: 'REFERENCE (101s)', icon: '🛠️' },
+            { id: 'cookbook', label: 'CULINARY', icon: '🍳' },
             { id: 'wellness', label: 'WELLNESS', icon: '🧘' },
-            { id: 'magazine', label: 'MAGAZINES', icon: '📰' },
+            { id: 'novel', label: 'NOVELS & PROSE', icon: '📜' },
+            { id: 'writing', label: 'WRITING & CRAFT', icon: '✍️' },
+            { id: 'periodical', label: 'PERIODICALS', icon: '📰' },
             { id: 'favorites', label: 'FAVORITES', icon: '⭐' },
           ].map((tab) => {
             const isActive = filter === tab.id;

@@ -11,6 +11,9 @@ interface SeriesStackCardProps {
   series: SeriesGroup;
   onOpenSeries: (series: SeriesGroup) => void;
   onOpenBook: (book: TrophyBook) => void;
+  onOpenCreator?: (creator: string) => void;
+  onOpenPublisher?: (publisher: string) => void;
+  onClearProgress?: (book: TrophyBook) => void;
   onEditMetadata?: (book: TrophyBook) => void;
   onToggleOffline?: (book: TrophyBook) => void;
   onDelete?: (book: TrophyBook) => void;
@@ -20,6 +23,9 @@ export default function SeriesStackCard({
   series,
   onOpenSeries,
   onOpenBook,
+  onOpenCreator,
+  onOpenPublisher,
+  onClearProgress,
   onEditMetadata,
   onToggleOffline,
   onDelete,
@@ -54,6 +60,9 @@ export default function SeriesStackCard({
       <BookCard
         book={series.books[0]}
         onOpen={onOpenBook}
+        onOpenCreator={onOpenCreator}
+        onOpenPublisher={onOpenPublisher}
+        onClearProgress={onClearProgress}
         onEditMetadata={onEditMetadata}
         onToggleOffline={onToggleOffline}
         onDelete={onDelete}

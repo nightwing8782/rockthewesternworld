@@ -236,8 +236,7 @@ export function useTrophyLibrary(user: any) {
           let prog = progMap.get(book.id) || null;
           if (!prog && typeof window !== 'undefined') {
             try {
-              const saved = localStorage.getItem(`rww_trophy_prog_${book.id}`);
-              if (saved) prog = JSON.parse(saved);
+              localStorage.removeItem(`rww_trophy_prog_${book.id}`);
             } catch {}
           }
           const override = localOverrides[book.id] || {};
@@ -423,6 +422,33 @@ export function useTrophyLibrary(user: any) {
     }
   }, [user]);
 
+  const clearProgress = useCallback(async (bookId: string) => {
+    // Optimistic UI update
+    setProgressMap((prev) => {
+      const next = new Map(prev);
+      next.delete(bookId);
+      return next;
+    });
+    setBooks((prev) =>
+      prev.map((b) => (b.id === bookId ? { ...b, progress: null } : b))
+    );
+
+    // Save to localStorage and Supabase
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(`rww_trophy_prog_${bookId}`);
+      }
+      const supabase = createClient();
+      if (user?.id) {
+        await supabase.from('trophy_progress').delete().eq('book_id', bookId).eq('user_id', user.id);
+      } else {
+        await supabase.from('trophy_progress').delete().eq('book_id', bookId);
+      }
+    } catch (err) {
+      console.warn('Error clearing reading progress:', err);
+    }
+  }, [user]);
+
   // 4. Toggle Offline Download in OPFS
   const toggleOffline = async (book: TrophyBook): Promise<boolean> => {
     const isCurrentlyOffline = await isBookInOpfs(book.id);
@@ -584,7 +610,13 @@ export function useTrophyLibrary(user: any) {
   const filteredBooks = useMemo(() => {
     return books
       .filter((book) => {
-        // Medium & Category Filter
+        // Smart Shelf: Reading Now
+        if (filter === 'reading-now') {
+          const isReadingNow = book.progress && !book.progress.completed && book.progress.percent_read > 0;
+          if (!isReadingNow) return false;
+        }
+
+        // Canonical Primary Medium Shelves
         if (filter === 'comic') {
           if (!isComicBook(book)) return false;
         }
@@ -603,15 +635,19 @@ export function useTrophyLibrary(user: any) {
           const isWellness = book.medium === 'wellness' || (book.tags || []).includes('wellness');
           if (!isWellness) return false;
         }
-        if (filter === 'magazine') {
-          const isMag = book.medium === 'magazine' || (book.tags || []).includes('magazine');
-          if (!isMag) return false;
+        if (filter === 'novel') {
+          const isNovel = book.medium === 'novel' || (book.tags || []).includes('novel');
+          if (!isNovel) return false;
+        }
+        if (filter === 'writing') {
+          const isWriting = book.medium === 'writing' || (book.tags || []).includes('writing');
+          if (!isWriting) return false;
+        }
+        if (filter === 'periodical' || filter === 'magazine') {
+          const isPeriodical = book.medium === 'periodical' || book.medium === 'magazine' || (book.tags || []).includes('magazine');
+          if (!isPeriodical) return false;
         }
         if (filter === 'favorites' && !book.is_favorite) return false;
-        if (filter === 'epub') {
-          const isEpubOrNovel = book.format === 'epub' || book.medium === 'novel' || (book.tags || []).includes('novel');
-          if (!isEpubOrNovel) return false;
-        }
 
         // Raw Format Filter
         if (filter === 'cbz' && book.format !== 'cbz') return false;
@@ -766,6 +802,7 @@ export function useTrophyLibrary(user: any) {
     books,
     filteredBooks,
     seriesGroups,
+    progressMap,
     isLoading,
     filter,
     setFilter,
@@ -780,6 +817,7 @@ export function useTrophyLibrary(user: any) {
     updateSettings,
     ingestFiles,
     updateProgress,
+    clearProgress,
     updateBookMetadata,
     toggleOffline,
     deleteBook,

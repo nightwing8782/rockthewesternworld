@@ -109,8 +109,9 @@ export function isComicBook(book: Partial<TrophyBook>): boolean {
   if (book.medium === 'cookbook' || (book.tags || []).includes('cookbook')) return false;
   if (book.medium === 'reference' || (book.tags || []).includes('reference')) return false;
   if (book.medium === 'wellness' || (book.tags || []).includes('wellness')) return false;
-  if (book.medium === 'magazine' || (book.tags || []).includes('magazine')) return false;
-  if (book.medium === 'novel' || book.format === 'epub') return false;
+  if (book.medium === 'writing' || (book.tags || []).includes('writing')) return false;
+  if (book.medium === 'periodical' || book.medium === 'magazine' || (book.tags || []).includes('magazine')) return false;
+  if (book.medium === 'novel') return false;
 
   return (
     book.medium === 'comic' ||
@@ -124,11 +125,12 @@ export function isComicBook(book: Partial<TrophyBook>): boolean {
  * Categorize a book into its primary Watchtower Sector
  */
 export function getBookSector(book: Partial<TrophyBook>): FilterCategory {
-  if (isMangaBook(book)) return 'manga';
+  if (book.medium === 'manga' || isMangaBook(book)) return 'manga';
   if (book.medium === 'cookbook' || (book.tags || []).includes('cookbook')) return 'cookbook';
   if (book.medium === 'reference' || (book.tags || []).includes('reference')) return 'reference';
   if (book.medium === 'wellness' || (book.tags || []).includes('wellness')) return 'wellness';
-  if (book.medium === 'magazine' || (book.tags || []).includes('magazine')) return 'magazine';
-  if (book.format === 'epub' || book.medium === 'novel' || (book.tags || []).includes('novel')) return 'epub';
+  if (book.medium === 'writing' || (book.tags || []).includes('writing')) return 'writing';
+  if (book.medium === 'periodical' || book.medium === 'magazine' || (book.tags || []).includes('periodical') || (book.tags || []).includes('magazine')) return 'periodical';
+  if (book.medium === 'novel' || (book.tags || []).includes('novel')) return 'novel';
   return 'comic';
 }

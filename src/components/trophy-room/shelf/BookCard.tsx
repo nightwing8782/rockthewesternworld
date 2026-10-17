@@ -10,6 +10,7 @@ import {
   Cloud,
   CheckCircle,
   MoreVertical,
+  RotateCcw,
 } from 'lucide-react';
 import { TrophyBook } from '@/types/trophy';
 import TypographicCover from '../common/TypographicCover';
@@ -18,6 +19,9 @@ import { resolveCoverUrl } from '@/lib/trophy/coverResolver';
 interface BookCardProps {
   book: TrophyBook;
   onOpen: (book: TrophyBook) => void;
+  onOpenCreator?: (creator: string) => void;
+  onOpenPublisher?: (publisher: string) => void;
+  onClearProgress?: (book: TrophyBook) => void;
   onEditMetadata?: (book: TrophyBook) => void;
   onToggleOffline?: (book: TrophyBook) => void;
   onDelete?: (book: TrophyBook) => void;
@@ -26,6 +30,9 @@ interface BookCardProps {
 export default function BookCard({
   book,
   onOpen,
+  onOpenCreator,
+  onOpenPublisher,
+  onClearProgress,
   onEditMetadata,
   onToggleOffline,
   onDelete,
@@ -177,8 +184,26 @@ export default function BookCard({
           </h3>
 
           <div className="mt-1 flex items-center justify-between text-xs font-bold text-slate-500">
-            <span>
-              {book.author ? `by ${book.author}` : `${book.page_count || 1} Pages`}
+            <span className="line-clamp-1">
+              {book.author ? (
+                onOpenCreator ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenCreator(book.author!);
+                    }}
+                    className="hover:text-[#FF4757] hover:underline cursor-pointer text-left"
+                    title={`View works by ${book.author}`}
+                  >
+                    by {book.author}
+                  </button>
+                ) : (
+                  `by ${book.author}`
+                )
+              ) : (
+                `${book.page_count || 1} Pages`
+              )}
             </span>
             {percentRead > 0 && (
               <span className={`font-mono font-bold ${isCompleted ? 'text-[#2ED573]' : 'text-slate-700'}`}>
@@ -218,6 +243,22 @@ export default function BookCard({
                 title="Edit Comic / Book Metadata"
               >
                 <Edit3 className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {onClearProgress && percentRead > 0 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const confirmed = window.confirm(`Reset reading progress for "${book.title}" to 0% (Mark unread / inactive)?`);
+                  if (confirmed) {
+                    onClearProgress(book);
+                  }
+                }}
+                className="p-1.5 rounded-lg border-2 border-[#111827] bg-white text-slate-700 hover:bg-[#FFDE59] hover:text-[#111827] shadow-[1px_1px_0_#111827] transition-all"
+                title="Reset reading progress to 0% (Mark as inactive / unread)"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
