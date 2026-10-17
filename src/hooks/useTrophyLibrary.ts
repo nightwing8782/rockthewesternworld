@@ -160,28 +160,64 @@ export function useTrophyLibrary(user: any) {
     try {
       const supabase = createClient();
 
+      // Fetch all books in 1000-row pages to bypass PostgREST max_rows limit
+      async function fetchAllBooks() {
+        const pageSize = 1000;
+        const all: any[] = [];
+        let from = 0;
+        while (true) {
+          const { data, error } = await supabase
+            .from('trophy_books')
+            .select('*')
+            .order('series', { ascending: true })
+            .range(from, from + pageSize - 1);
+
+          if (error) {
+            console.warn('[Trophy Library] Error fetching books batch:', error);
+            break;
+          }
+          if (data && data.length > 0) {
+            all.push(...data);
+            if (data.length < pageSize) break;
+            from += pageSize;
+          } else {
+            break;
+          }
+        }
+        return all;
+      }
+
+      // Fetch all progress records in 1000-row pages
+      async function fetchAllProgress() {
+        const pageSize = 1000;
+        const all: any[] = [];
+        let from = 0;
+        while (true) {
+          const { data, error } = await supabase
+            .from('trophy_progress')
+            .select('*')
+            .range(from, from + pageSize - 1);
+
+          if (error) {
+            console.warn('[Trophy Library] Error fetching progress batch:', error);
+            break;
+          }
+          if (data && data.length > 0) {
+            all.push(...data);
+            if (data.length < pageSize) break;
+            from += pageSize;
+          } else {
+            break;
+          }
+        }
+        return all;
+      }
+
       // Fetch Books and Progress concurrently in parallel
-      const [booksResult, progressResult] = await Promise.all([
-        supabase
-          .from('trophy_books')
-          .select('*')
-          .order('series', { ascending: true })
-          .limit(2000),
-        supabase
-          .from('trophy_progress')
-          .select('*')
-          .limit(2000),
+      const [booksData, progressData] = await Promise.all([
+        fetchAllBooks(),
+        fetchAllProgress(),
       ]);
-
-      const booksData = booksResult.data || [];
-      const progressData = progressResult.data || [];
-
-      if (booksResult.error) {
-        console.warn('[Trophy Library] Error fetching books:', booksResult.error);
-      }
-      if (progressResult.error) {
-        console.warn('[Trophy Library] Error fetching progress:', progressResult.error);
-      }
 
       const progMap = new Map<string, TrophyProgress>();
       if (progressData.length > 0) {
