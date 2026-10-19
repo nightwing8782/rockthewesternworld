@@ -121,13 +121,17 @@ export function useStudioState({ userId }: UseStudioStateProps) {
 
     const finalTitle = cur.title.trim() || 'Untitled Entry';
     const validId = isValidUUID(cur.activeEntry.id) ? cur.activeEntry.id : generateUUID();
-    const cleanUserId = isValidUUID(cur.userId) ? (cur.userId as string) : (isValidUUID(cur.activeEntry.user_id) ? cur.activeEntry.user_id : '');
-    const entrySlug = cur.activeEntry.slug && !cur.activeEntry.slug.startsWith('entry-')
+    const isDefaultSlug =
+      !cur.activeEntry.slug ||
+      cur.activeEntry.slug.startsWith('entry-') ||
+      cur.activeEntry.slug.startsWith('untitled-');
+    const entrySlug = !isDefaultSlug
       ? cur.activeEntry.slug
-      : (finalTitle
-          ? `${finalTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')}-${validId.slice(0, 8)}`
+      : (finalTitle && finalTitle !== 'Untitled Entry'
+          ? `${finalTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')}`
           : `entry-${validId.slice(0, 8)}`);
 
+    const cleanUserId = isValidUUID(cur.userId) ? (cur.userId as string) : (isValidUUID(cur.activeEntry.user_id) ? cur.activeEntry.user_id : '');
     const updated: Entry = {
       ...cur.activeEntry,
       id: validId,
@@ -191,13 +195,17 @@ export function useStudioState({ userId }: UseStudioStateProps) {
 
       const finalTitle = title.trim() || activeEntry.title || 'Untitled Entry';
       const validId = isValidUUID(activeEntry.id) ? activeEntry.id : generateUUID();
-      const cleanUserId = isValidUUID(userId) ? (userId as string) : (isValidUUID(activeEntry.user_id) ? activeEntry.user_id : '');
-      const entrySlug = activeEntry.slug && !activeEntry.slug.startsWith('entry-')
+      const isDefaultSlug =
+        !activeEntry.slug ||
+        activeEntry.slug.startsWith('entry-') ||
+        activeEntry.slug.startsWith('untitled-');
+      const entrySlug = !isDefaultSlug
         ? activeEntry.slug
-        : (finalTitle
-            ? `${finalTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')}-${validId.slice(0, 8)}`
+        : (finalTitle && finalTitle !== 'Untitled Entry'
+            ? `${finalTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')}`
             : `entry-${validId.slice(0, 8)}`);
 
+      const cleanUserId = isValidUUID(userId) ? (userId as string) : (isValidUUID(activeEntry.user_id) ? activeEntry.user_id : '');
       const updated: Entry = {
         ...activeEntry,
         id: validId,

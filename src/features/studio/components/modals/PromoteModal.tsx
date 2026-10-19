@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Entry, EntryMetadata, EntryType, EDITORIAL_DESKS, DeskType, SubCategory } from '@/types/database';
 import { Globe, X, Check, Loader2, Mail } from 'lucide-react';
@@ -32,9 +32,30 @@ export default function PromoteModal({
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)+/g, '');
 
-  const [slug, setSlug] = useState(
-    activeEntry?.slug || generateSlug(title) || 'untitled-entry'
-  );
+  const isDefaultSlug = (s?: string | null) =>
+    !s || s.startsWith('entry-') || s.startsWith('untitled-');
+
+  const [slug, setSlug] = useState(() => {
+    if (activeEntry?.slug && !isDefaultSlug(activeEntry.slug)) {
+      return activeEntry.slug;
+    }
+    return title.trim() && title.trim() !== 'Untitled Entry'
+      ? generateSlug(title.trim())
+      : 'untitled-entry';
+  });
+
+  useEffect(() => {
+    if (isOpen) {
+      if (!activeEntry?.slug || isDefaultSlug(activeEntry.slug)) {
+        if (title.trim() && title.trim() !== 'Untitled Entry') {
+          setSlug(generateSlug(title.trim()));
+        }
+      } else {
+        setSlug(activeEntry.slug);
+      }
+    }
+  }, [isOpen, activeEntry?.slug, title]);
+
   const [desk, setDesk] = useState<DeskType>(metadata.desk || 'commonwealth');
   const [category, setCategory] = useState<SubCategory>(
     (metadata.category as SubCategory) || 'Dan Reads the News'
@@ -53,6 +74,8 @@ export default function PromoteModal({
     setIsPublishing(true);
     setErrorMsg(null);
 
+    const cleanSlug = slug.trim() || (title.trim() ? generateSlug(title.trim()) : `entry-${Date.now().toString(36)}`);
+
     const fullMetadata: EntryMetadata = {
       ...metadata,
       desk,
@@ -66,13 +89,14 @@ export default function PromoteModal({
       const supabase = createClient();
       const payload: any = {
         id: activeEntry?.id,
+        user_id: activeEntry?.user_id || undefined,
         title: title.trim() || 'Untitled Entry',
-        slug: slug.trim(),
+        slug: cleanSlug,
         entry_type: entryType === 'personal_ledger' ? 'thought' : entryType,
         status: 'published',
         body_html: contentHtml,
         metadata: fullMetadata,
-        published_at: new Date().toISOString(),
+        published_at: activeEntry?.published_at || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
 
@@ -81,7 +105,10 @@ export default function PromoteModal({
       });
 
       if (error) {
-        console.warn('Supabase publish warning (saving locally):', error.message);
+        console.error('Supabase publish error:', error);
+        setErrorMsg(`Publishing failed: ${error.message}`);
+        setIsPublishing(false);
+        return;
       }
 
       // If IndexNow enabled, trigger instant search engine notification
