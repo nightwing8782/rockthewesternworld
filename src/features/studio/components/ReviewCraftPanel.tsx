@@ -102,6 +102,11 @@ export default function ReviewCraftPanel({
         comic_vine_id: item.comic_vine_id || item.id || undefined,
         cover_image_url: cover,
         coverUrl: cover,
+        cover_type: cover ? 'artwork' : metadata.cover_type,
+        credit_title: item.series || item.title || '',
+        credit_creator: item.writer || item.artist || '',
+        credit_source: 'Comic Registry',
+        credit_license: 'Promotional / Fair Use',
       };
       onMetadataChange(updated, true);
       if (onAutoTitle && (item.series || item.title)) {
@@ -119,6 +124,11 @@ export default function ReviewCraftPanel({
         pageCount: item.page_count || item.pageCount || undefined,
         cover_image_url: cover,
         coverUrl: cover,
+        cover_type: cover ? 'artwork' : metadata.cover_type,
+        credit_title: item.title || '',
+        credit_creator: item.author || item.creator || '',
+        credit_source: 'Open Library Registry',
+        credit_license: 'Promotional / Fair Use',
         openLibraryKey: item.openLibraryKey || undefined,
       };
       onMetadataChange(updated, true);
@@ -134,6 +144,11 @@ export default function ReviewCraftPanel({
         year: item.year || '',
         cover_image_url: cover,
         coverUrl: cover,
+        cover_type: cover ? 'artwork' : metadata.cover_type,
+        credit_title: item.title || '',
+        credit_creator: item.artist || '',
+        credit_source: 'Music Registry',
+        credit_license: 'Promotional / Fair Use',
       };
       onMetadataChange(updated, true);
       if (onAutoTitle && item.title) {
@@ -148,6 +163,11 @@ export default function ReviewCraftPanel({
         artworkUrl: cover,
         cover_image_url: cover,
         coverUrl: cover,
+        cover_type: cover ? 'artwork' : metadata.cover_type,
+        credit_title: item.podcastName || item.title || '',
+        credit_creator: item.creator || '',
+        credit_source: 'Podcast Registry',
+        credit_license: 'Promotional / Fair Use',
       };
       onMetadataChange(updated, true);
       if (onAutoTitle && item.podcastName) {
@@ -405,6 +425,7 @@ export default function ReviewCraftPanel({
               <img
                 src={activeCover}
                 alt=""
+                referrerPolicy="no-referrer"
                 className="w-12 h-16 object-cover border border-[#DDD5C7] shrink-0 rounded shadow-xs"
               />
             ) : (

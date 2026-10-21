@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "import:wp": "npx tsx scripts/import-wp.ts"
+    "import:wp": "npx tsx scripts/import-wp.ts",
+    "media:backfill": "node scripts/backfill_editorial_media.js",
+    "media:backfill:exec": "node scripts/backfill_editorial_media.js --execute"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1136.0",

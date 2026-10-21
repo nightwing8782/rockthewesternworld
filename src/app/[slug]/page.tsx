@@ -37,6 +37,7 @@ import { createStaticClient } from '@/lib/supabase/server';
 import { Entry } from '@/types/database';
 import Masthead from '@/components/navigation/Masthead';
 import ArticleHeroImage from '@/components/article/ArticleHeroImage';
+import TypographicOrnamentView from '@/features/studio/components/media/TypographicOrnaments';
 import CommentsSection from '@/components/article/CommentsSection';
 import Link from 'next/link';
 import { ArrowLeft, Star, Book, BookOpen, Music, Radio, ChevronRight } from 'lucide-react';
@@ -127,7 +128,8 @@ export default async function BlogPostPage({ params }: PageProps) {
     url: siteUrl,
   };
 
-  const heroUrl = metadata.cover_image_url || metadata.coverUrl;
+  const rawHeroUrl = metadata.cover_image_url || metadata.coverUrl;
+  const heroUrl = rawHeroUrl && !rawHeroUrl.includes('rockthewesternworld.com/wp-content/uploads/') ? rawHeroUrl : undefined;
   const imageObject = heroUrl ? {
     '@type': 'ImageObject',
     url: heroUrl,
@@ -283,19 +285,26 @@ export default async function BlogPostPage({ params }: PageProps) {
           </span>
         </div>
 
-        {/* Feature Hero Image for Essays / Thoughts */}
-        {heroUrl && !isReview && (
-          <ArticleHeroImage
-            src={heroUrl}
-            alt={metadata.credit_title || metadata.imageCaption || title || ''}
-            caption={metadata.imageCaption}
-            creditTitle={metadata.credit_title}
-            creditCreator={metadata.credit_creator}
-            creditSource={metadata.credit_source}
-            creditSourceUrl={metadata.credit_source_url}
-            creditLicense={metadata.credit_license}
-            imageCredit={metadata.imageCredit}
+        {/* Feature Hero Image or Typographic Ornament for Essays / Thoughts */}
+        {metadata.cover_type === 'typographic' ? (
+          <TypographicOrnamentView
+            ornament={metadata.typographic_ornament}
+            className="my-8"
           />
+        ) : (
+          heroUrl && !isReview && (
+            <ArticleHeroImage
+              src={heroUrl}
+              alt={metadata.credit_title || metadata.imageCaption || title || ''}
+              caption={metadata.imageCaption}
+              creditTitle={metadata.credit_title}
+              creditCreator={metadata.credit_creator}
+              creditSource={metadata.credit_source}
+              creditSourceUrl={metadata.credit_source_url}
+              creditLicense={metadata.credit_license}
+              imageCredit={metadata.imageCredit}
+            />
+          )
         )}
 
         {/* Structured Cultural Review Header Box */}
@@ -303,20 +312,25 @@ export default async function BlogPostPage({ params }: PageProps) {
           <div className="my-8 p-5 bg-[#F2ECE1] border border-[#DDD5C7] rounded shadow-xs space-y-4 font-serif">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-4 min-w-0">
-                {metadata.coverUrl || metadata.artworkUrl ? (
-                  <img
-                    src={metadata.coverUrl || metadata.artworkUrl}
-                    alt=""
-                    className="w-16 h-22 object-cover border border-[#DDD5C7] shrink-0 shadow-2xs"
-                  />
-                ) : (
-                  <div className="w-16 h-16 bg-[#FAF8F5] border border-[#DDD5C7] flex items-center justify-center text-[#44403C] shrink-0">
-                    {entry_type === 'book_review' && <Book className="w-6 h-6" />}
-                    {entry_type === 'comic_review' && <BookOpen className="w-6 h-6" />}
-                    {entry_type === 'music_review' && <Music className="w-6 h-6" />}
-                    {entry_type === 'podcast_review' && <Radio className="w-6 h-6" />}
-                  </div>
-                )}
+                {(() => {
+                  const rawReviewCover = metadata.coverUrl || metadata.artworkUrl;
+                  const validReviewCover = rawReviewCover && !rawReviewCover.includes('rockthewesternworld.com/wp-content/uploads/') ? rawReviewCover : undefined;
+                  return validReviewCover ? (
+                    <img
+                      src={validReviewCover}
+                      alt=""
+                      referrerPolicy="no-referrer"
+                      className="w-16 h-22 object-cover border border-[#DDD5C7] shrink-0 shadow-2xs"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 bg-[#FAF8F5] border border-[#DDD5C7] flex items-center justify-center text-[#44403C] shrink-0">
+                      {entry_type === 'book_review' && <Book className="w-6 h-6" />}
+                      {entry_type === 'comic_review' && <BookOpen className="w-6 h-6" />}
+                      {entry_type === 'music_review' && <Music className="w-6 h-6" />}
+                      {entry_type === 'podcast_review' && <Radio className="w-6 h-6" />}
+                    </div>
+                  );
+                })()}
                 <div className="min-w-0">
                   <div className="text-xs font-display font-bold uppercase tracking-wider text-[#B45309] mb-0.5">
                     {metadata.category || entry_type.replace('_', ' ')}

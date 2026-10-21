@@ -6,14 +6,83 @@ import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Entry } from '@/types/database';
 import DispatchSignup from '@/components/home/DispatchSignup';
+import TypographicOrnamentView from '@/features/studio/components/media/TypographicOrnaments';
 import { Star, Filter, ArrowLeft } from 'lucide-react';
 
 interface BroadsheetFeedProps {
   initialEntries: Entry[];
 }
 
+function getCoverUrl(post?: Entry | null): string | undefined {
+  if (!post) return undefined;
+  const url = post.metadata?.cover_image_url || post.metadata?.coverUrl || (post as any).cover_image_url || undefined;
+  if (!url) return undefined;
+  // Discard extinct legacy WordPress host URLs that return HTML instead of images
+  if (url.includes('rockthewesternworld.com/wp-content/uploads/')) {
+    return undefined;
+  }
+  return url;
+}
+
+function BroadsheetThumbnail({
+  src,
+  alt = '',
+}: {
+  src?: string;
+  alt?: string;
+}) {
+  const [hasError, setHasError] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  if (!src || hasError) return null;
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      referrerPolicy="no-referrer"
+      onError={() => setHasError(true)}
+      onLoad={() => setIsLoaded(true)}
+      className={`w-16 h-20 object-cover border border-[#DDD5C7] shrink-0 bg-[#F2ECE1] ${
+        !isLoaded ? 'hidden' : ''
+      }`}
+    />
+  );
+}
+
+function BroadsheetCardImage({
+  src,
+  alt = '',
+}: {
+  src?: string;
+  alt?: string;
+}) {
+  const [hasError, setHasError] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  if (!src || hasError) return null;
+
+  return (
+    <div
+      className={`mb-3.5 overflow-hidden border border-[#DDD5C7] bg-[#F2ECE1] ${
+        !isLoaded ? 'hidden' : ''
+      }`}
+    >
+      <img
+        src={src}
+        alt={alt}
+        referrerPolicy="no-referrer"
+        onError={() => setHasError(true)}
+        onLoad={() => setIsLoaded(true)}
+        className="w-full h-44 object-cover group-hover:scale-102 transition-transform duration-300"
+      />
+    </div>
+  );
+}
+
 export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) {
   const [entries, setEntries] = useState<Entry[]>(initialEntries);
+  const [leadImageError, setLeadImageError] = useState(false);
   const searchParams = useSearchParams();
   const selectedCategory = searchParams.get('category');
   const selectedDesk = searchParams.get('desk');
@@ -150,17 +219,11 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
                   className="bg-[#FAF8F5] border border-[#DDD5C7] p-5 flex flex-col justify-between group hover:border-[#1E40AF] transition-colors shadow-xs"
                 >
                   <div>
-                    {post.metadata?.coverUrl && (
-                      <div className="mb-3.5 overflow-hidden border border-[#DDD5C7] bg-[#F2ECE1]">
-                        <img
-                          src={post.metadata.coverUrl}
-                          alt=""
-                          onError={(e) => {
-                            (e.currentTarget as HTMLElement).style.display = 'none';
-                          }}
-                          className="w-full h-44 object-cover group-hover:scale-102 transition-transform duration-300"
-                        />
-                      </div>
+                    {getCoverUrl(post) && (
+                      <BroadsheetCardImage
+                        src={getCoverUrl(post)}
+                        alt={post.title || ''}
+                      />
                     )}
 
                     <div className="flex items-center justify-between gap-1 mb-1.5">
@@ -233,7 +296,11 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
           {leadFeature ? (
             <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 pb-10 border-b border-[#DDD5C7]">
               {/* Lead 2/3 Column */}
-              <article className="lg:col-span-8 flex flex-col justify-between pr-0 lg:pr-6 lg:border-r border-[#DDD5C7]">
+              <article
+                className={`lg:col-span-8 flex flex-col ${
+                  getCoverUrl(leadFeature) && !leadImageError ? 'justify-between' : 'justify-start'
+                } pr-0 lg:pr-6 lg:border-r border-[#DDD5C7]`}
+              >
                 <div>
                   {/* Section Kicker */}
                   <div className="flex items-center gap-2 mb-3">
@@ -253,6 +320,30 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
                     </h2>
                   </Link>
 
+                  {/* Lead Hero Image or Typographic Ornament */}
+                  {leadFeature.metadata?.cover_type === 'typographic' ? (
+                    <div className="mb-5">
+                      <TypographicOrnamentView
+                        ornament={leadFeature.metadata?.typographic_ornament}
+                      />
+                    </div>
+                  ) : (
+                    getCoverUrl(leadFeature) && !leadImageError && (
+                      <Link
+                        href={`/${leadFeature.slug}`}
+                        className="block mb-5 overflow-hidden border border-[#DDD5C7] bg-[#F2ECE1] group"
+                      >
+                        <img
+                          src={getCoverUrl(leadFeature)}
+                          alt={leadFeature.metadata?.credit_title || leadFeature.title || ''}
+                          referrerPolicy="no-referrer"
+                          onError={() => setLeadImageError(true)}
+                          className="w-full max-h-[360px] object-cover group-hover:scale-[1.01] transition-transform duration-300"
+                        />
+                      </Link>
+                    )
+                  )}
+
                   {/* Excerpt with Sturdy Broadsheet Dropcap */}
                   <div className="text-[#242120] font-reading text-lg sm:text-[19px] leading-[1.75] mb-6">
                     <p className="deco-dropcap mb-4">
@@ -264,7 +355,7 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
                 </div>
 
                 {/* Read Entry CTA Bar */}
-                <div className="pt-4 border-t border-[#DDD5C7]/60 flex items-center justify-between text-xs font-serif text-[#66615C]">
+                <div className="mt-4 pt-4 border-t border-[#DDD5C7]/60 flex items-center justify-between text-xs font-serif text-[#66615C]">
                   <span>
                     {leadFeature.published_at
                       ? new Date(leadFeature.published_at).toLocaleDateString('en-US', {
@@ -367,14 +458,10 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
                         key={post.id || post.slug || `cw-${idx}`}
                         className="group flex gap-3.5 border-b border-[#DDD5C7]/60 pb-4 last:border-b-0 min-h-[96px]"
                       >
-                        {post.metadata?.coverUrl && (
-                          <img
-                            src={post.metadata.coverUrl}
+                        {getCoverUrl(post) && (
+                          <BroadsheetThumbnail
+                            src={getCoverUrl(post)}
                             alt=""
-                            onError={(e) => {
-                              (e.currentTarget as HTMLElement).style.display = 'none';
-                            }}
-                            className="w-16 h-20 object-cover border border-[#DDD5C7] shrink-0 bg-[#F2ECE1]"
                           />
                         )}
                         <div className="flex-1 flex flex-col justify-between">
@@ -425,14 +512,10 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
                         key={post.id || post.slug || `gal-${idx}`}
                         className="group flex gap-3.5 border-b border-[#DDD5C7]/60 pb-4 last:border-b-0 min-h-[96px]"
                       >
-                        {post.metadata?.coverUrl && (
-                          <img
-                            src={post.metadata.coverUrl}
+                        {getCoverUrl(post) && (
+                          <BroadsheetThumbnail
+                            src={getCoverUrl(post)}
                             alt=""
-                            onError={(e) => {
-                              (e.currentTarget as HTMLElement).style.display = 'none';
-                            }}
-                            className="w-16 h-20 object-cover border border-[#DDD5C7] shrink-0 bg-[#F2ECE1]"
                           />
                         )}
                         <div className="flex-1 flex flex-col justify-between">
@@ -494,14 +577,10 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
                         key={post.id || post.slug || `log-${idx}`}
                         className="group flex gap-3.5 border-b border-[#DDD5C7]/60 pb-4 last:border-b-0 min-h-[96px]"
                       >
-                        {post.metadata?.coverUrl && (
-                          <img
-                            src={post.metadata.coverUrl}
+                        {getCoverUrl(post) && (
+                          <BroadsheetThumbnail
+                            src={getCoverUrl(post)}
                             alt=""
-                            onError={(e) => {
-                              (e.currentTarget as HTMLElement).style.display = 'none';
-                            }}
-                            className="w-16 h-20 object-cover border border-[#DDD5C7] shrink-0 bg-[#F2ECE1]"
                           />
                         )}
                         <div className="flex-1 flex flex-col justify-between">

@@ -1,6 +1,6 @@
 import Masthead from '@/components/navigation/Masthead';
 import BroadsheetFeed from '@/components/home/BroadsheetFeed';
-import { createClient } from '@/lib/supabase/server';
+import { createStaticClient } from '@/lib/supabase/server';
 import { Entry } from '@/types/database';
 import Link from 'next/link';
 import { Suspense } from 'react';
@@ -12,7 +12,7 @@ async function getPublishedEntries(): Promise<Entry[]> {
 
   // 1. Fetch published entries from Supabase
   try {
-    const supabase = await createClient();
+    const supabase = createStaticClient();
     const { data, error } = await supabase
       .from('entries')
       .select('*')

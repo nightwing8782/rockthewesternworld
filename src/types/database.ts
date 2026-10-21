@@ -139,6 +139,46 @@ export interface PodcastMetadata {
   rating?: number;
 }
 
+export type MediaSourceType = 'upload' | 'public_domain' | 'review_cover' | 'url_import';
+export type CoverType = 'hero_artwork' | 'artwork' | 'typographic';
+export type TypographicOrnament = 'broadsheet_crest' | 'century_monogram' | 'woodcut_fleuron' | 'minimal_dropcap';
+
+export interface EditorialMedia {
+  id: string;
+  user_id?: string;
+  title: string;
+  description?: string;
+  image_url: string;
+  thumbnail_url: string;
+  storage_path: string;
+  sha256_hash?: string;
+  width?: number;
+  height?: number;
+  file_size_bytes?: number;
+  mime_type: string;
+  source_type: MediaSourceType;
+  creator?: string;
+  source: string;
+  source_url?: string;
+  license: string;
+  attribution_text?: string;
+  category: string;
+  tags: string[];
+  moods: string[];
+  is_favorite: boolean;
+  usage_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EntryMedia {
+  id: string;
+  entry_id: string;
+  media_id: string;
+  role: 'cover' | 'inline' | 'social_card';
+  created_at: string;
+}
+
 export interface EntryMetadata extends BookMetadata, ComicMetadata, MusicMetadata, PodcastMetadata, Partial<DailyLedgerMetadata> {
   desk?: DeskType;
   category?: SubCategory | string;
@@ -146,6 +186,9 @@ export interface EntryMetadata extends BookMetadata, ComicMetadata, MusicMetadat
   excerpt?: string;
   deck?: string;
   tags?: string[];
+  cover_type?: CoverType;
+  editorial_media_id?: string;
+  typographic_ornament?: TypographicOrnament;
   imageCaption?: string;
   imageCredit?: string;
   cover_image_url?: string;

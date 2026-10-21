@@ -301,6 +301,7 @@ export function StudioWorkspace({
           {/* Editorial Photography Accordion */}
           <EditorialPhotographyAccordion
             metadata={metadata}
+            entryId={activeEntry?.id}
             onMetadataChange={(newMeta) => {
               setMetadata((prev) => ({ ...prev, ...newMeta }));
               setSaveStatus('unsaved');

@@ -27,7 +27,7 @@ export default function ArticleHeroImage({
 }: ArticleHeroImageProps) {
   const [hasError, setHasError] = useState(false);
 
-  if (hasError) return null;
+  if (!src || hasError) return null;
 
   const hasAnyCredit = caption || creditTitle || creditCreator || creditSource || imageCredit;
 
@@ -36,6 +36,7 @@ export default function ArticleHeroImage({
       <img
         src={src}
         alt={alt}
+        referrerPolicy="no-referrer"
         onError={() => setHasError(true)}
         className="w-full max-h-[460px] object-cover border border-[#DDD5C7] shadow-xs"
       />
