@@ -8,8 +8,8 @@ interface AnalyticsModalProps {
 }
 
 export default function AnalyticsModal({ isOpen, onClose }: AnalyticsModalProps) {
-  const shareUrl = process.env.NEXT_PUBLIC_UMAMI_SHARE_URL || '';
-  const websiteId = process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID || '';
+  const shareUrl = process.env.NEXT_PUBLIC_UMAMI_SHARE_URL || 'https://cloud.umami.is/share/UzWCXvda5aJhSRrF';
+  const websiteId = process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID || 'dcc3d041-035c-4ae2-b494-0dc3a21df101';
 
   if (!isOpen) return null;
 

@@ -28,6 +28,7 @@ export default function Masthead({ currentCategory, activeDesk }: MastheadProps)
           <div className="flex items-center space-x-5">
             <Link
               href="/trophy-room"
+              data-umami-event="Navigation: Trophy Room"
               className="flex items-center gap-1.5 text-[#44403C] hover:text-[#B45309] transition-colors tracking-[0.15em] uppercase text-xs font-bold"
               title="The Trophy Room (Reading Suite)"
             >
@@ -36,6 +37,7 @@ export default function Masthead({ currentCategory, activeDesk }: MastheadProps)
 
             <Link
               href="/journal"
+              data-umami-event="Navigation: Studio"
               className="flex items-center gap-1.5 text-[#44403C] hover:text-[#1E40AF] transition-colors tracking-[0.15em] uppercase text-xs font-bold"
               title="Private Studio"
             >
@@ -106,6 +108,8 @@ export default function Masthead({ currentCategory, activeDesk }: MastheadProps)
                         <Link
                           key={cat}
                           href={`/?category=${encodeURIComponent(cat)}`}
+                          data-umami-event="Desk Category Click"
+                          data-umami-event-category={cat}
                           className={`text-[13px] normal-case font-serif tracking-normal py-1.5 px-2.5 rounded hover:bg-[#F2ECE1] hover:text-[#1E40AF] transition-colors ${
                             currentCategory === cat ? 'text-[#1E40AF] font-bold bg-[#F2ECE1]' : 'text-[#242120]'
                           }`}

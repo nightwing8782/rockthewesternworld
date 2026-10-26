@@ -322,7 +322,12 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
                   </div>
 
                   {/* Headline */}
-                  <Link href={`/${leadFeature.slug}`} className="group">
+                  <Link
+                    href={`/${leadFeature.slug}`}
+                    data-umami-event="Story Click: Lead Feature"
+                    data-umami-event-slug={leadFeature.slug}
+                    className="group"
+                  >
                     <h2 className="font-display font-bold text-2xl sm:text-4xl lg:text-[42px] text-[#1C1917] leading-[1.15] tracking-tight mb-4 group-hover:text-[#1E40AF] transition-colors">
                       {leadFeature.title}
                     </h2>
@@ -339,6 +344,8 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
                     getCoverUrl(leadFeature) && !leadImageError && (
                       <Link
                         href={`/${leadFeature.slug}`}
+                        data-umami-event="Story Click: Lead Feature"
+                        data-umami-event-slug={leadFeature.slug}
                         className="block mb-5 overflow-hidden border border-[#DDD5C7] bg-[#F2ECE1] group w-full aspect-[16/9] max-h-[360px]"
                       >
                         <img
