@@ -15,12 +15,12 @@ async function getPublishedEntries(): Promise<Entry[]> {
     const supabase = createStaticClient();
     const { data, error } = await supabase
       .from('entries')
-      .select('*')
+      .select('id, user_id, entry_type, status, title, slug, metadata, published_at, created_at, updated_at')
       .eq('status', 'published')
       .order('published_at', { ascending: false });
 
     if (!error && data) {
-      data.forEach((item) => {
+      data.forEach((item: any) => {
         const s = item.slug || item.id;
         if (s) map.set(s, item as Entry);
       });
@@ -31,12 +31,30 @@ async function getPublishedEntries(): Promise<Entry[]> {
   try {
     const archivePath = path.join(process.cwd(), 'public', 'archive', 'imported-entries.json');
     if (fs.existsSync(archivePath)) {
-      const parsed: Entry[] = JSON.parse(fs.readFileSync(archivePath, 'utf8'));
+      const parsed: any[] = JSON.parse(fs.readFileSync(archivePath, 'utf8'));
       parsed.forEach((e, idx) => {
         const s = e.slug || e.id || `wp-${idx}`;
         const isPublished = e.status ? e.status === 'published' : true;
         if (s && !map.has(s) && isPublished) {
-          map.set(s, { ...e, id: e.id || s });
+          const excerpt =
+            e.metadata?.excerpt ||
+            e.metadata?.deck ||
+            (e.body_html ? e.body_html.replace(/<[^>]+>/g, ' ').slice(0, 160).trim() : '');
+
+          map.set(s, {
+            id: e.id || s,
+            title: e.title,
+            slug: s,
+            entry_type: e.entry_type || 'essay',
+            status: e.status || 'published',
+            metadata: {
+              ...(e.metadata || {}),
+              excerpt,
+            },
+            published_at: e.published_at,
+            created_at: e.created_at,
+            updated_at: e.updated_at,
+          } as Entry);
         }
       });
     }

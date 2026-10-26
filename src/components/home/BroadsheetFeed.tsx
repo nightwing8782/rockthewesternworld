@@ -40,11 +40,15 @@ function BroadsheetThumbnail({
     <img
       src={src}
       alt={alt}
+      width={64}
+      height={80}
+      loading="lazy"
+      decoding="async"
       referrerPolicy="no-referrer"
       onError={() => setHasError(true)}
       onLoad={() => setIsLoaded(true)}
-      className={`w-16 h-20 object-cover border border-[#DDD5C7] shrink-0 bg-[#F2ECE1] ${
-        !isLoaded ? 'hidden' : ''
+      className={`w-16 h-20 aspect-[4/5] object-cover border border-[#DDD5C7] shrink-0 bg-[#F2ECE1] transition-opacity duration-200 ${
+        !isLoaded ? 'opacity-0' : 'opacity-100'
       }`}
     />
   );
@@ -64,17 +68,21 @@ function BroadsheetCardImage({
 
   return (
     <div
-      className={`mb-3.5 overflow-hidden border border-[#DDD5C7] bg-[#F2ECE1] ${
-        !isLoaded ? 'hidden' : ''
+      className={`mb-3.5 overflow-hidden border border-[#DDD5C7] bg-[#F2ECE1] w-full aspect-[16/9] transition-opacity duration-200 ${
+        !isLoaded ? 'opacity-60' : 'opacity-100'
       }`}
     >
       <img
         src={src}
         alt={alt}
+        width={400}
+        height={225}
+        loading="lazy"
+        decoding="async"
         referrerPolicy="no-referrer"
         onError={() => setHasError(true)}
         onLoad={() => setIsLoaded(true)}
-        className="w-full h-44 object-cover group-hover:scale-102 transition-transform duration-300"
+        className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
       />
     </div>
   );
@@ -92,7 +100,7 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
       const supabase = createClient();
       supabase
         .from('entries')
-        .select('*')
+        .select('id, user_id, entry_type, status, title, slug, metadata, published_at, created_at, updated_at')
         .eq('status', 'published')
         .order('published_at', { ascending: false })
         .then(({ data, error }) => {
@@ -331,14 +339,18 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
                     getCoverUrl(leadFeature) && !leadImageError && (
                       <Link
                         href={`/${leadFeature.slug}`}
-                        className="block mb-5 overflow-hidden border border-[#DDD5C7] bg-[#F2ECE1] group"
+                        className="block mb-5 overflow-hidden border border-[#DDD5C7] bg-[#F2ECE1] group w-full aspect-[16/9] max-h-[360px]"
                       >
                         <img
                           src={getCoverUrl(leadFeature)}
                           alt={leadFeature.metadata?.credit_title || leadFeature.title || ''}
+                          width={800}
+                          height={450}
+                          fetchPriority="high"
+                          decoding="async"
                           referrerPolicy="no-referrer"
                           onError={() => setLeadImageError(true)}
-                          className="w-full max-h-[360px] object-cover group-hover:scale-[1.01] transition-transform duration-300"
+                          className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-300"
                         />
                       </Link>
                     )

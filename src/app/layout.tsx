@@ -60,6 +60,10 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Bangers&family=Cinzel:wght@500;600;700;800;900&family=Comic+Neue:ital,wght@0,700;1,700&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=Space+Grotesk:wght@600;700;800&display=swap"
+        />
       </head>
       <body className="min-h-full flex flex-col font-serif bg-[#FAF8F5] text-[#242120] antialiased [text-rendering:optimizeLegibility]">
         <script
