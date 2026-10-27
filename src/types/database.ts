@@ -179,6 +179,40 @@ export interface EntryMedia {
   created_at: string;
 }
 
+export type RelationshipType =
+  | 'builds_upon'
+  | 'referenced_by'
+  | 'contradicts'
+  | 'continues_from'
+  | 'companion';
+
+export type IdeaStage =
+  | 'reflection'
+  | 'reading_note'
+  | 'draft'
+  | 'editorial';
+
+export interface RelatedWorkLink {
+  id: string;
+  title: string;
+  slug: string;
+  relationship: RelationshipType;
+  entry_type?: EntryType;
+}
+
+export interface IdeaLineage {
+  stage: IdeaStage;
+  parent_id?: string;
+  parent_title?: string;
+  evolution_note?: string;
+}
+
+export interface ImageFocalPoint {
+  x: number; // 0 to 100 percentage
+  y: number; // 0 to 100 percentage
+  label?: string; // e.g. "top", "center", "bottom"
+}
+
 export interface EntryMetadata extends BookMetadata, ComicMetadata, MusicMetadata, PodcastMetadata, Partial<DailyLedgerMetadata> {
   desk?: DeskType;
   category?: SubCategory | string;
@@ -186,6 +220,15 @@ export interface EntryMetadata extends BookMetadata, ComicMetadata, MusicMetadat
   excerpt?: string;
   deck?: string;
   tags?: string[];
+  themes?: string[];
+  related_works?: RelatedWorkLink[];
+  idea_lineage?: IdeaLineage;
+  focal_point?: ImageFocalPoint;
+  alt_text?: string;
+  trophy_room_item_id?: string;
+  trophy_room_item_title?: string;
+  used_in_essay_id?: string;
+  used_in_essay_title?: string;
   cover_type?: CoverType;
   editorial_media_id?: string;
   typographic_ornament?: TypographicOrnament;

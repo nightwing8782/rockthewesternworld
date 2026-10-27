@@ -40,7 +40,7 @@ import ArticleHeroImage from '@/components/article/ArticleHeroImage';
 import TypographicOrnamentView from '@/features/studio/components/media/TypographicOrnaments';
 import CommentsSection from '@/components/article/CommentsSection';
 import Link from 'next/link';
-import { ArrowLeft, Star, Book, BookOpen, Music, Radio, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Star, Book, BookOpen, Music, Radio, ChevronRight, GitFork, Compass, Bookmark, Award, ArrowUpRight, Tag } from 'lucide-react';
 import type { Metadata } from 'next';
 import fs from 'fs';
 import path from 'path';
@@ -458,6 +458,127 @@ export default async function BlogPostPage({ params }: PageProps) {
           className="prose-broadsheet"
           dangerouslySetInnerHTML={{ __html: sanitizeHtml(body_html) }}
         />
+
+        {/* Intellectual Archive & Cross-References */}
+        {Boolean(
+          (metadata.themes && metadata.themes.length > 0) ||
+          (metadata.related_works && metadata.related_works.length > 0) ||
+          metadata.idea_lineage ||
+          metadata.trophy_room_item_title
+        ) && (
+          <aside className="my-10 p-6 bg-[#F5EFE6] border border-[#DDD5C7] rounded-sm font-serif shadow-2xs">
+            <div className="flex items-center gap-2 pb-3 border-b border-[#DDD5C7] text-xs font-display font-bold uppercase tracking-[0.2em] text-[#1E40AF]">
+              <Compass className="w-4 h-4 text-[#B45309]" />
+              <span>Intellectual Lineage & Archival Cross-References</span>
+            </div>
+
+            {/* Themes */}
+            {metadata.themes && metadata.themes.length > 0 && (
+              <div className="mt-4">
+                <span className="text-[11px] font-display font-bold uppercase tracking-wider text-[#66615C] block mb-2">
+                  Perennial Themes
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {metadata.themes.map((theme: string) => (
+                    <span
+                      key={theme}
+                      className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-[#FAF8F5] border border-[#DDD5C7] rounded-full text-xs font-serif text-[#242120]"
+                    >
+                      <Tag className="w-3 h-3 text-[#B45309]" />
+                      <span>{theme}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Idea Lineage */}
+            {metadata.idea_lineage && (
+              <div className="mt-4 pt-3 border-t border-[#E8DFD1] text-xs text-[#44403C] space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-display font-bold uppercase tracking-wider text-[#66615C]">
+                    Lineage Stage:
+                  </span>
+                  <span className="px-2 py-0.5 bg-[#FAF8F5] border border-[#DDD5C7] rounded text-[11px] font-display font-semibold uppercase tracking-wider text-[#1E40AF]">
+                    {metadata.idea_lineage.stage === 'editorial'
+                      ? 'Published Editorial'
+                      : metadata.idea_lineage.stage === 'draft'
+                      ? 'Essay Draft'
+                      : metadata.idea_lineage.stage === 'reading_note'
+                      ? 'Reading / Cultural Log'
+                      : 'Personal Reflection'}
+                  </span>
+                </div>
+                {metadata.idea_lineage.parent_title && (
+                  <p className="text-xs italic text-[#44403C]">
+                    Evolved from:{' '}
+                    <span className="font-medium text-[#1C1917]">{metadata.idea_lineage.parent_title}</span>
+                    {metadata.idea_lineage.evolution_note && (
+                      <span className="block mt-0.5 not-italic text-[#66615C]">
+                        {metadata.idea_lineage.evolution_note}
+                      </span>
+                    )}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Related Works / Citation Graph */}
+            {metadata.related_works && metadata.related_works.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-[#E8DFD1]">
+                <span className="text-[11px] font-display font-bold uppercase tracking-wider text-[#66615C] block mb-2">
+                  Archival Citations & Companion Inquiries
+                </span>
+                <div className="space-y-2">
+                  {metadata.related_works.map((link) => {
+                    const labelMap: Record<string, string> = {
+                      builds_upon: 'Builds upon',
+                      referenced_by: 'Referenced by',
+                      contradicts: 'Contradicts / Evolves beyond',
+                      continues_from: 'Continues discussion from',
+                      companion: 'Companion piece to',
+                    };
+                    const relLabel = labelMap[link.relationship] || link.relationship.replace('_', ' ');
+                    return (
+                      <div
+                        key={link.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 p-2 bg-[#FAF8F5] border border-[#DDD5C7] rounded text-xs"
+                      >
+                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                          <GitFork className="w-3.5 h-3.5 text-[#B45309] shrink-0" />
+                          <span className="font-display font-semibold text-[#66615C] uppercase text-[10px] tracking-wider shrink-0">
+                            {relLabel}:
+                          </span>
+                          {link.slug ? (
+                            <Link
+                              href={`/${link.slug}`}
+                              className="font-medium text-[#1E40AF] hover:underline truncate"
+                            >
+                              {link.title}
+                            </Link>
+                          ) : (
+                            <span className="font-medium text-[#1C1917] truncate">{link.title}</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Trophy Room Item */}
+            {metadata.trophy_room_item_title && (
+              <div className="mt-4 pt-3 border-t border-[#E8DFD1] flex items-center gap-2 text-xs">
+                <Award className="w-3.5 h-3.5 text-[#B45309]" />
+                <span className="font-display uppercase text-[10px] tracking-wider text-[#66615C]">
+                  Connected Archive Artifact:
+                </span>
+                <span className="font-medium text-[#1C1917]">{metadata.trophy_room_item_title}</span>
+              </div>
+            )}
+          </aside>
+        )}
 
         {/* Concluding Flourish */}
         <div className="mt-12 pt-6 border-t border-[#DDD5C7] text-center">

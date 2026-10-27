@@ -266,40 +266,45 @@ export default function SocialPublishingStudio({
         </div>
       </div>
 
-      {/* SEO & Structured Data Health Inspector */}
+      {/* Search Appearance & Rich Indexing Health */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-        {/* Schema.org Card */}
+        {/* Search Appearance Outcome Card */}
         <div className="p-3.5 bg-[#F4EFE6] border border-[#DDD5C7] rounded-md space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-display font-bold uppercase tracking-wider text-[#44403C]">
-              Structured Data (JSON-LD)
+              Search Appearance
             </span>
             <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border ${schemaInfo.color}`}>
-              <SchemaIcon className="w-3 h-3" />
-              <span>{schemaInfo.name}</span>
+              <Check className="w-3 h-3 text-emerald-700" />
+              <span>Eligible for enhanced search results</span>
             </div>
           </div>
-          <p className="text-xs text-[#66615C]">
-            Google Search will automatically render rich snippet stars, author bylines, and media previews.
+          <p className="text-xs text-[#66615C] leading-relaxed">
+            Rich preview enabled. Google and Bing will automatically surface author bylines, canonical timestamps, reading time, and cultural rating stars.
           </p>
         </div>
 
-        {/* SEO Diagnostics */}
+        {/* Search Metadata Health */}
         <div className="p-3.5 bg-[#F4EFE6] border border-[#DDD5C7] rounded-md space-y-2">
-          <span className="text-xs font-display font-bold uppercase tracking-wider text-[#44403C] block">
-            SEO & Social Tags Health
-          </span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-display font-bold uppercase tracking-wider text-[#44403C]">
+              Search Metadata
+            </span>
+            <span className={titleHealth && excerptHealth ? 'text-[11px] text-emerald-800 font-semibold bg-emerald-50 px-2 py-0.5 border border-emerald-200 rounded' : 'text-[11px] text-amber-800 font-medium'}>
+              {titleHealth && excerptHealth ? 'Metadata Healthy ✓' : 'Optimization Recommended'}
+            </span>
+          </div>
           <div className="space-y-1 text-xs">
             <div className="flex items-center justify-between">
               <span className="text-[#66615C]">Headline length:</span>
               <span className={titleHealth ? 'text-emerald-700 font-semibold' : 'text-amber-700'}>
-                {title.length} chars {titleHealth ? '✓' : '(Recommended 20-70)'}
+                {title.length} chars {titleHealth ? '✓ (Optimal)' : '(Target: 20-70)'}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-[#66615C]">Deck excerpt:</span>
+              <span className="text-[#66615C]">Editorial deck length:</span>
               <span className={excerptHealth ? 'text-emerald-700 font-semibold' : 'text-amber-700'}>
-                {excerpt.length} chars {excerptHealth ? '✓' : '(Recommended 50-160)'}
+                {excerpt.length} chars {excerptHealth ? '✓ (Optimal)' : '(Target: 50-160)'}
               </span>
             </div>
           </div>

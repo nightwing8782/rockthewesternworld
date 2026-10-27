@@ -26,6 +26,7 @@ import { StudioSidebar } from './components/StudioSidebar';
 import TipTapEditor from './components/TipTapEditor';
 import ReviewCraftPanel from './components/ReviewCraftPanel';
 import EditorialPhotographyAccordion from './components/EditorialPhotographyAccordion';
+import IntellectualArchiveStudio from './components/archive/IntellectualArchiveStudio';
 import SocialPublishingStudio from './components/SocialPublishingStudio';
 import PromoteModal from './components/modals/PromoteModal';
 import DispatchModal from './components/modals/DispatchModal';
@@ -292,6 +293,8 @@ export function StudioWorkspace({
           <TipTapEditor
             initialContent={contentHtml}
             placeholder="Write without restraint for the broadsheet..."
+            createdAt={activeEntry?.created_at}
+            entryType={entryType}
             onChange={({ html }) => {
               setContentHtml(html);
               setSaveStatus('unsaved');
@@ -302,6 +305,20 @@ export function StudioWorkspace({
           <EditorialPhotographyAccordion
             metadata={metadata}
             entryId={activeEntry?.id}
+            onMetadataChange={(newMeta) => {
+              setMetadata((prev) => ({ ...prev, ...newMeta }));
+              setSaveStatus('unsaved');
+            }}
+          />
+
+          {/* Intellectual Archive & Idea Lineage Studio (Phases 5 & 6) */}
+          <IntellectualArchiveStudio
+            activeEntry={activeEntry}
+            title={title}
+            entryType={entryType}
+            metadata={metadata}
+            draftEntries={draftEntries}
+            publishedEntries={publishedEntries}
             onMetadataChange={(newMeta) => {
               setMetadata((prev) => ({ ...prev, ...newMeta }));
               setSaveStatus('unsaved');

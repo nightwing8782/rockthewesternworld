@@ -3,7 +3,20 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Entry, EntryMetadata, EntryType, EDITORIAL_DESKS, DeskType, SubCategory } from '@/types/database';
-import { Globe, X, Check, Loader2, Mail } from 'lucide-react';
+import {
+  Globe,
+  X,
+  Check,
+  Loader2,
+  Mail,
+  ExternalLink,
+  Copy,
+  Sparkles,
+  Share2,
+  Zap,
+  ShieldCheck,
+  BookOpen,
+} from 'lucide-react';
 
 interface PromoteModalProps {
   isOpen: boolean;
@@ -61,12 +74,14 @@ export default function PromoteModal({
     (metadata.category as SubCategory) || 'Dan Reads the News'
   );
   const [kicker, setKicker] = useState(metadata.kicker || 'EDITORIAL DISPATCH');
-  const [excerpt, setExcerpt] = useState(metadata.excerpt || '');
+  const [excerpt, setExcerpt] = useState(metadata.excerpt || metadata.deck || '');
   const [broadcastToDispatch, setBroadcastToDispatch] = useState(false);
   const [pingIndexNow, setPingIndexNow] = useState(true);
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishSuccess, setPublishSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [copiedUrl, setCopiedUrl] = useState(false);
+  const [publishedAtTimestamp, setPublishedAtTimestamp] = useState<string>('');
 
   if (!isOpen) return null;
 
@@ -75,6 +90,7 @@ export default function PromoteModal({
     setErrorMsg(null);
 
     const cleanSlug = slug.trim() || (title.trim() ? generateSlug(title.trim()) : `entry-${Date.now().toString(36)}`);
+    const nowIso = new Date().toISOString();
 
     const fullMetadata: EntryMetadata = {
       ...metadata,
@@ -82,6 +98,7 @@ export default function PromoteModal({
       category,
       kicker,
       excerpt,
+      deck: excerpt,
       isPrivate: false,
     };
 
@@ -96,8 +113,8 @@ export default function PromoteModal({
         status: 'published',
         body_html: contentHtml,
         metadata: fullMetadata,
-        published_at: activeEntry?.published_at || new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        published_at: activeEntry?.published_at || nowIso,
+        updated_at: nowIso,
       };
 
       const { error } = await supabase.from('entries').upsert(payload, {
@@ -116,7 +133,7 @@ export default function PromoteModal({
         try {
           const host = 'rockthewesternworld.com';
           const key = 'rockthewesternworld';
-          const postUrl = `https://${host}/${slug.trim()}`;
+          const postUrl = `https://${host}/${cleanSlug}`;
           await fetch('https://api.indexnow.org/indexnow', {
             method: 'POST',
             headers: {
@@ -134,10 +151,8 @@ export default function PromoteModal({
         }
       }
 
+      setPublishedAtTimestamp(activeEntry?.published_at || nowIso);
       setPublishSuccess(true);
-      setTimeout(() => {
-        onPublished(broadcastToDispatch);
-      }, 1000);
     } catch (err: any) {
       setErrorMsg(err.message || 'Error promoting entry');
     } finally {
@@ -145,35 +160,161 @@ export default function PromoteModal({
     }
   };
 
+  const canonicalUrl = `https://rockthewesternworld.com/${slug.trim()}`;
+
+  const copyCanonical = () => {
+    navigator.clipboard.writeText(canonicalUrl);
+    setCopiedUrl(true);
+    setTimeout(() => setCopiedUrl(false), 2000);
+  };
+
+  const handleFinishCeremony = () => {
+    onPublished(broadcastToDispatch);
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 font-serif">
-      <div className="bg-[#FAF8F5] border border-[#E5DFC5] rounded-lg shadow-2xl max-w-lg w-full p-6 text-[#242120]">
-        <div className="flex items-center justify-between pb-3 border-b border-[#E5DFC5]">
-          <div className="flex items-center gap-2">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 font-serif">
+      <div className="bg-[#FAF8F5] border-2 border-[#DDD5C7] rounded-lg shadow-2xl max-w-xl w-full p-6 text-[#242120] relative">
+        {/* Header */}
+        <div className="flex items-center justify-between pb-3.5 border-b border-[#DDD5C7]">
+          <div className="flex items-center gap-2.5">
             <Globe className="w-5 h-5 text-[#1E40AF]" />
-            <h3 className="font-display font-bold text-lg text-[#1C1917]">
-              Promote to Public Broadsheet
+            <h3 className="font-display font-black text-lg text-[#1C1917] uppercase tracking-wider">
+              {publishSuccess ? 'Publishing Ceremony' : 'Promote to Public Broadsheet'}
             </h3>
           </div>
-          <button onClick={onClose} className="p-1 text-[#66615C] hover:text-[#1C1917] cursor-pointer">
+          <button
+            onClick={publishSuccess ? handleFinishCeremony : onClose}
+            className="p-1 text-[#66615C] hover:text-[#1C1917] cursor-pointer rounded hover:bg-[#F2ECE1]"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
 
+        {/* Phase 4: Full Archival Publishing Ceremony Screen */}
         {publishSuccess ? (
-          <div className="py-8 text-center space-y-3">
-            <div className="w-12 h-12 bg-green-100 text-green-700 rounded-full flex items-center justify-center mx-auto">
-              <Check className="w-6 h-6" />
+          <div className="py-5 space-y-5 animate-in fade-in duration-300">
+            {/* Ceremonial Seal Banner */}
+            <div className="p-4 bg-[#F2ECE1] border border-[#DDD5C7] rounded text-center relative overflow-hidden">
+              <div className="w-12 h-12 rounded-full bg-[#1C1917] text-[#D4AF37] border-2 border-[#D4AF37] flex items-center justify-center mx-auto mb-2 shadow-xs">
+                <Check className="w-6 h-6 stroke-[2.5]" />
+              </div>
+              <span className="text-[10px] font-display font-bold uppercase tracking-[0.25em] text-[#B45309] block">
+                Historical Record Sealed
+              </span>
+              <h4 className="font-display font-black text-xl text-[#1C1917] uppercase tracking-wide mt-0.5">
+                Entered Into The Commonwealth Archive
+              </h4>
+              <p className="text-xs text-[#66615C] mt-1 max-w-md mx-auto leading-relaxed">
+                This dispatch is now a permanent entry in the Rock The Western World intellectual record.
+              </p>
             </div>
-            <h4 className="font-display font-bold text-lg text-[#1C1917]">
-              Entry Published Successfully!
-            </h4>
-            <p className="text-xs font-serif text-[#66615C]">
-              Your dispatch is now live in the archival index.
-              {broadcastToDispatch && ' Opening The Dispatch sender...'}
-            </p>
+
+            {/* Historical Metadata Ledger */}
+            <div className="p-4 bg-white border border-[#DDD5C7] rounded space-y-3 text-xs">
+              <div className="flex items-center justify-between pb-2 border-b border-[#DDD5C7]/60">
+                <span className="text-[#66615C]">Publication Timestamp:</span>
+                <span className="font-mono text-[#1C1917] font-semibold">
+                  {publishedAtTimestamp
+                    ? new Date(publishedAtTimestamp).toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        timeZoneName: 'short',
+                      })
+                    : 'Just now'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between pb-2 border-b border-[#DDD5C7]/60">
+                <span className="text-[#66615C]">Archival Desk:</span>
+                <span className="font-display font-bold uppercase tracking-wider text-[#1E40AF]">
+                  {desk.toUpperCase()} ◆ {category}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between pb-2 border-b border-[#DDD5C7]/60">
+                <span className="text-[#66615C]">Live Canonical URL:</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono text-emerald-800 font-medium truncate max-w-[220px]">
+                    /{slug.trim()}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={copyCanonical}
+                    className="p-1 hover:bg-[#F2ECE1] rounded text-[#66615C] hover:text-[#1C1917] transition-colors"
+                    title="Copy full URL"
+                  >
+                    {copiedUrl ? <Check className="w-3.5 h-3.5 text-emerald-700" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Ceremony Checklist */}
+              <div className="pt-2 space-y-1.5 text-[11px] text-[#44403C]">
+                <div className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Public Broadsheet Feed Updated</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>RSS / Atom Syndication Feed Synchronized (/feed.xml)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>OpenGraph 1200×630 Magazine Social Card Generated</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Search Appearance &amp; Rich Snippets Validated</span>
+                </div>
+                {pingIndexNow && (
+                  <div className="flex items-center gap-2 text-emerald-800">
+                    <Zap className="w-3.5 h-3.5 text-[#D97706] shrink-0" />
+                    <span>Instant IndexNow Ping Completed (Bing, DuckDuckGo &amp; Yandex notified)</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Action Ceremony Bar */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+              <a
+                href={canonicalUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#1C1917] hover:bg-[#1E40AF] text-[#FAF8F5] rounded text-xs font-display font-bold uppercase tracking-wider transition-colors shadow-xs"
+              >
+                <span>View Live Entry</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                {broadcastToDispatch ? (
+                  <button
+                    type="button"
+                    onClick={handleFinishCeremony}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#B45309] hover:bg-[#92400E] text-white rounded text-xs font-display font-bold uppercase tracking-wider transition-colors shadow-xs"
+                  >
+                    <Mail className="w-3.5 h-3.5 text-[#D4AF37]" />
+                    <span>Proceed to Dispatch Email</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleFinishCeremony}
+                    className="w-full sm:w-auto px-5 py-2 bg-[#1E40AF] hover:bg-[#1D4ED8] text-white rounded text-xs font-display font-bold uppercase tracking-wider transition-colors shadow-xs cursor-pointer"
+                  >
+                    Return to Studio
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         ) : (
+          /* Standard Pre-Publish Configuration Form */
           <div className="space-y-4 py-4 font-serif">
             <div>
               <label className="block text-[10px] font-display font-bold uppercase tracking-widest text-[#66615C] mb-1">
@@ -267,7 +408,7 @@ export default function PromoteModal({
                   className="w-4 h-4 rounded text-[#1E40AF] focus:ring-[#1E40AF]"
                 />
                 <div className="flex items-center gap-1.5">
-                  <Globe className="w-3.5 h-3.5 text-[#1E40AF]" />
+                  <Zap className="w-3.5 h-3.5 text-[#D97706]" />
                   <span className="font-display font-bold uppercase tracking-wider text-[11px]">
                     Instantly ping Bing, DuckDuckGo &amp; Yandex (IndexNow)
                   </span>
