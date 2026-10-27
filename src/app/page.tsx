@@ -15,14 +15,32 @@ async function getPublishedEntries(): Promise<Entry[]> {
     const supabase = createStaticClient();
     const { data, error } = await supabase
       .from('entries')
-      .select('id, user_id, entry_type, status, title, slug, metadata, published_at, created_at, updated_at')
+      .select('id, user_id, entry_type, status, title, slug, metadata, published_at, created_at, updated_at, body_html')
       .eq('status', 'published')
       .order('published_at', { ascending: false });
 
     if (!error && data) {
       data.forEach((item: any) => {
         const s = item.slug || item.id;
-        if (s) map.set(s, item as Entry);
+        if (s) {
+          let excerpt = item.metadata?.excerpt || item.metadata?.deck || '';
+          if (item.body_html) {
+            const cleanText = item.body_html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+            // If excerpt is absent or just a short 1-line deck, provide a rich 280-char opening paragraph
+            if (!excerpt || excerpt.length < 120 || excerpt === item.metadata?.deck) {
+              excerpt = cleanText.slice(0, 280).trim();
+              if (cleanText.length > 280) excerpt += '…';
+            }
+          }
+          const { body_html, ...entryWithoutBody } = item;
+          map.set(s, {
+            ...entryWithoutBody,
+            metadata: {
+              ...(item.metadata || {}),
+              excerpt,
+            },
+          } as Entry);
+        }
       });
     }
   } catch (err) {}

@@ -100,15 +100,32 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
       const supabase = createClient();
       supabase
         .from('entries')
-        .select('id, user_id, entry_type, status, title, slug, metadata, published_at, created_at, updated_at')
+        .select('id, user_id, entry_type, status, title, slug, metadata, published_at, created_at, updated_at, body_html')
         .eq('status', 'published')
         .order('published_at', { ascending: false })
         .then(({ data, error }) => {
           if (!error && data && data.length > 0) {
             const map = new Map<string, Entry>();
-            data.forEach((item) => {
+            data.forEach((item: any) => {
               const s = item.slug || item.id;
-              if (s) map.set(s, item as Entry);
+              if (s) {
+                let excerpt = item.metadata?.excerpt || item.metadata?.deck || '';
+                if (item.body_html) {
+                  const cleanText = item.body_html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+                  if (!excerpt || excerpt.length < 120 || excerpt === item.metadata?.deck) {
+                    excerpt = cleanText.slice(0, 280).trim();
+                    if (cleanText.length > 280) excerpt += '…';
+                  }
+                }
+                const { body_html, ...entryWithoutBody } = item;
+                map.set(s, {
+                  ...entryWithoutBody,
+                  metadata: {
+                    ...(item.metadata || {}),
+                    excerpt,
+                  },
+                } as Entry);
+              }
             });
             initialEntries.forEach((item) => {
               const s = item.slug || item.id;
@@ -304,11 +321,7 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
           {leadFeature ? (
             <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 pb-10 border-b border-[#DDD5C7]">
               {/* Lead 2/3 Column */}
-              <article
-                className={`lg:col-span-8 flex flex-col ${
-                  getCoverUrl(leadFeature) && !leadImageError ? 'justify-between' : 'justify-start'
-                } pr-0 lg:pr-6 lg:border-r border-[#DDD5C7]`}
-              >
+              <article className="lg:col-span-8 flex flex-col justify-start pr-0 lg:pr-6 lg:border-r border-[#DDD5C7]">
                 <div>
                   {/* Section Kicker */}
                   <div className="flex items-center gap-2 mb-3">
@@ -326,11 +339,16 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
                     href={`/${leadFeature.slug}`}
                     data-umami-event="Story Click: Lead Feature"
                     data-umami-event-slug={leadFeature.slug}
-                    className="group"
+                    className="group block mb-4"
                   >
-                    <h2 className="font-display font-bold text-2xl sm:text-4xl lg:text-[42px] text-[#1C1917] leading-[1.15] tracking-tight mb-4 group-hover:text-[#1E40AF] transition-colors">
+                    <h2 className="font-display font-bold text-2xl sm:text-4xl lg:text-[42px] text-[#1C1917] leading-[1.15] tracking-tight group-hover:text-[#1E40AF] transition-colors">
                       {leadFeature.title}
                     </h2>
+                    {leadFeature.metadata?.deck && leadFeature.metadata.deck !== leadFeature.metadata.excerpt && (
+                      <p className="font-serif italic text-base sm:text-lg text-[#44403C] mt-2.5 leading-snug">
+                        {leadFeature.metadata.deck}
+                      </p>
+                    )}
                   </Link>
 
                   {/* Lead Hero Image or Typographic Ornament */}
@@ -364,17 +382,16 @@ export default function BroadsheetFeed({ initialEntries }: BroadsheetFeedProps) 
                   )}
 
                   {/* Excerpt with Sturdy Broadsheet Dropcap */}
-                  <div className="text-[#242120] font-reading text-lg sm:text-[19px] leading-[1.75] mb-6">
-                    <p className="deco-dropcap mb-4">
+                  <div className="text-[#242120] font-reading text-lg sm:text-[19px] leading-[1.75] mb-4">
+                    <p className="deco-dropcap mb-2">
                       {leadFeature.metadata?.excerpt ||
-                        leadFeature.body_html?.replace(/<[^>]+>/g, ' ').substring(0, 300) ||
                         'Deliberate commentary and structured reflection from the archive.'}
                     </p>
                   </div>
                 </div>
 
                 {/* Read Entry CTA Bar */}
-                <div className="mt-4 pt-4 border-t border-[#DDD5C7]/60 flex items-center justify-between text-xs font-serif text-[#66615C]">
+                <div className="mt-2 pt-3.5 border-t border-[#DDD5C7]/60 flex items-center justify-between text-xs font-serif text-[#66615C]">
                   <span>
                     {leadFeature.published_at
                       ? new Date(leadFeature.published_at).toLocaleDateString('en-US', {
